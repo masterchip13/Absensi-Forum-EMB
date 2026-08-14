@@ -1249,8 +1249,8 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                               ''
                             )}
                           </td>
-                          <td className="border border-black p-1 align-middle text-[8.5px] font-bold text-slate-800">
-                            {row ? selectedSekolah?.kepalaSekolah : ''}
+                          <td className="border border-black p-1 align-middle text-[8.5px]">
+                            {/* Dikosongkan agar bersih atau untuk paraf manual */}
                           </td>
                         </tr>
                       ))}
