@@ -144,6 +144,7 @@ export default function App() {
       <Navbar
         currentUser={currentUser}
         sekolahList={displayedSekolahList}
+        jadwalList={jadwalList}
         selectedSekolahId={selectedSekolahId}
         onSelectSekolah={handleSelectSekolah}
         activeTahunAjaran={activeTahunAjaran}

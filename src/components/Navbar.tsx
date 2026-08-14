@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Sekolah } from '../types';
+import { User, Sekolah, JadwalLatihan } from '../types';
 import { TutWuriLogo, MarchingBandLogo } from './Logos';
+import { NotificationBell } from './NotificationBell';
 import {
   LogOut,
   QrCode,
@@ -24,6 +25,7 @@ import { FirebaseSync, SyncStatus } from '../data/firebaseSync';
 interface NavbarProps {
   currentUser: User | null;
   sekolahList: Sekolah[];
+  jadwalList?: JadwalLatihan[];
   selectedSekolahId: string;
   onSelectSekolah: (id: string) => void;
   activeTahunAjaran?: string;
@@ -40,6 +42,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   sekolahList,
+  jadwalList = [],
   selectedSekolahId,
   onSelectSekolah,
   activeTahunAjaran = '2024/2025',
@@ -262,7 +265,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               )}
 
-              {/* 4. User Profile & Settings Dropdown Menu */}
+              {/* 4. Notification Bell (< 1 Hour Training Reminder) */}
+              <NotificationBell
+                currentUser={currentUser}
+                jadwalList={jadwalList}
+                sekolahList={sekolahList}
+                onOpenQrScanner={onOpenQrScanner}
+                onSelectSekolah={onSelectSekolah}
+              />
+
+              {/* 5. User Profile & Settings Dropdown Menu */}
               <div className="relative" ref={userRef}>
                 <button
                   type="button"

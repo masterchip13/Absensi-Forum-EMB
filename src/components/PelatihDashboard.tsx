@@ -10,6 +10,7 @@ import { DokumentasiGaleri } from './DokumentasiGaleri';
 import { StatistikKehadiran } from './StatistikKehadiran';
 import { EventManager } from './EventManager';
 import { PenilaianAnggota } from './PenilaianAnggota';
+import { TrainingReminderBanner } from './TrainingReminderBanner';
 import { StorageService } from '../data/storage';
 import { School, Layers, Clock, Camera, Users, FileText, QrCode, Bell, Plus, Calendar, ArrowRight, CheckCircle2, BarChart3, Award, ChevronDown } from 'lucide-react';
 
@@ -66,6 +67,17 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
 
   return (
     <div className="space-y-4">
+      {/* Active Training Reminder Banner (< 1 Hour alert) */}
+      <TrainingReminderBanner
+        currentUser={currentUser}
+        jadwalList={userJadwalList}
+        sekolahList={userSekolahList}
+        selectedSekolahId={selectedSekolahId}
+        onSelectSekolah={onSelectSekolah}
+        onOpenQrScanner={onOpenQrScanner}
+        onNavigateToJadwal={() => setActiveTab('jadwal')}
+      />
+
       {/* Navigation Dropdown & Quick Hub Bar */}
       <div className="bg-white p-3 rounded-2xl shadow-xs border border-slate-200 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-1 min-w-[280px]">
