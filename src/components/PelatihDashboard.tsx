@@ -9,6 +9,7 @@ import { RekapPdf } from './RekapPdf';
 import { DokumentasiGaleri } from './DokumentasiGaleri';
 import { StatistikKehadiran } from './StatistikKehadiran';
 import { EventManager } from './EventManager';
+import { PenilaianAnggota } from './PenilaianAnggota';
 import { StorageService } from '../data/storage';
 import { School, Layers, Clock, Camera, Users, FileText, QrCode, Bell, Plus, Calendar, ArrowRight, CheckCircle2, BarChart3, Award, ChevronDown } from 'lucide-react';
 
@@ -45,7 +46,7 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
   activeTahunAjaran = '2024/2025',
   onOpenManageTahunAjaran
 }) => {
-  const [activeTab, setActiveTab] = useState<'beranda' | 'statistik' | 'sekolah' | 'divisi' | 'jadwal' | 'absen_pelatih' | 'galeri_foto' | 'anggota' | 'event' | 'rekap_pdf'>('beranda');
+  const [activeTab, setActiveTab] = useState<'beranda' | 'statistik' | 'penilaian' | 'sekolah' | 'divisi' | 'jadwal' | 'absen_pelatih' | 'galeri_foto' | 'anggota' | 'event' | 'rekap_pdf'>('beranda');
 
   // Data filtering for current logged in pelatih
   const userSekolahList = sekolahList.filter(s => s.pelatihId === currentUser.id);
@@ -79,6 +80,7 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
             >
               <optgroup label="📋 Menu Utama">
                 <option value="beranda">🏠 Beranda Hub (Ringkasan & Aksi Cepat)</option>
+                <option value="penilaian">🎖️ Penilaian Anggota & Nilai Raport (A, B, C, D)</option>
                 <option value="statistik">📊 Statistik & Grafik Kehadiran Siswa</option>
               </optgroup>
               <optgroup label="🏫 Data Master & Jadwal">
@@ -125,6 +127,17 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
             }`}
           >
             Absen & Foto
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('penilaian')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+              activeTab === 'penilaian'
+                ? 'bg-amber-500 text-slate-950 shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Nilai Siswa
           </button>
           <button
             type="button"
@@ -403,6 +416,16 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
           currentUser={currentUser}
           onDataChanged={onDataChanged}
           activeTahunAjaran={activeTahunAjaran}
+        />
+      )}
+
+      {/* PENILAIAN ANGGOTA VIEW */}
+      {activeTab === 'penilaian' && (
+        <PenilaianAnggota
+          sekolahList={userSekolahList}
+          selectedSekolahId={selectedSekolahId}
+          anggotaList={userAnggotaList}
+          absenSiswaList={userAbsenSiswaList}
         />
       )}
 

@@ -4,6 +4,7 @@ import { StorageService } from '../data/storage';
 import { DokumentasiGaleri } from './DokumentasiGaleri';
 import { StatistikKehadiran } from './StatistikKehadiran';
 import { EventManager } from './EventManager';
+import { PenilaianAnggota } from './PenilaianAnggota';
 import { Shield, UserPlus, Users, School, Camera, CheckCircle2, Trash2, Edit2, Key, Phone, Award, Search, Sparkles, BarChart3, Calendar, Settings, ChevronDown } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -31,7 +32,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onOpenManageTahunAjaran,
   onDataChanged
 }) => {
-  const [activeTab, setActiveTab] = useState<'pelatih' | 'statistik' | 'progres' | 'dokumentasi' | 'event'>('pelatih');
+  const [activeTab, setActiveTab] = useState<'pelatih' | 'penilaian' | 'statistik' | 'progres' | 'dokumentasi' | 'event'>('pelatih');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -190,6 +191,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 className="appearance-none bg-slate-100 hover:bg-slate-200 font-bold text-slate-800 border border-slate-300 rounded-xl px-3.5 py-1.5 pr-8 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer"
               >
                 <option value="pelatih">👥 Kelola Akun Pelatih</option>
+                <option value="penilaian">🎖️ Penilaian Raport Siswa (A, B, C, D)</option>
                 <option value="statistik">📊 Statistik Kehadiran</option>
                 <option value="progres">📈 Progres Melatih & Target</option>
                 <option value="dokumentasi">🖼️ Galeri Foto Dokumentasi</option>
@@ -210,6 +212,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             eventsList={eventsList}
             onDataChanged={onDataChanged}
             activeTahunAjaran={activeTahunAjaran}
+          />
+        )}
+
+        {/* TAB PENILAIAN ANGGOTA */}
+        {activeTab === 'penilaian' && (
+          <PenilaianAnggota
+            sekolahList={sekolahList}
+            selectedSekolahId={sekolahList[0]?.id || ''}
+            anggotaList={anggotaList}
+            absenSiswaList={absenSiswaList}
           />
         )}
 
