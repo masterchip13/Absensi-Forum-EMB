@@ -18,6 +18,7 @@ export interface Sekolah {
   pelatihId: string;
   namaSekolah: string;
   kepalaSekolah: string;
+  nipKepalaSekolah?: string;
   tahunAjaran: string; // e.g. "2024/2025"
   alamat?: string;
 }

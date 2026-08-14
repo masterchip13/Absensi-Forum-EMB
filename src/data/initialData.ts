@@ -36,7 +36,35 @@ export const INITIAL_USERS: User[] = [
   }
 ];
 
-export const INITIAL_SEKOLAH: Sekolah[] = [];
+export const INITIAL_SEKOLAH: Sekolah[] = [
+  {
+    id: 'sch-smpn2-cigombong',
+    pelatihId: 'u-admin',
+    namaSekolah: 'SMP NEGERI 2 CIGOMBONG KABUPATEN BOGOR',
+    kepalaSekolah: 'Kepala SMPN 2 Cigombong',
+    nipKepalaSekolah: '',
+    tahunAjaran: '2026/2027',
+    alamat: 'Cigombong, Kab. Bogor'
+  },
+  {
+    id: 'sch-sdn-sukaharja-01',
+    pelatihId: 'u-admin',
+    namaSekolah: 'SDN SUKAHARJA 01',
+    kepalaSekolah: 'NITA HERNITA, S.Pd.MM',
+    nipKepalaSekolah: '197310221996032002',
+    tahunAjaran: '2026/2027',
+    alamat: 'Sukaharja, Kab. Bogor'
+  },
+  {
+    id: 'sch-sdn-sukaharja-03',
+    pelatihId: 'u-admin',
+    namaSekolah: 'SDN SUKAHARJA 03',
+    kepalaSekolah: 'HJ YENI SUMARNI, S.Pd.MM',
+    nipKepalaSekolah: '196612031988032005',
+    tahunAjaran: '2026/2027',
+    alamat: 'Sukaharja, Kab. Bogor'
+  }
+];
 
 export const INITIAL_DIVISI: Divisi[] = [];
 

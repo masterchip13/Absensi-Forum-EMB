@@ -1,1 +1,33 @@
 @import "tailwindcss";
+
+@media print {
+  body {
+    background-color: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Hide everything on page except printable area */
+  header, nav, aside, .no-print, button, select, input, .top-header-banner {
+    display: none !important;
+  }
+
+  #printable-pdf-area {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: transparent !important;
+  }
+
+  .pdf-page {
+    page-break-after: always !important;
+    page-break-inside: avoid !important;
+    box-shadow: none !important;
+    margin: 0 auto !important;
+    width: 210mm !important;
+    min-height: 297mm !important;
+    max-height: 297mm !important;
+    border: none !important;
+  }
+}

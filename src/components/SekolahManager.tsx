@@ -22,6 +22,7 @@ export const SekolahManager: React.FC<SekolahManagerProps> = ({
 
   const [namaSekolah, setNamaSekolah] = useState('');
   const [kepalaSekolah, setKepalaSekolah] = useState('');
+  const [nipKepalaSekolah, setNipKepalaSekolah] = useState('');
   const [tahunAjaran, setTahunAjaran] = useState(activeTahun);
   const [alamat, setAlamat] = useState('');
 
@@ -29,6 +30,7 @@ export const SekolahManager: React.FC<SekolahManagerProps> = ({
     setEditingId(null);
     setNamaSekolah('');
     setKepalaSekolah('');
+    setNipKepalaSekolah('');
     setTahunAjaran(StorageService.getActiveTahunAjaran());
     setAlamat('');
     setIsModalOpen(true);
@@ -38,6 +40,7 @@ export const SekolahManager: React.FC<SekolahManagerProps> = ({
     setEditingId(s.id);
     setNamaSekolah(s.namaSekolah);
     setKepalaSekolah(s.kepalaSekolah);
+    setNipKepalaSekolah(s.nipKepalaSekolah || '');
     setTahunAjaran(s.tahunAjaran);
     setAlamat(s.alamat || '');
     setIsModalOpen(true);
@@ -52,6 +55,7 @@ export const SekolahManager: React.FC<SekolahManagerProps> = ({
       pelatihId: currentPelatihId,
       namaSekolah,
       kepalaSekolah,
+      nipKepalaSekolah,
       tahunAjaran,
       alamat
     };
@@ -182,7 +186,18 @@ export const SekolahManager: React.FC<SekolahManagerProps> = ({
                   onChange={(e) => setKepalaSekolah(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
-                <p className="text-[10px] text-slate-400 mt-0.5">Digunakan pada kolom "MENGETAHUI KEPALA SEKOLAH" rekap PDF</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">NIP Kepala Sekolah (Opsional)</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 197310221996032002"
+                  value={nipKepalaSekolah}
+                  onChange={(e) => setNipKepalaSekolah(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+                <p className="text-[10px] text-slate-400 mt-0.5">Digunakan pada lembar pengesahan & tanda tangan rekap laporan</p>
               </div>
 
               <div>
