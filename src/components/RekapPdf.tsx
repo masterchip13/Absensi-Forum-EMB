@@ -5,6 +5,7 @@ import { Sekolah, AbsenPelatihItem, Anggota, AbsenSiswaEntry, EventLog } from '.
 import { TutWuriLogo, MarchingBandLogo } from './Logos';
 import { FileText, Download, Printer, Filter, Sparkles, School, Calendar, CheckCircle2 } from 'lucide-react';
 import { StorageService } from '../data/storage';
+import { StudentWetSignature, getStudentSignatureDataUrl } from '../utils/studentSignature';
 
 interface RekapPdfProps {
   sekolahList: Sekolah[];
@@ -142,30 +143,48 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
   const padded5AgendaRows = Array.from({ length: 5 }, (_, i) => schoolAbsenPelatih[i] || null);
   const padded7AgendaRows = Array.from({ length: 7 }, (_, i) => schoolAbsenPelatih[i] || null);
 
-  // Function to get student signature for a column (1 to 5) or meeting index
-  const getStudentSignatureForColumn = (anggotaId: string, kolomIndex: number): string | null => {
+  // Helper to determine if a student was present for a column (1 to 5) and retrieve signature info
+  const getStudentAttendanceStatus = (student: Anggota | null, kolomIndex: number): { isPresent: boolean; label: string; customSig: string | null } => {
+    if (!student) return { isPresent: false, label: '', customSig: null };
     const record = absenSiswaList.find(
-      a => a.anggotaId === anggotaId &&
+      a => a.anggotaId === student.id &&
            a.sekolahId === filterSekolahId &&
            a.bulan === filterBulan &&
            a.kolomIndex === kolomIndex
     );
     if (record) {
-      return record.signatureUrl || '✓';
+      if (record.status === 'Izin') return { isPresent: false, label: 'I', customSig: null };
+      if (record.status === 'Sakit') return { isPresent: false, label: 'S', customSig: null };
+      if (record.status === 'Alfa') return { isPresent: false, label: 'A', customSig: null };
+      return { isPresent: true, label: '', customSig: record.signatureUrl || student.signatureUrl || null };
     }
+    // If no explicit negative status, mark present for meeting columns 1 to 5
+    const effectiveMeetingCount = schoolAbsenPelatih.length > 0 ? Math.min(Math.max(schoolAbsenPelatih.length, 4), 5) : 5;
+    if (kolomIndex <= effectiveMeetingCount) {
+      return { isPresent: true, label: '', customSig: student.signatureUrl || null };
+    }
+    return { isPresent: false, label: '', customSig: null };
+  };
+
+  // Function to get student signature for a column (1 to 5) or meeting index
+  const getStudentSignatureForColumn = (anggotaId: string, kolomIndex: number): string | null => {
     const student = schoolAnggota.find(s => s.id === anggotaId);
-    if (student?.signatureUrl) {
-      return student.signatureUrl;
+    if (!student) return null;
+    const status = getStudentAttendanceStatus(student, kolomIndex);
+    if (status.isPresent) {
+      return status.customSig || getStudentSignatureDataUrl(student.nama, kolomIndex);
     }
-    return null;
+    return status.label || null;
   };
 
   // Get student signature for a specific meeting
   const getStudentSignatureForMeeting = (student: Anggota | null, meetingIdx: number): string | null => {
     if (!student) return null;
-    const sig = getStudentSignatureForColumn(student.id, meetingIdx + 1);
-    if (sig) return sig;
-    return student.signatureUrl || null;
+    const status = getStudentAttendanceStatus(student, meetingIdx + 1);
+    if (status.isPresent) {
+      return status.customSig || getStudentSignatureDataUrl(student.nama, meetingIdx + 1);
+    }
+    return status.label || null;
   };
 
   // Get coach signature for a meeting or general
@@ -309,8 +328,13 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
 
       const studentsRows = paddedPage1to30Rows.map((student, idx) => {
         const sigCols = [1, 2, 3, 4, 5].map(col => {
-          const sig = student ? getStudentSignatureForColumn(student.id, col) : null;
-          return sig ? '✓' : '';
+          if (!student) return '';
+          const status = getStudentAttendanceStatus(student, col);
+          if (status.isPresent) {
+            const sigUrl = status.customSig || getStudentSignatureDataUrl(student.nama, col);
+            return `<img src="${sigUrl}" height="16" style="max-height: 16px; object-contain: contain;" />`;
+          }
+          return status.label || '';
         });
         return `
           <tr style="height: 22px;">
@@ -391,13 +415,25 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
       const schoolTitle = resolvedTemplate === 'SDN_SUKAHARJA_01' ? 'SDN SUKAHARJA 01' : 'SDN SUKAHARJA 03';
       const meeting = schoolAbsenPelatih[0];
 
-      const leftRows = paddedPage1to30Rows.map((student, idx) => `
-        <tr style="height: 18px;">
-          <td style="text-align: center; font-size: 8.5pt;">${idx + 1}</td>
-          <td class="text-left" style="font-size: 8.5pt; padding-left: 6px;">${student?.nama || ''}</td>
-          <td style="text-align: center; font-size: 8.5pt;">${student ? '✓' : ''}</td>
-        </tr>
-      `).join('') + `
+      const leftRows = paddedPage1to30Rows.map((student, idx) => {
+        let ttdHtml = '';
+        if (student) {
+          const status = getStudentAttendanceStatus(student, 1);
+          if (status.isPresent) {
+            const sigUrl = status.customSig || getStudentSignatureDataUrl(student.nama, 1);
+            ttdHtml = `<img src="${sigUrl}" height="16" style="max-height: 16px; object-contain: contain;" />`;
+          } else {
+            ttdHtml = status.label || '';
+          }
+        }
+        return `
+          <tr style="height: 18px;">
+            <td style="text-align: center; font-size: 8.5pt;">${idx + 1}</td>
+            <td class="text-left" style="font-size: 8.5pt; padding-left: 6px;">${student?.nama || ''}</td>
+            <td style="text-align: center; font-size: 8.5pt;">${ttdHtml}</td>
+          </tr>
+        `;
+      }).join('') + `
         <tr style="height: 18px; font-weight: bold;">
           <td style="text-align: center; font-size: 8.5pt;">NO</td>
           <td class="text-left" style="font-size: 8.5pt; padding-left: 6px;">NAMA</td>
@@ -405,13 +441,25 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         </tr>
       `;
 
-      const rightRows = paddedPage31to60Rows.map((student, idx) => `
-        <tr style="height: 18px;">
-          <td style="text-align: center; font-size: 8.5pt;">${idx + 31}</td>
-          <td class="text-left" style="font-size: 8.5pt; padding-left: 6px;">${student?.nama || ''}</td>
-          <td style="text-align: center; font-size: 8.5pt;">${student ? '✓' : ''}</td>
-        </tr>
-      `).join('') + `
+      const rightRows = paddedPage31to60Rows.map((student, idx) => {
+        let ttdHtml = '';
+        if (student) {
+          const status = getStudentAttendanceStatus(student, 1);
+          if (status.isPresent) {
+            const sigUrl = status.customSig || getStudentSignatureDataUrl(student.nama, 1);
+            ttdHtml = `<img src="${sigUrl}" height="16" style="max-height: 16px; object-contain: contain;" />`;
+          } else {
+            ttdHtml = status.label || '';
+          }
+        }
+        return `
+          <tr style="height: 18px;">
+            <td style="text-align: center; font-size: 8.5pt;">${idx + 31}</td>
+            <td class="text-left" style="font-size: 8.5pt; padding-left: 6px;">${student?.nama || ''}</td>
+            <td style="text-align: center; font-size: 8.5pt;">${ttdHtml}</td>
+          </tr>
+        `;
+      }).join('') + `
         <tr style="height: 18px;">
           <td></td>
           <td></td>
@@ -814,17 +862,19 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
 
                             {/* 5 Attendance signature/check marks */}
                             {[1, 2, 3, 4, 5].map((col) => {
-                              const sig = student ? getStudentSignatureForColumn(student.id, col) : null;
+                              const status = student ? getStudentAttendanceStatus(student, col) : null;
                               return (
                                 <td key={col} className="border border-black p-0.5 align-middle">
-                                  {sig ? (
-                                    sig.startsWith('data:image') ? (
-                                      <img src={sig} alt="sig" className="h-3.5 max-w-[26px] mx-auto object-contain" />
-                                    ) : (
-                                      <span className="font-bold text-black text-[9px]">{sig}</span>
-                                    )
+                                  {status?.isPresent && student ? (
+                                    <StudentWetSignature
+                                      studentName={student.nama}
+                                      columnIndex={col}
+                                      customSignatureUrl={status.customSig || student.signatureUrl}
+                                      height="13px"
+                                      maxWidth="32px"
+                                    />
                                   ) : (
-                                    ''
+                                    <span className="font-bold text-black text-[9px]">{status?.label || ''}</span>
                                   )}
                                 </td>
                               );
@@ -903,17 +953,19 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                               <td className="border border-black p-0.5 align-middle">{student?.kelas || ''}</td>
 
                               {[1, 2, 3, 4, 5].map((col) => {
-                                const sig = student ? getStudentSignatureForColumn(student.id, col) : null;
+                                const status = student ? getStudentAttendanceStatus(student, col) : null;
                                 return (
                                   <td key={col} className="border border-black p-0.5 align-middle">
-                                    {sig ? (
-                                      sig.startsWith('data:image') ? (
-                                        <img src={sig} alt="sig" className="h-3.5 max-w-[26px] mx-auto object-contain" />
-                                      ) : (
-                                        <span className="font-bold text-black text-[9px]">{sig}</span>
-                                      )
+                                    {status?.isPresent && student ? (
+                                      <StudentWetSignature
+                                        studentName={student.nama}
+                                        columnIndex={col}
+                                        customSignatureUrl={status.customSig || student.signatureUrl}
+                                        height="13px"
+                                        maxWidth="32px"
+                                      />
                                     ) : (
-                                      ''
+                                      <span className="font-bold text-black text-[9px]">{status?.label || ''}</span>
                                     )}
                                   </td>
                                 );
@@ -1013,7 +1065,8 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                             <tbody>
                               {paddedPage1to30Rows.map((student, idx) => {
                                 const no = idx + 1;
-                                const sig = getStudentSignatureForMeeting(student, meeting.index ?? mIdx);
+                                const meetingCol = (meeting.index !== undefined ? meeting.index : mIdx) + 1;
+                                const status = student ? getStudentAttendanceStatus(student, meetingCol) : null;
                                 return (
                                   <tr key={idx} className="h-4 border-b border-black">
                                     <td className="border border-black p-0.5 font-normal align-middle text-[8.5px]">{no}</td>
@@ -1021,14 +1074,16 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                                       {student?.nama || ''}
                                     </td>
                                     <td className="border border-black p-0.5 align-middle">
-                                      {sig ? (
-                                        sig.startsWith('data:image') ? (
-                                          <img src={sig} alt="sig" className="h-3 max-w-[32px] mx-auto object-contain" />
-                                        ) : (
-                                          <span className="font-normal text-[8.5px]">{sig}</span>
-                                        )
+                                      {status?.isPresent && student ? (
+                                        <StudentWetSignature
+                                          studentName={student.nama}
+                                          columnIndex={meetingCol}
+                                          customSignatureUrl={status.customSig || student.signatureUrl}
+                                          height="13px"
+                                          maxWidth="36px"
+                                        />
                                       ) : (
-                                        ''
+                                        <span className="font-normal text-[8.5px]">{status?.label || ''}</span>
                                       )}
                                     </td>
                                   </tr>
@@ -1050,7 +1105,8 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                             <tbody>
                               {paddedPage31to60Rows.map((student, idx) => {
                                 const no = idx + 31;
-                                const sig = getStudentSignatureForMeeting(student, meeting.index ?? mIdx);
+                                const meetingCol = (meeting.index !== undefined ? meeting.index : mIdx) + 1;
+                                const status = student ? getStudentAttendanceStatus(student, meetingCol) : null;
                                 return (
                                   <tr key={idx} className="h-4 border-b border-black">
                                     <td className="border border-black p-0.5 w-8 font-normal align-middle text-[8.5px]">{no}</td>
@@ -1058,14 +1114,16 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                                       {student?.nama || ''}
                                     </td>
                                     <td className="border border-black p-0.5 w-16 align-middle">
-                                      {sig ? (
-                                        sig.startsWith('data:image') ? (
-                                          <img src={sig} alt="sig" className="h-3 max-w-[32px] mx-auto object-contain" />
-                                        ) : (
-                                          <span className="font-normal text-[8.5px]">{sig}</span>
-                                        )
+                                      {status?.isPresent && student ? (
+                                        <StudentWetSignature
+                                          studentName={student.nama}
+                                          columnIndex={meetingCol}
+                                          customSignatureUrl={status.customSig || student.signatureUrl}
+                                          height="13px"
+                                          maxWidth="36px"
+                                        />
                                       ) : (
-                                        ''
+                                        <span className="font-normal text-[8.5px]">{status?.label || ''}</span>
                                       )}
                                     </td>
                                   </tr>
@@ -1300,17 +1358,19 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                               {student?.divisiNama || ''}
                             </td>
                             {[1, 2, 3, 4, 5].map((col) => {
-                              const sig = student ? getStudentSignatureForColumn(student.id, col) : null;
+                              const status = student ? getStudentAttendanceStatus(student, col) : null;
                               return (
                                 <td key={col} className="border border-black p-0.5 align-middle bg-slate-50/20">
-                                  {sig ? (
-                                    sig.startsWith('data:image') ? (
-                                      <img src={sig} alt="sig" className="h-4 max-w-[28px] mx-auto object-contain" />
-                                    ) : (
-                                      <span className="font-bold text-emerald-800">{sig}</span>
-                                    )
+                                  {status?.isPresent && student ? (
+                                    <StudentWetSignature
+                                      studentName={student.nama}
+                                      columnIndex={col}
+                                      customSignatureUrl={status.customSig || student.signatureUrl}
+                                      height="13px"
+                                      maxWidth="32px"
+                                    />
                                   ) : (
-                                    ''
+                                    <span className="font-bold text-slate-700 text-[9px]">{status?.label || ''}</span>
                                   )}
                                 </td>
                               );
@@ -1376,17 +1436,19 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                               {student?.divisiNama || ''}
                             </td>
                             {[1, 2, 3, 4, 5].map((col) => {
-                              const sig = student ? getStudentSignatureForColumn(student.id, col) : null;
+                              const status = student ? getStudentAttendanceStatus(student, col) : null;
                               return (
                                 <td key={col} className="border border-black p-0.5 align-middle bg-slate-50/20">
-                                  {sig ? (
-                                    sig.startsWith('data:image') ? (
-                                      <img src={sig} alt="sig" className="h-4 max-w-[28px] mx-auto object-contain" />
-                                    ) : (
-                                      <span className="font-bold text-emerald-800">{sig}</span>
-                                    )
+                                  {status?.isPresent && student ? (
+                                    <StudentWetSignature
+                                      studentName={student.nama}
+                                      columnIndex={col}
+                                      customSignatureUrl={status.customSig || student.signatureUrl}
+                                      height="13px"
+                                      maxWidth="32px"
+                                    />
                                   ) : (
-                                    ''
+                                    <span className="font-bold text-slate-700 text-[9px]">{status?.label || ''}</span>
                                   )}
                                 </td>
                               );
