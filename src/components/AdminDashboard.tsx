@@ -4,7 +4,7 @@ import { StorageService } from '../data/storage';
 import { DokumentasiGaleri } from './DokumentasiGaleri';
 import { StatistikKehadiran } from './StatistikKehadiran';
 import { EventManager } from './EventManager';
-import { Shield, UserPlus, Users, School, Camera, CheckCircle2, Trash2, Edit2, Key, Phone, Award, Search, Sparkles, BarChart3, Calendar, Settings } from 'lucide-react';
+import { Shield, UserPlus, Users, School, Camera, CheckCircle2, Trash2, Edit2, Key, Phone, Award, Search, Sparkles, BarChart3, Calendar, Settings, ChevronDown } from 'lucide-react';
 
 interface AdminDashboardProps {
   usersList: User[];
@@ -169,7 +169,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       {/* Main Admin Section with Tabs */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
+        <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-200 mb-4 gap-3">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
               <Shield className="w-5 h-5" />
@@ -180,47 +180,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           </div>
 
-          <div className="flex bg-slate-100 p-1 rounded-xl">
-            <button
-              onClick={() => setActiveTab('pelatih')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${
-                activeTab === 'pelatih' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Kelola Pelatih
-            </button>
-            <button
-              onClick={() => setActiveTab('statistik')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${
-                activeTab === 'statistik' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Statistik Kehadiran
-            </button>
-            <button
-              onClick={() => setActiveTab('progres')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${
-                activeTab === 'progres' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Progres Melatih
-            </button>
-            <button
-              onClick={() => setActiveTab('dokumentasi')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${
-                activeTab === 'dokumentasi' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Galeri Dokumentasi
-            </button>
-            <button
-              onClick={() => setActiveTab('event')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${
-                activeTab === 'event' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Laporan Event
-            </button>
+          {/* Navigation Controls: Dropdown for Mobile/Tablet & Tabs for Desktop */}
+          <div className="flex items-center gap-2">
+            {/* Dropdown Menu for quick select */}
+            <div className="relative">
+              <select
+                value={activeTab}
+                onChange={(e) => setActiveTab(e.target.value as any)}
+                className="appearance-none bg-slate-100 hover:bg-slate-200 font-bold text-slate-800 border border-slate-300 rounded-xl px-3.5 py-1.5 pr-8 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer"
+              >
+                <option value="pelatih">👥 Kelola Akun Pelatih</option>
+                <option value="statistik">📊 Statistik Kehadiran</option>
+                <option value="progres">📈 Progres Melatih & Target</option>
+                <option value="dokumentasi">🖼️ Galeri Foto Dokumentasi</option>
+                <option value="event">🏆 Laporan Kegiatan & Event</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+                <ChevronDown className="w-3.5 h-3.5" />
+              </div>
+            </div>
           </div>
         </div>
 

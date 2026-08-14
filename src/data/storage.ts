@@ -9,6 +9,7 @@ import {
   INITIAL_EVENTS,
   INITIAL_ABSEN_SISWA
 } from './initialData';
+import { FirebaseSync } from './firebaseSync';
 
 const STORAGE_KEYS = {
   USERS: 'fmb_users_v1',
@@ -147,10 +148,12 @@ export const StorageService = {
       users.push(user);
     }
     setStoredItem(STORAGE_KEYS.USERS, users);
+    FirebaseSync.saveUser(user);
   },
   deleteUser: (userId: string) => {
     const users = StorageService.getUsers().filter(u => u.id !== userId);
     setStoredItem(STORAGE_KEYS.USERS, users);
+    FirebaseSync.deleteUser(userId);
   },
 
   // Sekolah
@@ -164,10 +167,12 @@ export const StorageService = {
     if (index >= 0) list[index] = sekolah;
     else list.push(sekolah);
     setStoredItem(STORAGE_KEYS.SEKOLAH, list);
+    FirebaseSync.saveSekolah(sekolah);
   },
   deleteSekolah: (id: string) => {
     const list = StorageService.getSekolah().filter(s => s.id !== id);
     setStoredItem(STORAGE_KEYS.SEKOLAH, list);
+    FirebaseSync.deleteSekolah(id);
   },
 
   // Divisi
@@ -181,10 +186,12 @@ export const StorageService = {
     if (index >= 0) list[index] = divisi;
     else list.push(divisi);
     setStoredItem(STORAGE_KEYS.DIVISI, list);
+    FirebaseSync.saveDivisi(divisi);
   },
   deleteDivisi: (id: string) => {
     const list = StorageService.getDivisi().filter(d => d.id !== id);
     setStoredItem(STORAGE_KEYS.DIVISI, list);
+    FirebaseSync.deleteDivisi(id);
   },
 
   // Jadwal Latihan
@@ -198,10 +205,12 @@ export const StorageService = {
     if (index >= 0) list[index] = jadwal;
     else list.push(jadwal);
     setStoredItem(STORAGE_KEYS.JADWAL, list);
+    FirebaseSync.saveJadwal(jadwal);
   },
   deleteJadwal: (id: string) => {
     const list = StorageService.getJadwal().filter(j => j.id !== id);
     setStoredItem(STORAGE_KEYS.JADWAL, list);
+    FirebaseSync.deleteJadwal(id);
   },
 
   // Anggota (Siswa)
@@ -215,10 +224,12 @@ export const StorageService = {
     if (index >= 0) list[index] = anggota;
     else list.push(anggota);
     setStoredItem(STORAGE_KEYS.ANGGOTA, list);
+    FirebaseSync.saveAnggota(anggota);
   },
   deleteAnggota: (id: string) => {
     const list = StorageService.getAnggota().filter(a => a.id !== id);
     setStoredItem(STORAGE_KEYS.ANGGOTA, list);
+    FirebaseSync.deleteAnggota(id);
   },
 
   // Absen Pelatih & Dokumentasi
@@ -232,10 +243,12 @@ export const StorageService = {
     if (index >= 0) list[index] = item;
     else list.unshift(item); // top is newest
     setStoredItem(STORAGE_KEYS.ABSEN_PELATIH, list);
+    FirebaseSync.saveAbsenPelatih(item);
   },
   deleteAbsenPelatih: (id: string) => {
     const list = StorageService.getAbsenPelatih().filter(a => a.id !== id);
     setStoredItem(STORAGE_KEYS.ABSEN_PELATIH, list);
+    FirebaseSync.deleteAbsenPelatih(id);
   },
 
   // Events
@@ -249,10 +262,12 @@ export const StorageService = {
     if (index >= 0) list[index] = evt;
     else list.push(evt);
     setStoredItem(STORAGE_KEYS.EVENTS, list);
+    FirebaseSync.saveEvent(evt);
   },
   deleteEvent: (id: string) => {
     const list = StorageService.getEvents().filter(e => e.id !== id);
     setStoredItem(STORAGE_KEYS.EVENTS, list);
+    FirebaseSync.deleteEvent(id);
   },
 
   // Absen Siswa (Column 1 - 5)
@@ -272,6 +287,7 @@ export const StorageService = {
     if (index >= 0) list[index] = entry;
     else list.push(entry);
     setStoredItem(STORAGE_KEYS.ABSEN_SISWA, list);
+    FirebaseSync.saveAbsenSiswa(entry);
   },
 
   // Tahun Ajaran Management
@@ -283,9 +299,11 @@ export const StorageService = {
   },
   setActiveTahunAjaran: (tahun: string) => {
     setStoredItem(STORAGE_KEYS.ACTIVE_TAHUN_AJARAN, tahun);
+    FirebaseSync.saveSettings({ activeTahunAjaran: tahun });
   },
   saveTahunAjaranList: (list: string[]) => {
     setStoredItem(STORAGE_KEYS.TAHUN_AJARAN_LIST, list);
+    FirebaseSync.saveSettings({ tahunAjaranList: list });
   },
   addTahunAjaran: (tahun: string) => {
     const list = StorageService.getTahunAjaranList();

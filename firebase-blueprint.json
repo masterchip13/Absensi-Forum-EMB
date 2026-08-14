@@ -1,0 +1,175 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and credentials",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "username": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "pelatih"] },
+        "nip": { "type": "string" },
+        "phone": { "type": "string" },
+        "specialty": { "type": "string" },
+        "active": { "type": "boolean" },
+        "avatarUrl": { "type": "string" }
+      },
+      "required": ["id", "name", "username", "role"]
+    },
+    "Sekolah": {
+      "title": "Sekolah",
+      "description": "School information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "pelatihId": { "type": "string" },
+        "namaSekolah": { "type": "string" },
+        "kepalaSekolah": { "type": "string" },
+        "nipKepalaSekolah": { "type": "string" },
+        "tahunAjaran": { "type": "string" },
+        "alamat": { "type": "string" }
+      },
+      "required": ["id", "namaSekolah", "tahunAjaran"]
+    },
+    "Divisi": {
+      "title": "Divisi",
+      "description": "Instrument section or division",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "pelatihId": { "type": "string" },
+        "namaDivisi": { "type": "string" },
+        "deskripsi": { "type": "string" }
+      },
+      "required": ["id", "namaDivisi"]
+    },
+    "Anggota": {
+      "title": "Anggota",
+      "description": "Student member in marching band",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "pelatihId": { "type": "string" },
+        "sekolahId": { "type": "string" },
+        "nama": { "type": "string" },
+        "kelas": { "type": "string" },
+        "divisiNama": { "type": "string" },
+        "qrCodeData": { "type": "string" },
+        "signatureUrl": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "sekolahId", "nama"]
+    },
+    "JadwalLatihan": {
+      "title": "JadwalLatihan",
+      "description": "Weekly practice schedule",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "pelatihId": { "type": "string" },
+        "sekolahId": { "type": "string" },
+        "hari": { "type": "string" },
+        "jamMulai": { "type": "string" },
+        "jamSelesai": { "type": "string" },
+        "reminderEnabled": { "type": "boolean" },
+        "reminderMinutesBefore": { "type": "number" }
+      },
+      "required": ["id", "sekolahId", "hari"]
+    },
+    "AbsenPelatihItem": {
+      "title": "AbsenPelatihItem",
+      "description": "Coach log and meeting presence",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "pelatihId": { "type": "string" },
+        "sekolahId": { "type": "string" },
+        "tahunAjaran": { "type": "string" },
+        "tanggal": { "type": "string" },
+        "hariTanggalFormat": { "type": "string" },
+        "jamMulai": { "type": "string" },
+        "jamSelesai": { "type": "string" },
+        "materiPokok": { "type": "string" },
+        "pencapaianPercent": { "type": "number" },
+        "fotoDokumentasiUrl": { "type": "string" },
+        "parafPelatihUrl": { "type": "string" },
+        "statusKepalaSekolah": { "type": "string" },
+        "catatan": { "type": "string" }
+      },
+      "required": ["id", "sekolahId", "tanggal"]
+    },
+    "EventLog": {
+      "title": "EventLog",
+      "description": "Event and performance logs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sekolahId": { "type": "string" },
+        "tanggal": { "type": "string" },
+        "namaEvent": { "type": "string" },
+        "keterangan": { "type": "string" },
+        "lokasi": { "type": "string" },
+        "prestasi": { "type": "string" },
+        "fotoUrl": { "type": "string" },
+        "tahunAjaran": { "type": "string" },
+        "createdByName": { "type": "string" }
+      },
+      "required": ["id", "sekolahId", "namaEvent", "tanggal"]
+    },
+    "AbsenSiswaEntry": {
+      "title": "AbsenSiswaEntry",
+      "description": "Student attendance per meeting",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sekolahId": { "type": "string" },
+        "anggotaId": { "type": "string" },
+        "bulan": { "type": "string" },
+        "tahunAjaran": { "type": "string" },
+        "kolomIndex": { "type": "number" },
+        "tanggal": { "type": "string" },
+        "status": { "type": "string" },
+        "signatureUrl": { "type": "string" }
+      },
+      "required": ["id", "sekolahId", "anggotaId", "bulan", "tahunAjaran"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "entity": "User",
+      "description": "User records and coach accounts"
+    },
+    "sekolah": {
+      "entity": "Sekolah",
+      "description": "Partner schools"
+    },
+    "divisi": {
+      "entity": "Divisi",
+      "description": "Marching band instrument sections"
+    },
+    "anggota": {
+      "entity": "Anggota",
+      "description": "Student members"
+    },
+    "jadwal": {
+      "entity": "JadwalLatihan",
+      "description": "Practice schedules"
+    },
+    "absenPelatih": {
+      "entity": "AbsenPelatihItem",
+      "description": "Coach daily practice journals and logs"
+    },
+    "events": {
+      "entity": "EventLog",
+      "description": "Extracurricular events and performances"
+    },
+    "absenSiswa": {
+      "entity": "AbsenSiswaEntry",
+      "description": "Student attendance per meeting"
+    },
+    "settings": {
+      "description": "Global application configuration"
+    }
+  }
+}

@@ -143,6 +143,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
+
+        <div className="bg-slate-900/80 px-4 py-2.5 border-t border-slate-700/60 flex items-center justify-center gap-2 text-[11px] text-emerald-400">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span>Database Terhubung ke Google Cloud Firebase Firestore</span>
+        </div>
       </div>
 
       <p className="text-[11px] text-slate-500 mt-6 text-center">

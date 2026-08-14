@@ -10,7 +10,7 @@ import { DokumentasiGaleri } from './DokumentasiGaleri';
 import { StatistikKehadiran } from './StatistikKehadiran';
 import { EventManager } from './EventManager';
 import { StorageService } from '../data/storage';
-import { School, Layers, Clock, Camera, Users, FileText, QrCode, Bell, Plus, Calendar, ArrowRight, CheckCircle2, BarChart3, Award } from 'lucide-react';
+import { School, Layers, Clock, Camera, Users, FileText, QrCode, Bell, Plus, Calendar, ArrowRight, CheckCircle2, BarChart3, Award, ChevronDown } from 'lucide-react';
 
 interface PelatihDashboardProps {
   currentUser: User;
@@ -65,107 +65,79 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Mobile-first Nav Pills */}
-      <div className="flex overflow-x-auto gap-1.5 pb-2 scrollbar-none border-b border-slate-200 bg-white p-2 rounded-2xl shadow-xs">
-        <button
-          onClick={() => setActiveTab('beranda')}
-          className={`px-3.5 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition flex items-center gap-1.5 ${
-            activeTab === 'beranda' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Calendar className="w-4 h-4" />
-          Beranda Hub
-        </button>
+      {/* Navigation Dropdown & Quick Hub Bar */}
+      <div className="bg-white p-3 rounded-2xl shadow-xs border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-1 min-w-[280px]">
+          <span className="text-xs font-bold text-slate-500 shrink-0 hidden sm:inline">Navigasi Modul:</span>
+          
+          {/* Main Dropdown Navigation */}
+          <div className="relative flex-1 max-w-md">
+            <select
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value as any)}
+              className="w-full appearance-none bg-slate-50 hover:bg-slate-100 font-bold text-slate-900 border border-slate-300 rounded-xl px-4 py-2.5 pr-10 text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer transition shadow-xs"
+            >
+              <optgroup label="📋 Menu Utama">
+                <option value="beranda">🏠 Beranda Hub (Ringkasan & Aksi Cepat)</option>
+                <option value="statistik">📊 Statistik & Grafik Kehadiran Siswa</option>
+              </optgroup>
+              <optgroup label="🏫 Data Master & Jadwal">
+                <option value="sekolah">🏫 Kelola Sekolah ({userSekolahList.length} Sekolah)</option>
+                <option value="divisi">🎺 Divisi Instrumen ({userDivisiList.length} Divisi)</option>
+                <option value="jadwal">⏰ Jadwal Latihan & Pengingat</option>
+                <option value="anggota">👥 Data Siswa & QR Code ({schoolAnggota.length} Siswa)</option>
+              </optgroup>
+              <optgroup label="📸 Presensi & Dokumentasi">
+                <option value="absen_pelatih">📷 Absen Melatih, Foto & Paraf</option>
+                <option value="galeri_foto">🖼️ Galeri Foto Dokumentasi Latihan</option>
+                <option value="event">🏆 Laporan Event & Prestasi ({userEventsList.length} Kegiatan)</option>
+              </optgroup>
+              <optgroup label="📄 Laporan & Cetak Resmi">
+                <option value="rekap_pdf">📄 Cetak Rekap & Format PDF/Word Resmi</option>
+              </optgroup>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+              <ChevronDown className="w-4 h-4" />
+            </div>
+          </div>
+        </div>
 
-        <button
-          onClick={() => setActiveTab('statistik')}
-          className={`px-3.5 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition flex items-center gap-1.5 ${
-            activeTab === 'statistik' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <BarChart3 className="w-4 h-4 text-emerald-300" />
-          Statistik Kehadiran
-        </button>
-
-        <button
-          onClick={() => setActiveTab('sekolah')}
-          className={`px-3.5 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition flex items-center gap-1.5 ${
-            activeTab === 'sekolah' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <School className="w-4 h-4" />
-          Sekolah ({userSekolahList.length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('divisi')}
-          className={`px-3.5 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition flex items-center gap-1.5 ${
-            activeTab === 'divisi' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Layers className="w-4 h-4" />
-          Divisi ({userDivisiList.length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('jadwal')}
-          className={`px-3.5 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition flex items-center gap-1.5 ${
-            activeTab === 'jadwal' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Clock className="w-4 h-4" />
-          Jadwal & Pengingat
-        </button>
-
-        <button
-          onClick={() => setActiveTab('absen_pelatih')}
-          className={`px-3.5 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition flex items-center gap-1.5 ${
-            activeTab === 'absen_pelatih' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Camera className="w-4 h-4" />
-          Absen & Foto
-        </button>
-
-        <button
-          onClick={() => setActiveTab('galeri_foto')}
-          className={`px-3.5 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition flex items-center gap-1.5 ${
-            activeTab === 'galeri_foto' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Camera className="w-4 h-4 text-amber-300" />
-          Galeri Dokumentasi
-        </button>
-
-        <button
-          onClick={() => setActiveTab('anggota')}
-          className={`px-3.5 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition flex items-center gap-1.5 ${
-            activeTab === 'anggota' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          Siswa & QR ({schoolAnggota.length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('event')}
-          className={`px-3.5 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition flex items-center gap-1.5 ${
-            activeTab === 'event' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Award className="w-4 h-4 text-amber-300" />
-          Laporan Event ({userEventsList.length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('rekap_pdf')}
-          className={`px-3.5 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition flex items-center gap-1.5 ${
-            activeTab === 'rekap_pdf' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <FileText className="w-4 h-4" />
-          Rekap Laporan (PDF & Word)
-        </button>
+        {/* Quick Shortcut Buttons */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab('beranda')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+              activeTab === 'beranda'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Beranda
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('absen_pelatih')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+              activeTab === 'absen_pelatih'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Absen & Foto
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('rekap_pdf')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+              activeTab === 'rekap_pdf'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Cetak PDF
+          </button>
+        </div>
       </div>
 
       {/* BERANDA HUB VIEW */}

@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { User, Sekolah, Divisi, Anggota, JadwalLatihan, AbsenPelatihItem, AbsenSiswaEntry, EventLog } from './types';
 import { StorageService } from './data/storage';
+import { FirebaseSync, SyncStatus, onSyncStatusChange } from './data/firebaseSync';
 import { Navbar } from './components/Navbar';
 import { LoginView } from './components/LoginModal';
 import { AdminDashboard } from './components/AdminDashboard';
@@ -27,13 +28,9 @@ export default function App() {
   const [isTahunAjaranModalOpen, setIsTahunAjaranModalOpen] = useState(false);
 
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('offline');
 
-  // Initialize and load state
-  useEffect(() => {
-    loadAllData();
-  }, []);
-
-  const loadAllData = () => {
+  const loadAllData = useCallback(() => {
     const user = StorageService.getCurrentUser();
     setCurrentUser(user);
 
@@ -71,7 +68,17 @@ export default function App() {
 
     setActiveTahunAjaran(StorageService.getActiveTahunAjaran());
     setTahunAjaranList(StorageService.getTahunAjaranList());
-  };
+  }, []);
+
+  // Initialize and load state + Firebase real-time sync
+  useEffect(() => {
+    loadAllData();
+    const unsubStatus = onSyncStatusChange(setSyncStatus);
+    FirebaseSync.init(loadAllData);
+    return () => {
+      unsubStatus();
+    };
+  }, [loadAllData]);
 
   const handleSelectSekolah = (id: string) => {
     setSelectedSekolahId(id);
@@ -145,6 +152,11 @@ export default function App() {
         onOpenQrScanner={() => setIsQrScannerOpen(true)}
         onLogout={handleLogout}
         onRefreshData={handleResetData}
+        syncStatus={syncStatus}
+        onManualSync={async () => {
+          await FirebaseSync.pushAllLocalToFirebase();
+          loadAllData();
+        }}
       />
 
       {/* Main Content Area */}
