@@ -140,18 +140,20 @@ export const StudentWetSignature: React.FC<{
   columnIndex = 1,
   customSignatureUrl,
   className = '',
-  maxWidth = '45px',
-  height = '18px'
+  maxWidth = '38px',
+  height = '14px'
 }) => {
   // If student has explicit custom drawn signature, use it
   if (customSignatureUrl && customSignatureUrl.startsWith('data:image')) {
     return (
-      <img
-        src={customSignatureUrl}
-        alt={`TTD ${studentName}`}
-        className={`object-contain mx-auto ${className}`}
-        style={{ maxHeight: height, maxWidth }}
-      />
+      <div className={`w-full h-full flex items-center justify-center overflow-hidden ${className}`}>
+        <img
+          src={customSignatureUrl}
+          alt={`TTD ${studentName}`}
+          className="object-contain mx-auto"
+          style={{ maxHeight: height, maxWidth: maxWidth || '95%' }}
+        />
+      </div>
     );
   }
 
@@ -159,23 +161,24 @@ export const StudentWetSignature: React.FC<{
 
   return (
     <div
-      className={`inline-flex items-center justify-center pointer-events-none select-none ${className}`}
+      className={`w-full h-full flex items-center justify-center pointer-events-none select-none overflow-hidden ${className}`}
       style={{
         transform: `rotate(${rotation}deg)`,
-        filter: 'drop-shadow(0.3px 0.3px 0px rgba(0,25,100,0.35))'
+        filter: 'drop-shadow(0.2px 0.2px 0px rgba(0,25,100,0.3))'
       }}
       title={`Tanda Tangan Basah ${studentName}`}
     >
       <svg
         viewBox={preset.viewBox}
-        className="w-full h-full object-contain"
-        style={{ maxHeight: height, maxWidth }}
+        preserveAspectRatio="xMidYMid meet"
+        className="w-full h-auto object-contain mx-auto block"
+        style={{ maxHeight: height, maxWidth: maxWidth || '95%' }}
       >
         <path
           d={preset.path1}
           fill="none"
           stroke={color}
-          strokeWidth="3.2"
+          strokeWidth="2.8"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -184,7 +187,7 @@ export const StudentWetSignature: React.FC<{
             d={preset.path2}
             fill="none"
             stroke={color}
-            strokeWidth="2.4"
+            strokeWidth="2.0"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
@@ -208,12 +211,12 @@ export const StudentWetSignature: React.FC<{
 export function getStudentSignatureDataUrl(studentName: string, columnIndex = 1): string {
   const { preset, color, rotation } = getStudentSignatureStyle(studentName, columnIndex);
   const dotSvg = preset.dot ? `<circle cx="${preset.dot.cx}" cy="${preset.dot.cy}" r="${preset.dot.r}" fill="${color}" />` : '';
-  const path2Svg = preset.path2 ? `<path d="${preset.path2}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />` : '';
+  const path2Svg = preset.path2 ? `<path d="${preset.path2}" fill="none" stroke="${color}" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" />` : '';
 
   const svgString = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="${preset.viewBox}" width="120" height="42">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="${preset.viewBox}" width="90" height="32">
       <g transform="rotate(${rotation} 80 27)">
-        <path d="${preset.path1}" fill="none" stroke="${color}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="${preset.path1}" fill="none" stroke="${color}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
         ${path2Svg}
         ${dotSvg}
       </g>

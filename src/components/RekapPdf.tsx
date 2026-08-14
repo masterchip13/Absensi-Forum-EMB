@@ -149,20 +149,18 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
     const record = absenSiswaList.find(
       a => a.anggotaId === student.id &&
            a.sekolahId === filterSekolahId &&
-           a.bulan === filterBulan &&
-           a.kolomIndex === kolomIndex
+           (!a.bulan || a.bulan.toLowerCase() === filterBulan.toLowerCase()) &&
+           (a.kolomIndex === kolomIndex || (a.kolomIndex === undefined && kolomIndex === 1))
     );
     if (record) {
       if (record.status === 'Izin') return { isPresent: false, label: 'I', customSig: null };
       if (record.status === 'Sakit') return { isPresent: false, label: 'S', customSig: null };
       if (record.status === 'Alfa') return { isPresent: false, label: 'A', customSig: null };
-      return { isPresent: true, label: '', customSig: record.signatureUrl || student.signatureUrl || null };
+      if (record.status === 'Hadir') {
+        return { isPresent: true, label: '', customSig: record.signatureUrl || student.signatureUrl || null };
+      }
     }
-    // If no explicit negative status, mark present for meeting columns 1 to 5
-    const effectiveMeetingCount = schoolAbsenPelatih.length > 0 ? Math.min(Math.max(schoolAbsenPelatih.length, 4), 5) : 5;
-    if (kolomIndex <= effectiveMeetingCount) {
-      return { isPresent: true, label: '', customSig: student.signatureUrl || null };
-    }
+    // Strict adherence: ONLY mark present if there is an actual attendance record; never auto-fill 5 columns
     return { isPresent: false, label: '', customSig: null };
   };
 
@@ -1221,13 +1219,12 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                   <table className="w-full border-collapse border border-black text-[9.5px] text-center mb-6">
                     <thead>
                       <tr className="bg-slate-100 font-bold border-b border-black">
-                        <th className="border border-black p-1.5 w-20">HARI,<br/>TANGGAL</th>
-                        <th className="border border-black p-1.5 w-16">WAKTU</th>
+                        <th className="border border-black p-1.5 w-24">HARI,<br/>TANGGAL</th>
+                        <th className="border border-black p-1.5 w-20">WAKTU</th>
                         <th className="border border-black p-1.5">MATERI POKOK</th>
-                        <th className="border border-black p-1.5 w-16">FOTO<br/>DOKUMENTASI</th>
-                        <th className="border border-black p-1.5 w-14">PENCAPAIAN<br/>%</th>
-                        <th className="border border-black p-1.5 w-16">PARAF<br/>PELATIH</th>
-                        <th className="border border-black p-1.5 w-20">MENGETAHUI<br/>KEPALA SEKOLAH</th>
+                        <th className="border border-black p-1.5 w-16">PENCAPAIAN<br/>%</th>
+                        <th className="border border-black p-1.5 w-20">PARAF<br/>PELATIH</th>
+                        <th className="border border-black p-1.5 w-24">MENGETAHUI<br/>KEPALA SEKOLAH</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1241,17 +1238,6 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                           </td>
                           <td className="border border-black p-1 text-left align-middle font-medium text-[9px]">
                             {row?.materiPokok || ''}
-                          </td>
-                          <td className="border border-black p-1 align-middle">
-                            {row?.fotoDokumentasiUrl ? (
-                              <img
-                                src={row.fotoDokumentasiUrl}
-                                alt="Dokumentasi"
-                                className="h-8 max-w-[55px] mx-auto object-cover rounded border border-slate-300"
-                              />
-                            ) : (
-                              ''
-                            )}
                           </td>
                           <td className="border border-black p-1 align-middle font-bold text-[9px]">
                             {row ? `${row.pencapaianPercent}%` : ''}

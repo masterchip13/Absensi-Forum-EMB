@@ -102,13 +102,14 @@ export default function App() {
     }
   };
 
-  const handleQrScanSuccess = (student: Anggota, columnNumber: number) => {
+  const handleQrScanSuccess = (student: Anggota, columnNumber: number, monthName?: string) => {
     // Record attendance entry with student's digital signature for column 1 to 5
+    const activeBulan = monthName || 'Agustus';
     const newEntry: AbsenSiswaEntry = {
-      id: `abs-${student.id}-${Date.now()}`,
+      id: `abs-${student.id}-${activeBulan}-${columnNumber}-${Date.now()}`,
       sekolahId: student.sekolahId,
       anggotaId: student.id,
-      bulan: 'Agustus', // Active month
+      bulan: activeBulan,
       tahunAjaran: StorageService.getActiveTahunAjaran(),
       kolomIndex: columnNumber,
       tanggal: new Date().toISOString().split('T')[0],
