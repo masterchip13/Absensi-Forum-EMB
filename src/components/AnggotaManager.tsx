@@ -5,7 +5,8 @@ import { StorageService } from '../data/storage';
 import { SignaturePad } from './SignaturePad';
 import { ImportExcelModal } from './ImportExcelModal';
 import { BatchQrPrintModal } from './BatchQrPrintModal';
-import { Users, Plus, QrCode as QrIcon, Search, Trash2, Edit2, Download, Printer, FileSpreadsheet } from 'lucide-react';
+import { MemberIdCard } from './MemberIdCard';
+import { Users, Plus, QrCode as QrIcon, Search, Trash2, Edit2, Download, Printer, FileSpreadsheet, CreditCard } from 'lucide-react';
 
 interface AnggotaManagerProps {
   currentPelatihId: string;
@@ -377,62 +378,42 @@ export const AnggotaManager: React.FC<AnggotaManagerProps> = ({
 
       {/* Modal ID Card QR View & Download */}
       {selectedStudentQr && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
-            <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-4 text-center relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-slate-200 my-auto">
+            <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-500 text-slate-950 rounded-xl font-bold">
+                  <CreditCard className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm uppercase tracking-wider">KARTU ANGGOTA & BARCODE</h3>
+                  <p className="text-[10px] text-slate-300 font-medium">Format Resmi Forum Ekstrakurikuler Marching Band</p>
+                </div>
+              </div>
               <button
                 onClick={() => setSelectedStudentQr(null)}
-                className="absolute right-3 top-3 text-slate-300 hover:text-white"
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition"
               >
                 ✕
               </button>
-              <h3 className="font-extrabold text-sm uppercase tracking-wider">KARTU ANGGOTA QR CODE</h3>
-              <p className="text-[10px] text-blue-200 font-medium">Absensi Forum Ekstrakurikuler Marching Band</p>
             </div>
 
-            <div className="p-5 text-center flex flex-col items-center">
-              {/* QR Image Box */}
-              <div className="bg-white p-3 rounded-2xl border-2 border-blue-600 shadow-md mb-3">
-                {qrImageDataUrl ? (
-                  <img src={qrImageDataUrl} alt="QR Code" className="w-48 h-48 object-contain" />
-                ) : (
-                  <div className="w-48 h-48 bg-slate-100 flex items-center justify-center text-xs text-slate-400">Loading QR...</div>
-                )}
-              </div>
+            <div className="p-6 text-center flex flex-col items-center bg-slate-100/60">
+              {/* Official Member ID Card matching template */}
+              <MemberIdCard
+                member={selectedStudentQr}
+                schoolName={sekolahList.find(s => s.id === selectedStudentQr.sekolahId)?.namaSekolah || 'MARCHING BAND'}
+                qrDataUrl={qrImageDataUrl}
+                showActions={true}
+              />
 
-              <h4 className="font-extrabold text-slate-900 text-base">{selectedStudentQr.nama}</h4>
-              <p className="text-xs text-slate-600 font-semibold">{selectedStudentQr.kelas} — {selectedStudentQr.divisiNama}</p>
-              <p className="text-[10px] text-slate-400 font-mono mt-1 bg-slate-100 px-2 py-0.5 rounded">
-                {selectedStudentQr.qrCodeData}
-              </p>
-
-              {/* Tanda tangan preview */}
-              <div className="mt-3 w-full bg-slate-50 p-2 rounded-xl border border-slate-200">
-                <span className="text-[10px] text-slate-400 block mb-1">Tanda Tangan Terdaftar:</span>
-                {selectedStudentQr.signatureUrl ? (
-                  <img src={selectedStudentQr.signatureUrl} alt="Signature" className="h-10 mx-auto object-contain" />
-                ) : (
-                  <span className="text-xs text-slate-400 italic">Belum digambar</span>
-                )}
-              </div>
-
-              <div className="flex gap-2 w-full mt-4">
-                <a
-                  href={qrImageDataUrl}
-                  download={`QR-${selectedStudentQr.nama}.png`}
-                  className="flex-1 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow transition flex items-center justify-center gap-1"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  Unduh Gambar QR
-                </a>
-                <button
-                  onClick={printQrCard}
-                  className="py-2 px-3 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center justify-center gap-1"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  Cetak
-                </button>
-              </div>
+              {/* Tanda tangan preview if available */}
+              {selectedStudentQr.signatureUrl && (
+                <div className="mt-4 w-full max-w-sm bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between text-xs text-slate-600">
+                  <span className="font-semibold text-[11px] text-slate-500">Tanda Tangan Terdaftar:</span>
+                  <img src={selectedStudentQr.signatureUrl} alt="Signature" className="h-8 max-w-[100px] object-contain border-b border-slate-300" />
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -16,6 +16,7 @@ import {
   Anggota,
   JadwalLatihan,
   AbsenPelatihItem,
+  AbsenAsistenPelatihItem,
   EventLog,
   AbsenSiswaEntry
 } from '../types';
@@ -26,6 +27,7 @@ import {
   INITIAL_JADWAL,
   INITIAL_ANGGOTA,
   INITIAL_ABSEN_PELATIH,
+  INITIAL_ABSEN_ASISTEN,
   INITIAL_EVENTS,
   INITIAL_ABSEN_SISWA
 } from './initialData';
@@ -39,6 +41,7 @@ export const COLLECTIONS = {
   JADWAL: 'jadwal',
   ANGGOTA: 'anggota',
   ABSEN_PELATIH: 'absenPelatih',
+  ABSEN_ASISTEN: 'absenAsisten',
   EVENTS: 'events',
   ABSEN_SISWA: 'absenSiswa',
   SETTINGS: 'settings'
@@ -150,6 +153,18 @@ export const FirebaseSync = {
         }
       }, err => console.warn('AbsenPelatih listener error:', err));
       syncListeners.push(unsubAbsenPelatih);
+
+      // 6b. Absen Asisten Pelatih
+      const unsubAbsenAsisten = onSnapshot(collection(db, COLLECTIONS.ABSEN_ASISTEN), snapshot => {
+        if (!snapshot.empty) {
+          const list: AbsenAsistenPelatihItem[] = [];
+          snapshot.forEach(docSnap => list.push(docSnap.data() as AbsenAsistenPelatihItem));
+          list.sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
+          localStorage.setItem('fmb_absen_asisten_v1', JSON.stringify(list));
+          onDataUpdate?.();
+        }
+      }, err => console.warn('AbsenAsisten listener error:', err));
+      syncListeners.push(unsubAbsenAsisten);
 
       // 7. Events
       const unsubEvents = onSnapshot(collection(db, COLLECTIONS.EVENTS), snapshot => {
@@ -293,6 +308,22 @@ export const FirebaseSync = {
     }
   },
 
+  saveAbsenAsisten: async (item: AbsenAsistenPelatihItem) => {
+    try {
+      await setDoc(doc(db, COLLECTIONS.ABSEN_ASISTEN, item.id), item);
+    } catch (e) {
+      console.warn('Failed to save absenAsisten to Firebase:', e);
+    }
+  },
+
+  deleteAbsenAsisten: async (id: string) => {
+    try {
+      await deleteDoc(doc(db, COLLECTIONS.ABSEN_ASISTEN, id));
+    } catch (e) {
+      console.warn('Failed to delete absenAsisten from Firebase:', e);
+    }
+  },
+
   saveEvent: async (evt: EventLog) => {
     try {
       await setDoc(doc(db, COLLECTIONS.EVENTS, evt.id), evt);
@@ -348,6 +379,9 @@ export const FirebaseSync = {
 
       const absenPelatih = StorageService.getAbsenPelatih().length > 0 ? StorageService.getAbsenPelatih() : INITIAL_ABSEN_PELATIH;
       absenPelatih.forEach(ap => batch.set(doc(db, COLLECTIONS.ABSEN_PELATIH, ap.id), ap));
+
+      const absenAsisten = StorageService.getAbsenAsisten().length > 0 ? StorageService.getAbsenAsisten() : INITIAL_ABSEN_ASISTEN;
+      absenAsisten.forEach(aa => batch.set(doc(db, COLLECTIONS.ABSEN_ASISTEN, aa.id), aa));
 
       const events = StorageService.getEvents().length > 0 ? StorageService.getEvents() : INITIAL_EVENTS;
       events.forEach(ev => batch.set(doc(db, COLLECTIONS.EVENTS, ev.id), ev));

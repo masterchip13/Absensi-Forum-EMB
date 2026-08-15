@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, Sekolah, Divisi, Anggota, JadwalLatihan, AbsenPelatihItem, AbsenSiswaEntry, EventLog } from './types';
+import { User, Sekolah, Divisi, Anggota, JadwalLatihan, AbsenPelatihItem, AbsenAsistenPelatihItem, AbsenSiswaEntry, EventLog } from './types';
 import { StorageService } from './data/storage';
 import { FirebaseSync, SyncStatus, onSyncStatusChange } from './data/firebaseSync';
 import { Navbar } from './components/Navbar';
 import { LoginView } from './components/LoginModal';
 import { AdminDashboard } from './components/AdminDashboard';
 import { PelatihDashboard } from './components/PelatihDashboard';
+import { AsistenPelatihDashboard } from './components/AsistenPelatihDashboard';
 import { QrScannerModal } from './components/QrScannerModal';
 import { TahunAjaranModal } from './components/TahunAjaranModal';
 import { OfflineBanner } from './components/OfflineBanner';
@@ -20,6 +21,7 @@ export default function App() {
   const [jadwalList, setJadwalList] = useState<JadwalLatihan[]>([]);
   const [anggotaList, setAnggotaList] = useState<Anggota[]>([]);
   const [absenPelatihList, setAbsenPelatihList] = useState<AbsenPelatihItem[]>([]);
+  const [absenAsistenList, setAbsenAsistenList] = useState<AbsenAsistenPelatihItem[]>([]);
   const [absenSiswaList, setAbsenSiswaList] = useState<AbsenSiswaEntry[]>([]);
   const [eventsList, setEventsList] = useState<EventLog[]>([]);
 
@@ -63,6 +65,7 @@ export default function App() {
     setJadwalList(StorageService.getJadwal());
     setAnggotaList(StorageService.getAnggota());
     setAbsenPelatihList(StorageService.getAbsenPelatih());
+    setAbsenAsistenList(StorageService.getAbsenAsisten());
     setAbsenSiswaList(StorageService.getAbsenSiswa());
     setEventsList(StorageService.getEvents());
 
@@ -168,12 +171,21 @@ export default function App() {
             usersList={usersList}
             sekolahList={sekolahList}
             absenPelatihList={absenPelatihList}
+            absenAsistenList={absenAsistenList}
             anggotaList={anggotaList}
             divisiList={divisiList}
             absenSiswaList={absenSiswaList}
             eventsList={eventsList}
             activeTahunAjaran={activeTahunAjaran}
             onOpenManageTahunAjaran={() => setIsTahunAjaranModalOpen(true)}
+            onDataChanged={loadAllData}
+          />
+        ) : currentUser.role === 'asisten_pelatih' ? (
+          <AsistenPelatihDashboard
+            currentUser={currentUser}
+            sekolahList={sekolahList}
+            absenAsistenList={absenAsistenList}
+            activeTahunAjaran={activeTahunAjaran}
             onDataChanged={loadAllData}
           />
         ) : (

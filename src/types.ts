@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'pelatih';
+export type UserRole = 'admin' | 'pelatih' | 'asisten_pelatih';
 
 export interface User {
   id: string;
@@ -68,6 +68,26 @@ export interface AbsenPelatihItem {
   parafPelatihUrl?: string;
   statusKepalaSekolah: 'Mengetahui' | 'Menunggu';
   catatan?: string;
+}
+
+export interface AbsenAsistenPelatihItem {
+  id: string;
+  asistenId: string;
+  asistenName: string;
+  sekolahId: string;
+  sekolahNama: string;
+  tahunAjaran?: string; // e.g. "2024/2025"
+  tanggal: string; // YYYY-MM-DD
+  hariTanggalFormat: string; // e.g. "Senin, 15 Ags 2026"
+  jamMulai: string;
+  jamSelesai: string;
+  statusKehadiran: 'Hadir' | 'Izin' | 'Sakit' | 'Tugas Luar';
+  kegiatanPendampingan: string; // Deskripsi materi / tugas pendampingan
+  divisiBinaan?: string; // e.g. "Percussion", "Brass", "Color Guard", "Pit Instrument", "Display Drill"
+  fotoDokumentasiUrl?: string;
+  parafAsistenUrl?: string;
+  catatan?: string;
+  createdAt?: string;
 }
 
 export interface EventLog {

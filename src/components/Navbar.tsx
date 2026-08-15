@@ -295,9 +295,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {currentUser.name.split(' ')[0]}
                     </span>
                     <span className={`text-[9px] font-bold uppercase tracking-wider ${
-                      currentUser.role === 'admin' ? 'text-amber-400' : 'text-blue-400'
+                      currentUser.role === 'admin' 
+                        ? 'text-amber-400' 
+                        : currentUser.role === 'asisten_pelatih' 
+                        ? 'text-emerald-400' 
+                        : 'text-blue-400'
                     }`}>
-                      {currentUser.role === 'admin' ? 'Admin' : 'Pelatih'}
+                      {currentUser.role === 'admin' ? 'Admin' : currentUser.role === 'asisten_pelatih' ? 'Asisten Pelatih' : 'Pelatih'}
                     </span>
                   </div>
 
@@ -319,9 +323,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <span className={`inline-block text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider mt-0.5 ${
                             currentUser.role === 'admin'
                               ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                              : currentUser.role === 'asisten_pelatih'
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                               : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
                           }`}>
-                            {currentUser.role === 'admin' ? 'Administrator' : 'Pelatih Ekstrakurikuler'}
+                            {currentUser.role === 'admin' 
+                              ? 'Administrator' 
+                              : currentUser.role === 'asisten_pelatih' 
+                              ? 'Asisten Pelatih' 
+                              : 'Pelatih Ekstrakurikuler'}
                           </span>
                         </div>
                       </div>

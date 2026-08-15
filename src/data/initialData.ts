@@ -1,4 +1,4 @@
-import { User, Sekolah, Divisi, Anggota, JadwalLatihan, AbsenPelatihItem, EventLog, AbsenSiswaEntry } from '../types';
+import { User, Sekolah, Divisi, Anggota, JadwalLatihan, AbsenPelatihItem, AbsenAsistenPelatihItem, EventLog, AbsenSiswaEntry } from '../types';
 
 // Helper for quick sample signature canvas base64
 function createSampleSignature(nameText: string, color = '#1E3A8A'): string {
@@ -74,7 +74,10 @@ export const INITIAL_ANGGOTA: Anggota[] = [];
 
 export const INITIAL_ABSEN_PELATIH: AbsenPelatihItem[] = [];
 
+export const INITIAL_ABSEN_ASISTEN: AbsenAsistenPelatihItem[] = [];
+
 export const INITIAL_EVENTS: EventLog[] = [];
 
 export const INITIAL_ABSEN_SISWA: AbsenSiswaEntry[] = [];
+
 

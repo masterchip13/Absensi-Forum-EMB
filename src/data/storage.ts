@@ -1,4 +1,4 @@
-import { User, Sekolah, Divisi, Anggota, JadwalLatihan, AbsenPelatihItem, EventLog, AbsenSiswaEntry } from '../types';
+import { User, Sekolah, Divisi, Anggota, JadwalLatihan, AbsenPelatihItem, AbsenAsistenPelatihItem, EventLog, AbsenSiswaEntry } from '../types';
 import {
   INITIAL_USERS,
   INITIAL_SEKOLAH,
@@ -6,6 +6,7 @@ import {
   INITIAL_JADWAL,
   INITIAL_ANGGOTA,
   INITIAL_ABSEN_PELATIH,
+  INITIAL_ABSEN_ASISTEN,
   INITIAL_EVENTS,
   INITIAL_ABSEN_SISWA
 } from './initialData';
@@ -18,6 +19,7 @@ const STORAGE_KEYS = {
   JADWAL: 'fmb_jadwal_v1',
   ANGGOTA: 'fmb_anggota_v1',
   ABSEN_PELATIH: 'fmb_absen_pelatih_v1',
+  ABSEN_ASISTEN: 'fmb_absen_asisten_v1',
   EVENTS: 'fmb_events_v1',
   ABSEN_SISWA: 'fmb_absen_siswa_v1',
   CURRENT_USER: 'fmb_current_user_v1',
@@ -103,6 +105,7 @@ export const StorageService = {
     setStoredItem(STORAGE_KEYS.JADWAL, INITIAL_JADWAL);
     setStoredItem(STORAGE_KEYS.ANGGOTA, INITIAL_ANGGOTA);
     setStoredItem(STORAGE_KEYS.ABSEN_PELATIH, INITIAL_ABSEN_PELATIH);
+    setStoredItem(STORAGE_KEYS.ABSEN_ASISTEN, INITIAL_ABSEN_ASISTEN);
     setStoredItem(STORAGE_KEYS.EVENTS, INITIAL_EVENTS);
     setStoredItem(STORAGE_KEYS.ABSEN_SISWA, INITIAL_ABSEN_SISWA);
     setStoredItem(STORAGE_KEYS.CURRENT_USER, null);
@@ -249,6 +252,25 @@ export const StorageService = {
     const list = StorageService.getAbsenPelatih().filter(a => a.id !== id);
     setStoredItem(STORAGE_KEYS.ABSEN_PELATIH, list);
     FirebaseSync.deleteAbsenPelatih(id);
+  },
+
+  // Absen Asisten Pelatih
+  getAbsenAsisten: (): AbsenAsistenPelatihItem[] => {
+    const list = getStoredItem<AbsenAsistenPelatihItem[]>(STORAGE_KEYS.ABSEN_ASISTEN, INITIAL_ABSEN_ASISTEN);
+    return list.filter(a => !['sch-1', 'sch-2', 'sch-3'].includes(a.sekolahId));
+  },
+  saveAbsenAsisten: (item: AbsenAsistenPelatihItem) => {
+    const list = StorageService.getAbsenAsisten();
+    const index = list.findIndex(a => a.id === item.id);
+    if (index >= 0) list[index] = item;
+    else list.unshift(item); // top is newest
+    setStoredItem(STORAGE_KEYS.ABSEN_ASISTEN, list);
+    FirebaseSync.saveAbsenAsisten(item);
+  },
+  deleteAbsenAsisten: (id: string) => {
+    const list = StorageService.getAbsenAsisten().filter(a => a.id !== id);
+    setStoredItem(STORAGE_KEYS.ABSEN_ASISTEN, list);
+    FirebaseSync.deleteAbsenAsisten(id);
   },
 
   // Events
