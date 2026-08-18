@@ -98,13 +98,6 @@ export default function App() {
     setCurrentUser(null);
   };
 
-  const handleResetData = () => {
-    if (confirm('Reset seluruh data ke pengaturan demo awal?')) {
-      StorageService.resetToDefaults();
-      loadAllData();
-    }
-  };
-
   const handleQrScanSuccess = (student: Anggota, columnNumber: number, monthName?: string) => {
     // Record attendance entry with student's digital signature for column 1 to 5
     const activeBulan = monthName || 'Agustus';
@@ -156,7 +149,6 @@ export default function App() {
         onOpenManageTahunAjaran={() => setIsTahunAjaranModalOpen(true)}
         onOpenQrScanner={() => setIsQrScannerOpen(true)}
         onLogout={handleLogout}
-        onRefreshData={handleResetData}
         syncStatus={syncStatus}
         onManualSync={async () => {
           await FirebaseSync.pushAllLocalToFirebase();

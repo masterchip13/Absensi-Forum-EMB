@@ -34,7 +34,6 @@ interface NavbarProps {
   onOpenManageTahunAjaran?: () => void;
   onOpenQrScanner: () => void;
   onLogout: () => void;
-  onRefreshData?: () => void;
   syncStatus?: SyncStatus;
   onManualSync?: () => void;
 }
@@ -51,7 +50,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenManageTahunAjaran,
   onOpenQrScanner,
   onLogout,
-  onRefreshData,
   syncStatus = 'connected',
   onManualSync
 }) => {
@@ -408,20 +406,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                         >
                           <Settings className="w-4 h-4 text-amber-400" />
                           <span className="font-semibold">Kelola Tahun Ajaran</span>
-                        </button>
-                      )}
-
-                      {/* Reset Demo Data */}
-                      {onRefreshData && (
-                        <button
-                          onClick={() => {
-                            setIsUserMenuOpen(false);
-                            onRefreshData();
-                          }}
-                          className="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center gap-2.5 hover:bg-slate-700/70 text-slate-300 hover:text-white transition"
-                        >
-                          <RefreshCw className="w-4 h-4 text-slate-400" />
-                          <span>Muat Ulang / Reset Data</span>
                         </button>
                       )}
                     </div>
