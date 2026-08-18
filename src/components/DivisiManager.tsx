@@ -65,7 +65,7 @@ export const DivisiManager: React.FC<DivisiManagerProps> = ({
           </div>
           <div>
             <h2 className="font-bold text-slate-900 text-base">Kelola Daftar Divisi</h2>
-            <p className="text-xs text-slate-500">Isi daftar divisi marching band untuk mempermudah pengisian data siswa</p>
+            <p className="text-xs text-slate-500">Isi daftar divisi marching band untuk mempermudah pengisian data anggota</p>
           </div>
         </div>
 

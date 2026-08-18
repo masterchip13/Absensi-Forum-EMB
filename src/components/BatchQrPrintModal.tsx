@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { Anggota, Sekolah } from '../types';
 import { MemberIdCard } from './MemberIdCard';
+import { formatCardMemberName } from '../utils/nameFormatter';
 import {
   Printer,
   QrCode as QrIcon,
@@ -194,7 +195,7 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
             </div>
             <div>
               <h3 className="font-extrabold text-base leading-tight">
-                Cetak Fisik Kartu Anggota & Barcode Siswa
+                Cetak Fisik Kartu Anggota & Barcode Anggota
               </h3>
               <p className="text-xs text-slate-300">
                 Format resmi template Forum MB ({membersWithQr.length} kartu siap dicetak)
@@ -302,7 +303,7 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
               )}
             </button>
             <span className="text-xs font-black text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
-              {selectedIds.length} Siswa Terpilih
+              {selectedIds.length} Anggota Terpilih
             </span>
           </div>
         </div>
@@ -316,7 +317,7 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
                 Centang Anggota Yang Ingin Dicetak ({selectedIds.length}/{filteredMembers.length}):
               </p>
               <span className="text-[10px] text-slate-400">
-                Klik nama siswa untuk memilih/membatalkan
+                Klik nama anggota untuk memilih/membatalkan
               </span>
             </div>
             <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1">
@@ -415,8 +416,8 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
                       </div>
 
                       <div className="w-full mt-1">
-                        <h4 className="font-extrabold text-slate-900 text-xs truncate uppercase">
-                          {idx + 1}. {student.nama}
+                        <h4 className="font-extrabold text-slate-900 text-xs truncate uppercase" title={student.nama}>
+                          {idx + 1}. {formatCardMemberName(student.nama, 18)}
                         </h4>
                         <div className="flex items-center justify-center gap-2 text-[10px] font-bold text-slate-700 mt-0.5">
                           <span className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">

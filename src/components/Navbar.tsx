@@ -112,14 +112,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               <MarchingBandLogo className="w-7 h-7 sm:w-8 sm:h-8 drop-shadow" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="text-sm sm:text-base font-black tracking-tight text-white truncate">
-                  Absensi Marching Band
-                </h1>
-                <span className="hidden lg:inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                  SDN Sukaharja
-                </span>
-              </div>
+              <h1 className="text-sm sm:text-base font-black tracking-tight text-white truncate">
+                Absensi Marching Band
+              </h1>
               <p className="text-[10px] sm:text-xs text-slate-400 font-medium truncate hidden xs:block">
                 Sistem Presensi QR & Dokumen Resmi
               </p>
@@ -258,7 +253,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   onClick={onOpenQrScanner}
                   className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-1.5 rounded-xl shadow-xs transition active:scale-95 text-xs"
-                  title="Scan QR Presensi Siswa"
+                  title="Scan QR Presensi Anggota"
                 >
                   <QrCode className="w-3.5 h-3.5 text-yellow-300" />
                   <span className="hidden sm:inline">Scan QR</span>

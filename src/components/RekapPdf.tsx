@@ -388,7 +388,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
           <thead>
             <tr>
               <th rowspan="2" style="width: 5%;">No.</th>
-              <th rowspan="2" style="width: 40%;">Nama Siswa</th>
+              <th rowspan="2" style="width: 40%;">Nama Anggota</th>
               <th rowspan="2" style="width: 15%;">Kelas</th>
               <th colspan="5">Tanggal/Tanda Tangan</th>
             </tr>
@@ -830,12 +830,12 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                     <div>Nama Ekstrakurikuler : {namaEkskul}</div>
                   </div>
 
-                  {/* Table: No., Nama Siswa, Kelas, Tanggal/Tanda Tangan (1-5) */}
+                  {/* Table: No., Nama Anggota, Kelas, Tanggal/Tanda Tangan (1-5) */}
                   <table className="w-full border-collapse border border-black text-[9.5px] text-center">
                     <thead>
                       <tr className="font-bold border-b border-black">
                         <th rowSpan={2} className="border border-black p-1 w-8 align-middle">No.</th>
-                        <th rowSpan={2} className="border border-black p-1 text-left align-middle pl-2">Nama Siswa</th>
+                        <th rowSpan={2} className="border border-black p-1 text-left align-middle pl-2">Nama Anggota</th>
                         <th rowSpan={2} className="border border-black p-1 w-16 align-middle">Kelas</th>
                         <th colSpan={5} className="border border-black p-1">Tanggal/Tanda Tangan</th>
                       </tr>
@@ -927,7 +927,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                       <thead>
                         <tr className="font-bold border-b border-black">
                           <th rowSpan={2} className="border border-black p-1 w-8 align-middle">No.</th>
-                          <th rowSpan={2} className="border border-black p-1 text-left align-middle pl-2">Nama Siswa</th>
+                          <th rowSpan={2} className="border border-black p-1 text-left align-middle pl-2">Nama Anggota</th>
                           <th rowSpan={2} className="border border-black p-1 w-16 align-middle">Kelas</th>
                           <th colSpan={5} className="border border-black p-1">Tanggal/Tanda Tangan</th>
                         </tr>
@@ -1295,7 +1295,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                 </div>
               </div>
 
-              {/* PAGE 2: Presensi Siswa (1-30) */}
+              {/* PAGE 2: Presensi Anggota (1-30) */}
               <div
                 style={timesNewRomanFont}
                 className="pdf-page bg-white w-[210mm] min-h-[297mm] p-[12mm] shadow-lg text-black box-border flex flex-col justify-between mx-auto"
@@ -1307,7 +1307,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                     </div>
                     <div className="text-center font-bold leading-tight">
                       <h1 className="text-xs sm:text-sm tracking-wide uppercase">AGENDA KEGIATAN PROGRAM LATIHAN REGULER</h1>
-                      <h2 className="text-xs tracking-wide uppercase">EKSTRAKURIKULER MARCHING BAND — PRESENSI SISWA (NO 1 - 30)</h2>
+                      <h2 className="text-xs tracking-wide uppercase">EKSTRAKURIKULER MARCHING BAND — PRESENSI ANGGOTA (NO 1 - 30)</h2>
                       <h3 className="text-xs tracking-wide uppercase">({namaSekolahFormatted})</h3>
                       <h4 className="text-xs tracking-wide font-normal">({filterTahunAjaran})</h4>
                     </div>
@@ -1369,11 +1369,11 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                 </div>
 
                 <div className="text-[8.5px] text-slate-500 text-right mt-4 pt-2 border-t border-slate-200">
-                  Halaman 2 / 4 — Presensi Siswa (No 1-30) — {namaSekolahFormatted}
+                  Halaman 2 / 4 — Presensi Anggota (No 1-30) — {namaSekolahFormatted}
                 </div>
               </div>
 
-              {/* PAGE 3: Presensi Siswa (31-60) */}
+              {/* PAGE 3: Presensi Anggota (31-60) */}
               <div
                 style={timesNewRomanFont}
                 className="pdf-page bg-white w-[210mm] min-h-[297mm] p-[12mm] shadow-lg text-black box-border flex flex-col justify-between mx-auto"
@@ -1385,7 +1385,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                     </div>
                     <div className="text-center font-bold leading-tight">
                       <h1 className="text-xs sm:text-sm tracking-wide uppercase">AGENDA KEGIATAN PROGRAM LATIHAN REGULER</h1>
-                      <h2 className="text-xs tracking-wide uppercase">EKSTRAKURIKULER MARCHING BAND — PRESENSI SISWA (NO 31 - 60)</h2>
+                      <h2 className="text-xs tracking-wide uppercase">EKSTRAKURIKULER MARCHING BAND — PRESENSI ANGGOTA (NO 31 - 60)</h2>
                       <h3 className="text-xs tracking-wide uppercase">({namaSekolahFormatted})</h3>
                       <h4 className="text-xs tracking-wide font-normal">({filterTahunAjaran})</h4>
                     </div>
@@ -1447,7 +1447,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                 </div>
 
                 <div className="text-[8.5px] text-slate-500 text-right mt-4 pt-2 border-t border-slate-200">
-                  Halaman 3 / 4 — Presensi Siswa (No 31-60) — {namaSekolahFormatted}
+                  Halaman 3 / 4 — Presensi Anggota (No 31-60) — {namaSekolahFormatted}
                 </div>
               </div>
 

@@ -105,7 +105,7 @@ export const AnggotaManager: React.FC<AnggotaManagerProps> = ({
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Hapus data anggota siswa ini? Data absensi terkait akan dihapus.')) {
+    if (confirm('Hapus data anggota ini? Data absensi terkait akan dihapus.')) {
       StorageService.deleteAnggota(id);
       onDataChanged();
     }
@@ -123,9 +123,9 @@ export const AnggotaManager: React.FC<AnggotaManagerProps> = ({
             <Users className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="font-bold text-slate-900 text-base">Input & Data Anggota Siswa</h2>
+            <h2 className="font-bold text-slate-900 text-base">Input & Data Anggota</h2>
             <p className="text-xs text-slate-500">
-              Siswa {activeSchool?.namaSekolah || ''} • Maksimal 5 Kolom Absensi / Bulan
+              Anggota {activeSchool?.namaSekolah || ''} • Maksimal 5 Kolom Absensi / Bulan
             </p>
           </div>
         </div>
@@ -134,7 +134,7 @@ export const AnggotaManager: React.FC<AnggotaManagerProps> = ({
           <button
             onClick={() => setIsBatchQrModalOpen(true)}
             className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition"
-            title="Cetak Semua / Banyak QR Code Anggota Siswa dalam Satu File PDF"
+            title="Cetak Semua / Banyak QR Code Anggota dalam Satu File PDF"
           >
             <Printer className="w-4 h-4" />
             <span>Cetak Banyak QR</span>
@@ -174,7 +174,7 @@ export const AnggotaManager: React.FC<AnggotaManagerProps> = ({
           <Users className="w-10 h-10 text-slate-300 mx-auto mb-2" />
           <p className="text-xs font-semibold text-slate-600">Belum Ada Anggota Terdaftar</p>
           <p className="text-[11px] text-slate-400 max-w-xs mx-auto mb-3">
-            Tambahkan anggota siswa untuk sekolah ini, buatkan QR Code dan tanda tangan digital mereka.
+            Tambahkan anggota untuk sekolah ini, buatkan QR Code dan tanda tangan digital mereka.
           </p>
           <button
             onClick={openAdd}
@@ -255,7 +255,7 @@ export const AnggotaManager: React.FC<AnggotaManagerProps> = ({
             <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
               <h3 className="font-bold text-sm flex items-center gap-2">
                 <Users className="w-4 h-4 text-blue-400" />
-                {editingId ? 'Edit Data Anggota' : 'Tambah Anggota Siswa'}
+                {editingId ? 'Edit Data Anggota' : 'Tambah Data Anggota'}
               </h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white">✕</button>
             </div>
@@ -275,7 +275,7 @@ export const AnggotaManager: React.FC<AnggotaManagerProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Lengkap Siswa <span className="text-rose-500">*</span></label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Lengkap Anggota <span className="text-rose-500">*</span></label>
                 <input
                   type="text"
                   required
@@ -320,7 +320,7 @@ export const AnggotaManager: React.FC<AnggotaManagerProps> = ({
               {/* Digital Signature Canvas for Student */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Gambar Tanda Tangan Digital Siswa <span className="text-rose-500">*</span>
+                  Gambar Tanda Tangan Digital Anggota <span className="text-rose-500">*</span>
                 </label>
                 <p className="text-[10px] text-slate-400 mb-1.5">
                   Tanda tangan ini akan terinput otomatis ke kolom laporan absensi bulanan saat QR di-scan.
@@ -338,7 +338,7 @@ export const AnggotaManager: React.FC<AnggotaManagerProps> = ({
                   <div className="flex items-center gap-2">
                     {signatureUrl ? (
                       <div className="border border-slate-300 rounded-xl p-2 bg-white flex-1 h-14 flex items-center justify-center shadow-inner">
-                        <img src={signatureUrl} alt="TTD Siswa" className="max-h-12 object-contain" />
+                        <img src={signatureUrl} alt="TTD Anggota" className="max-h-12 object-contain" />
                       </div>
                     ) : (
                       <div className="border border-dashed border-slate-300 rounded-xl p-2 bg-slate-50 flex-1 h-14 flex items-center justify-center text-xs text-slate-400 italic">

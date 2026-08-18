@@ -157,7 +157,7 @@ export const AsistenPelatihDashboard: React.FC<AsistenPelatihDashboardProps> = (
     setJamMulai('14:00');
     setJamSelesai('17:00');
     setStatusKehadiran('Hadir');
-    setDivisiBinaan(currentUser.specialty || 'Battery & Pit Percussion');
+    setDivisiBinaan('');
     setKegiatanPendampingan('');
     setFotoDokumentasiUrl('');
     setParafAsistenUrl('');
@@ -173,7 +173,7 @@ export const AsistenPelatihDashboard: React.FC<AsistenPelatihDashboardProps> = (
     setJamMulai(item.jamMulai);
     setJamSelesai(item.jamSelesai);
     setStatusKehadiran(item.statusKehadiran);
-    setDivisiBinaan(item.divisiBinaan || 'Battery & Pit Percussion');
+    setDivisiBinaan(item.divisiBinaan || '');
     setKegiatanPendampingan(item.kegiatanPendampingan);
     setFotoDokumentasiUrl(item.fotoDokumentasiUrl || '');
     setParafAsistenUrl(item.parafAsistenUrl || '');
@@ -343,7 +343,7 @@ export const AsistenPelatihDashboard: React.FC<AsistenPelatihDashboardProps> = (
                 {currentUser.name}
               </h1>
               <p className="text-xs text-emerald-200/80">
-                Spesialisasi: <span className="font-semibold text-white">{currentUser.specialty || 'Pendamping Latihan & Section Marching'}</span>
+                <span>Peran: <strong className="text-white font-semibold">Asisten Pembina / Pelatih</strong></span>
                 {currentUser.phone && ` • HP: ${currentUser.phone}`}
               </p>
             </div>
@@ -773,14 +773,10 @@ export const AsistenPelatihDashboard: React.FC<AsistenPelatihDashboardProps> = (
             </div>
 
             {/* Asisten Bio Info */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
               <div>
                 <span className="text-slate-500 block text-[10px]">Nama Asisten Pelatih:</span>
                 <span className="font-bold text-slate-900">{currentUser.name}</span>
-              </div>
-              <div>
-                <span className="text-slate-500 block text-[10px]">Spesialisasi / Section:</span>
-                <span className="font-semibold text-slate-800">{currentUser.specialty || 'General'}</span>
               </div>
               <div>
                 <span className="text-slate-500 block text-[10px]">No. Telepon / WhatsApp:</span>

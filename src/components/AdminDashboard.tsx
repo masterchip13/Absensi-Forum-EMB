@@ -74,7 +74,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [password, setPassword] = useState('');
   const [nip, setNip] = useState('');
   const [phone, setPhone] = useState('');
-  const [specialty, setSpecialty] = useState('');
 
   // Assistant Recap Filter States
   const [filterAsistenId, setFilterAsistenId] = useState<string>('all');
@@ -104,7 +103,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setPassword('123456');
     setNip('');
     setPhone('');
-    setSpecialty(defaultRole === 'asisten_pelatih' ? 'Battery Percussion & Section Cadence' : 'Brass & Field Commander');
     setIsModalOpen(true);
   };
 
@@ -116,7 +114,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setPassword(u.password || '');
     setNip(u.nip || '');
     setPhone(u.phone || '');
-    setSpecialty(u.specialty || '');
     setIsModalOpen(true);
   };
 
@@ -132,7 +129,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       role,
       nip,
       phone,
-      specialty,
       active: true
     };
 
@@ -225,7 +221,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         <div className="p-3.5 bg-gradient-to-br from-teal-600 to-cyan-700 text-white rounded-2xl shadow-sm">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-semibold text-teal-100">Siswa Marching</span>
+            <span className="text-xs font-semibold text-teal-100">Total Anggota</span>
             <Users className="w-4 h-4 text-teal-200" />
           </div>
           <p className="text-2xl font-black">{anggotaList.length}</p>
@@ -265,11 +261,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               >
                 <option value="pelatih">👥 Kelola Akun Pelatih & Asisten</option>
                 <option value="rekap_asisten">📋 Rekap Absensi Asisten Pelatih</option>
-                <option value="penilaian">🎖️ Penilaian Raport Siswa (A, B, C, D)</option>
-                <option value="statistik">📊 Statistik Kehadiran</option>
+                <option value="penilaian">🎖️ Nilai Anggota & Raport</option>
+                <option value="statistik">📊 Statistik Kehadiran Siswa</option>
                 <option value="progres">📈 Progres Melatih & Target</option>
-                <option value="dokumentasi">🖼️ Galeri Foto Dokumentasi</option>
-                <option value="event">🏆 Laporan Kegiatan & Event</option>
+                <option value="dokumentasi">🖼️ Riwayat Dokumentasi</option>
+                <option value="event">🏆 Event & Prestasi</option>
               </select>
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
                 <ChevronDown className="w-3.5 h-3.5" />
@@ -366,7 +362,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 {isAsisten ? 'Asisten Pelatih' : 'Pelatih Utama'}
                               </span>
                             </div>
-                            <p className="text-[11px] text-slate-500 font-medium">Spesialisasi: {u.specialty || (isAsisten ? 'Pendamping Section' : 'Pelatih Marching Band')}</p>
+                            <p className="text-[11px] text-slate-500 font-medium">{isAsisten ? 'Asisten Pembina / Pelatih' : 'Pelatih Utama Marching Band'}</p>
                           </div>
                         </div>
 
@@ -776,28 +772,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">No. HP / Whatsapp</label>
-                  <input
-                    type="text"
-                    placeholder="081234567890"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Spesialisasi / Section</label>
-                  <input
-                    type="text"
-                    placeholder={role === 'asisten_pelatih' ? 'Battery / Pit / Guard' : 'Brass / Field Commander'}
-                    value={specialty}
-                    onChange={(e) => setSpecialty(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">No. HP / WhatsApp</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 081234567890"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
               </div>
 
               <div className="flex gap-2 pt-2">

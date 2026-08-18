@@ -90,25 +90,17 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
               onChange={(e) => setActiveTab(e.target.value as any)}
               className="w-full appearance-none bg-slate-50 hover:bg-slate-100 font-bold text-slate-900 border border-slate-300 rounded-xl px-4 py-2.5 pr-10 text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer transition shadow-xs"
             >
-              <optgroup label="📋 Menu Utama">
-                <option value="beranda">🏠 Beranda Hub (Ringkasan & Aksi Cepat)</option>
-                <option value="penilaian">🎖️ Penilaian Anggota & Nilai Raport (A, B, C, D)</option>
-                <option value="statistik">📊 Statistik & Grafik Kehadiran Siswa</option>
-              </optgroup>
-              <optgroup label="🏫 Data Master & Jadwal">
-                <option value="sekolah">🏫 Kelola Sekolah ({userSekolahList.length} Sekolah)</option>
-                <option value="divisi">🎺 Divisi Instrumen ({userDivisiList.length} Divisi)</option>
-                <option value="jadwal">⏰ Jadwal Latihan & Pengingat</option>
-                <option value="anggota">👥 Data Siswa & QR Code ({schoolAnggota.length} Siswa)</option>
-              </optgroup>
-              <optgroup label="📸 Presensi & Dokumentasi">
-                <option value="absen_pelatih">📷 Absen Melatih, Foto & Paraf</option>
-                <option value="galeri_foto">🖼️ Galeri Foto Dokumentasi Latihan</option>
-                <option value="event">🏆 Laporan Event & Prestasi ({userEventsList.length} Kegiatan)</option>
-              </optgroup>
-              <optgroup label="📄 Laporan & Cetak Resmi">
-                <option value="rekap_pdf">📄 Cetak Rekap & Format PDF/Word Resmi</option>
-              </optgroup>
+              <option value="beranda">🏠 Beranda</option>
+              <option value="penilaian">🎖️ Nilai Anggota</option>
+              <option value="statistik">📊 Statistik Kehadiran Siswa</option>
+              <option value="sekolah">🏫 Sekolah</option>
+              <option value="divisi">🎺 Divisi</option>
+              <option value="absen_pelatih">📷 Absensi Pelatih</option>
+              <option value="galeri_foto">🖼️ Riwayat Dokumentasi</option>
+              <option value="event">🏆 Event</option>
+              <option value="rekap_pdf">📄 Cetak Rekap Absensi</option>
+              <option value="anggota">👥 Data Anggota & Barcode</option>
+              <option value="jadwal">⏰ Jadwal Latihan</option>
             </select>
             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
               <ChevronDown className="w-4 h-4" />
@@ -117,11 +109,11 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
         </div>
 
         {/* Quick Shortcut Buttons */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-1.5 shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('beranda')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
               activeTab === 'beranda'
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -131,36 +123,47 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab('penilaian')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              activeTab === 'penilaian'
+                ? 'bg-amber-500 text-slate-950 shadow-xs font-black'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Nilai Anggota
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('statistik')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              activeTab === 'statistik'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Statistik Kehadiran
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab('absen_pelatih')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
               activeTab === 'absen_pelatih'
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            Absen & Foto
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('penilaian')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-              activeTab === 'penilaian'
-                ? 'bg-amber-500 text-slate-950 shadow-xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Nilai Siswa
+            Absensi Pelatih
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('rekap_pdf')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
               activeTab === 'rekap_pdf'
-                ? 'bg-indigo-600 text-white shadow-xs'
+                ? 'bg-indigo-600 text-white shadow-xs font-black'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            Cetak PDF
+            Cetak Rekap
           </button>
         </div>
       </div>
@@ -202,7 +205,7 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
                   className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-md transition"
                 >
                   <QrCode className="w-4 h-4" />
-                  <span>Scan QR Presensi Siswa</span>
+                  <span>Scan QR Presensi Anggota</span>
                 </button>
 
                 <button
@@ -243,8 +246,8 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
           {/* Quick Metrics */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3 bg-white rounded-2xl border border-slate-200 shadow-xs">
-              <span className="text-[11px] text-slate-400 font-semibold block">Siswa Sekolah Ini</span>
-              <p className="text-xl font-black text-slate-900 mt-0.5">{schoolAnggota.length} Siswa</p>
+              <span className="text-[11px] text-slate-400 font-semibold block">Anggota Sekolah Ini</span>
+              <p className="text-xl font-black text-slate-900 mt-0.5">{schoolAnggota.length} Anggota</p>
             </div>
             <div className="p-3 bg-white rounded-2xl border border-slate-200 shadow-xs">
               <span className="text-[11px] text-slate-400 font-semibold block">Jadwal Rutin</span>
@@ -314,7 +317,7 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
                 <Users className="w-4 h-4 text-blue-600" />
-                Daftar Anggota Siswa ({schoolAnggota.length})
+                Daftar Anggota ({schoolAnggota.length})
               </h3>
               <button
                 onClick={() => setActiveTab('anggota')}

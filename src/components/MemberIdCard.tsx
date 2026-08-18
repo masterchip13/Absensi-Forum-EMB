@@ -3,6 +3,7 @@ import html2canvas from 'html2canvas';
 import { Anggota } from '../types';
 import { MarchingBandLogo } from './Logos';
 import { Download, Printer, Check, Copy } from 'lucide-react';
+import { formatCardMemberName } from '../utils/nameFormatter';
 
 interface MemberIdCardProps {
   member: Anggota;
@@ -134,8 +135,8 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
 
             {/* NAMA ANGGOTA (Navy blue rounded pill container with bold white text) */}
             <div className="w-full max-w-[210px] sm:max-w-[230px] bg-[#14116E] text-white py-1 sm:py-1.5 px-3 rounded-lg shadow-sm flex items-center justify-center">
-              <span className="font-black text-xs sm:text-[13.5px] uppercase tracking-wide truncate leading-tight">
-                {member.nama}
+              <span className="font-black text-xs sm:text-[13.5px] uppercase tracking-wide truncate leading-tight" title={member.nama}>
+                {formatCardMemberName(member.nama, 18)}
               </span>
             </div>
 

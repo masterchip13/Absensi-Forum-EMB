@@ -68,9 +68,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           <h1 className="text-lg font-black tracking-tight text-white leading-tight">
             Absensi Forum Ekstrakurikuler Marching Band
           </h1>
-          <p className="text-[11px] text-blue-200/80 mt-1">
-            Sistem Absensi & Laporan Marching Band Terpadu
-          </p>
         </div>
 
         {/* Role Toggle Tabs - 3 Roles */}

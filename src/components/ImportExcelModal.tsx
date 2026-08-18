@@ -395,7 +395,7 @@ export const ImportExcelModal: React.FC<ImportExcelModalProps> = ({
               className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5"
             >
               <Plus className="w-4 h-4" />
-              <span>Impor {validCount} Siswa ke Sekolah</span>
+              <span>Impor {validCount} Anggota ke Sekolah</span>
             </button>
           )}
         </div>

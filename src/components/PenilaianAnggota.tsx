@@ -361,7 +361,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
   // CSV Export for Excel with monthly columns
   const handleExportCsv = () => {
     const monthHeaders = semesterMonths.map(m => `Kehadiran ${m}`);
-    const headers = ['No', 'Nama Siswa', 'Kelas', 'Divisi/Alat', ...monthHeaders, 'Total Hadir', 'Persentase', 'Nilai Huruf', 'Predikat', 'Keterangan'];
+    const headers = ['No', 'Nama Anggota', 'Kelas', 'Divisi/Alat', ...monthHeaders, 'Total Hadir', 'Persentase', 'Nilai Huruf', 'Predikat', 'Keterangan'];
     const rows = gradedStudents.map((row, idx) => [
       idx + 1,
       `"${row.anggota.nama}"`,
@@ -426,7 +426,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
               </h2>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Perhitungan nilai (Predikat A, B, C, D) berdasarkan jumlah kehadiran siswa per bulan dalam satu semester dilengkapi cetak tanda tangan basah & stempel resmi.
+              Perhitungan nilai (Predikat A, B, C, D) berdasarkan jumlah kehadiran anggota per bulan dalam satu semester dilengkapi cetak tanda tangan basah & stempel resmi.
             </p>
           </div>
 
@@ -536,7 +536,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
               onChange={e => setFilterDivisi(e.target.value)}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
             >
-              <option value="ALL">Semua Divisi ({gradedStudents.length} Siswa)</option>
+              <option value="ALL">Semua Divisi ({gradedStudents.length} Anggota)</option>
               {availableDivisi.map(d => (
                 <option key={d} value={d}>
                   Divisi {d}
@@ -690,7 +690,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
             </div>
             <div className="flex">
               <span className="w-32 text-slate-500 font-semibold">Jumlah Anggota</span>
-              <span className="font-bold text-slate-900">: {gradedStudents.length} Siswa</span>
+              <span className="font-bold text-slate-900">: {gradedStudents.length} Anggota</span>
             </div>
           </div>
         </div>
@@ -702,7 +702,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
               {/* Header baris 1 */}
               <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
                 <th rowSpan={2} className="py-2.5 px-2.5 border-r border-slate-300 text-center w-10">No</th>
-                <th rowSpan={2} className="py-2.5 px-3 border-r border-slate-300">Nama Siswa</th>
+                <th rowSpan={2} className="py-2.5 px-3 border-r border-slate-300">Nama Anggota</th>
                 <th rowSpan={2} className="py-2.5 px-2 border-r border-slate-300 text-center w-14">Kelas</th>
                 <th rowSpan={2} className="py-2.5 px-3 border-r border-slate-300">Divisi / Alat</th>
                 <th colSpan={semesterMonths.length} className="py-1.5 px-2 border-r border-slate-300 text-center bg-blue-50/60 font-black">
