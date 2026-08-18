@@ -154,9 +154,9 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
            (a.kolomIndex === kolomIndex || (a.kolomIndex === undefined && kolomIndex === 1))
     );
     if (record) {
-      if (record.status === 'Izin') return { isPresent: false, label: 'I', customSig: null };
-      if (record.status === 'Sakit') return { isPresent: false, label: 'S', customSig: null };
-      if (record.status === 'Alfa') return { isPresent: false, label: 'A', customSig: null };
+      if (record.status === 'Izin' || record.status === 'Sakit' || record.status === 'Alfa' || record.status === 'Alpa') {
+        return { isPresent: false, label: '', customSig: null };
+      }
       if (record.status === 'Hadir') {
         return { isPresent: true, label: '', customSig: record.signatureUrl || student.signatureUrl || null };
       }

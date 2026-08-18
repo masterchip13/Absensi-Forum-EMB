@@ -462,7 +462,7 @@ export const StatistikKehadiran: React.FC<StatistikKehadiranProps> = ({
                     </p>
                   </div>
                   <div className="mt-2 pt-2 border-t border-white/10 flex items-center justify-between text-[10px] text-slate-300">
-                    <span>Hadir: <b>{stat.totalHadir}</b> Sesi</span>
+                    <span><b>{stat.totalRecorded}</b> Sesi Pertemuan</span>
                     <span className="text-amber-400 font-bold group-hover:translate-x-0.5 transition-transform">Detail →</span>
                   </div>
                 </div>
@@ -778,7 +778,7 @@ export const StatistikKehadiran: React.FC<StatistikKehadiranProps> = ({
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-[11px] text-slate-500">
-                          {item.totalHadir} Hadir dari {item.totalRecorded} Sesi
+                          {item.totalRecorded} Sesi Pertemuan
                         </span>
                         <span className="font-black text-xs text-slate-900 font-mono w-12 text-right">
                           {item.ratePercent}%
@@ -913,12 +913,12 @@ export const StatistikKehadiran: React.FC<StatistikKehadiranProps> = ({
                   </span>
                 </div>
 
-                <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-200">
-                  <span className="text-[10px] font-semibold text-emerald-700 block">Total Hadir</span>
-                  <p className="text-xl font-black text-emerald-800 mt-0.5">
-                    {selectedStudentDetail.totalHadir} <span className="text-xs font-normal">Sesi</span>
+                <div className="p-3 bg-blue-50 rounded-2xl border border-blue-200">
+                  <span className="text-[10px] font-semibold text-blue-700 block">Total Sesi Tercatat</span>
+                  <p className="text-xl font-black text-blue-800 mt-0.5">
+                    {selectedStudentDetail.totalRecorded} <span className="text-xs font-normal">Sesi</span>
                   </p>
-                  <span className="text-[9px] text-emerald-600 font-medium">dari {selectedStudentDetail.totalRecorded} pertemuan</span>
+                  <span className="text-[9px] text-blue-600 font-medium">Log Presensi</span>
                 </div>
 
                 <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200">
@@ -927,29 +927,6 @@ export const StatistikKehadiran: React.FC<StatistikKehadiranProps> = ({
                     {selectedStudentDetail.student.divisiNama || 'Umum'}
                   </p>
                   <span className="text-[9px] text-slate-400">Marching Band</span>
-                </div>
-              </div>
-
-              {/* Attendance Counts Breakdown */}
-              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex items-center justify-around text-center text-xs">
-                <div>
-                  <span className="text-slate-400 block text-[10px]">Hadir</span>
-                  <span className="font-black text-emerald-700 text-sm">{selectedStudentDetail.totalHadir}</span>
-                </div>
-                <div className="h-6 w-px bg-slate-200" />
-                <div>
-                  <span className="text-slate-400 block text-[10px]">Izin</span>
-                  <span className="font-black text-blue-700 text-sm">{selectedStudentDetail.totalIzin}</span>
-                </div>
-                <div className="h-6 w-px bg-slate-200" />
-                <div>
-                  <span className="text-slate-400 block text-[10px]">Sakit</span>
-                  <span className="font-black text-amber-700 text-sm">{selectedStudentDetail.totalSakit}</span>
-                </div>
-                <div className="h-6 w-px bg-slate-200" />
-                <div>
-                  <span className="text-slate-400 block text-[10px]">Alpa</span>
-                  <span className="font-black text-rose-700 text-sm">{selectedStudentDetail.totalAlpa}</span>
                 </div>
               </div>
 
@@ -966,11 +943,6 @@ export const StatistikKehadiran: React.FC<StatistikKehadiranProps> = ({
                 ) : (
                   <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                     {selectedStudentDetail.logs.map((log, lIdx) => {
-                      let statusClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
-                      if (log.status === 'Izin') statusClass = 'bg-blue-100 text-blue-800 border-blue-300';
-                      if (log.status === 'Sakit') statusClass = 'bg-amber-100 text-amber-800 border-amber-300';
-                      if (log.status === 'Alpa') statusClass = 'bg-rose-100 text-rose-800 border-rose-300';
-
                       return (
                         <div
                           key={log.id || lIdx}
@@ -984,8 +956,8 @@ export const StatistikKehadiran: React.FC<StatistikKehadiranProps> = ({
                               <p className="text-[10px] text-slate-400">{log.keterangan}</p>
                             )}
                           </div>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${statusClass}`}>
-                            {log.status}
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-emerald-50 text-emerald-700 border-emerald-200">
+                            Terkonfirmasi
                           </span>
                         </div>
                       );
