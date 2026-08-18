@@ -299,11 +299,7 @@ export const StatistikKehadiran: React.FC<StatistikKehadiranProps> = ({
       'Sekolah',
       'Kelas',
       'Divisi',
-      'Total Hadir',
-      'Total Sakit',
-      'Total Izin',
-      'Total Alpa',
-      'Total Pertemuan',
+      'Total Sesi Pertemuan',
       'Persentase Kehadiran (%)',
       'Kategori Status'
     ];
@@ -314,10 +310,6 @@ export const StatistikKehadiran: React.FC<StatistikKehadiranProps> = ({
       `"${item.schoolName}"`,
       `"${item.student.kelas || '-'}"`,
       `"${item.student.divisiNama || '-'}"`,
-      item.totalHadir,
-      item.totalSakit,
-      item.totalIzin,
-      item.totalAlpa,
       item.totalRecorded,
       `${item.ratePercent}%`,
       `"${item.statusBadge.label}"`
@@ -636,10 +628,6 @@ export const StatistikKehadiran: React.FC<StatistikKehadiranProps> = ({
                   <th className="p-3">Nama Siswa / Anggota</th>
                   <th className="p-3 text-center">Kelas</th>
                   <th className="p-3">Divisi / Alat</th>
-                  <th className="p-3 text-center text-emerald-700 font-extrabold">Hadir</th>
-                  <th className="p-3 text-center text-blue-700">Izin</th>
-                  <th className="p-3 text-center text-amber-700">Sakit</th>
-                  <th className="p-3 text-center text-rose-700">Alpa</th>
                   <th className="p-3 text-center">Total Sesi</th>
                   <th className="p-3 text-center">Tingkat Kehadiran (%)</th>
                   <th className="p-3 text-center">Evaluasi</th>
@@ -649,7 +637,7 @@ export const StatistikKehadiran: React.FC<StatistikKehadiranProps> = ({
               <tbody className="divide-y divide-slate-200 font-medium text-slate-800">
                 {processedStudentStats.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="p-8 text-center text-slate-400 italic">
+                    <td colSpan={8} className="p-8 text-center text-slate-400 italic">
                       Tidak ada data siswa yang cocok dengan filter yang dipilih.
                     </td>
                   </tr>
@@ -687,20 +675,8 @@ export const StatistikKehadiran: React.FC<StatistikKehadiranProps> = ({
                             {item.student.divisiNama || 'Umum'}
                           </span>
                         </td>
-                        <td className="p-3 text-center font-mono font-black text-emerald-700 bg-emerald-50/40">
-                          {item.totalHadir}
-                        </td>
-                        <td className="p-3 text-center font-mono font-bold text-blue-700">
-                          {item.totalIzin}
-                        </td>
-                        <td className="p-3 text-center font-mono font-bold text-amber-700">
-                          {item.totalSakit}
-                        </td>
-                        <td className="p-3 text-center font-mono font-bold text-rose-700">
-                          {item.totalAlpa}
-                        </td>
-                        <td className="p-3 text-center font-mono font-bold text-slate-600">
-                          {item.totalRecorded}
+                        <td className="p-3 text-center font-mono font-bold text-slate-700">
+                          {item.totalRecorded} Sesi
                         </td>
                         <td className="p-3 text-center">
                           <div className="flex items-center justify-center gap-2">
