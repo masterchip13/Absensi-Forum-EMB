@@ -1,8 +1,10 @@
-const CACHE_NAME = 'fmb-absensi-v1';
+const CACHE_NAME = 'fmb-absensi-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
-  '/manifest.json'
+  '/manifest.json',
+  '/icon.svg',
+  '/favicon.svg'
 ];
 
 // Install event - Cache static assets

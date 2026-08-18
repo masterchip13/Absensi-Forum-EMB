@@ -17,7 +17,10 @@ import {
   Check,
   Menu,
   X,
-  Sparkles
+  Sparkles,
+  Smartphone,
+  Apple,
+  Download
 } from 'lucide-react';
 import { StorageService } from '../data/storage';
 import { FirebaseSync, SyncStatus } from '../data/firebaseSync';
@@ -34,6 +37,7 @@ interface NavbarProps {
   onOpenManageTahunAjaran?: () => void;
   onOpenQrScanner: () => void;
   onLogout: () => void;
+  onOpenInstallModal?: () => void;
   syncStatus?: SyncStatus;
   onManualSync?: () => void;
 }
@@ -50,6 +54,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenManageTahunAjaran,
   onOpenQrScanner,
   onLogout,
+  onOpenInstallModal,
   syncStatus = 'connected',
   onManualSync
 }) => {
@@ -267,6 +272,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onSelectSekolah={onSelectSekolah}
               />
 
+              {/* 4b. Install PWA App Shortcut */}
+              {onOpenInstallModal && (
+                <button
+                  onClick={onOpenInstallModal}
+                  className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white px-2 sm:px-2.5 py-1.5 rounded-xl border border-slate-700 transition active:scale-95 text-xs font-semibold"
+                  title="Pasang Aplikasi di Android & Apple (iPhone/iPad)"
+                >
+                  <div className="flex items-center gap-0.5 text-emerald-400">
+                    <Smartphone className="w-3.5 h-3.5" />
+                    <Apple className="w-3.5 h-3.5 hidden xs:block" />
+                  </div>
+                  <span className="hidden md:inline text-[11px]">Pasang di HP</span>
+                </button>
+              )}
+
               {/* 5. User Profile & Settings Dropdown Menu */}
               <div className="relative" ref={userRef}>
                 <button
@@ -406,6 +426,29 @@ export const Navbar: React.FC<NavbarProps> = ({
                         >
                           <Settings className="w-4 h-4 text-amber-400" />
                           <span className="font-semibold">Kelola Tahun Ajaran</span>
+                        </button>
+                      )}
+
+                      {/* Install App on Android & Apple (PWA) */}
+                      {onOpenInstallModal && (
+                        <button
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            onOpenInstallModal();
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between hover:bg-slate-700/70 text-slate-200 transition bg-slate-750/30"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex items-center gap-0.5 text-emerald-400">
+                              <Smartphone className="w-3.5 h-3.5" />
+                              <Apple className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <span className="font-semibold block text-slate-200">Pasang di HP (PWA)</span>
+                              <span className="text-[10px] text-emerald-400 font-medium">Android & Apple (iOS)</span>
+                            </div>
+                          </div>
+                          <Download className="w-3.5 h-3.5 text-slate-400" />
                         </button>
                       )}
                     </div>

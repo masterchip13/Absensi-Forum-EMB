@@ -1,21 +1,37 @@
 {
   "short_name": "FMB Absensi",
-  "name": "Forum Marching Band - Sistem Absensi Offline",
+  "name": "Absensi Forum Ekstrakurikuler Marching Band",
+  "description": "Sistem Presensi QR Code, Absensi Offline-First, dan Rekap Laporan Resmi Forum Marching Band",
   "icons": [
     {
-      "src": "assets/icon-192.png",
-      "type": "image/png",
-      "sizes": "192x192"
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512 any",
+      "purpose": "any maskable"
     },
     {
-      "src": "assets/icon-512.png",
-      "type": "image/png",
-      "sizes": "512x512"
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "48x48 72x72 96x96 144x144 192x192 512x512",
+      "purpose": "any"
     }
   ],
   "start_url": "/",
+  "scope": "/",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "display": "standalone",
-  "orientation": "portrait"
+  "display_override": [
+    "standalone",
+    "window-controls-overlay",
+    "minimal-ui"
+  ],
+  "orientation": "portrait",
+  "categories": [
+    "education",
+    "productivity",
+    "utilities"
+  ],
+  "lang": "id-ID",
+  "dir": "ltr"
 }

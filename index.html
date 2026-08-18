@@ -1,22 +1,36 @@
 <!doctype html>
-<html lang="en">
+<html lang="id">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#0f172a" />
+    <meta name="description" content="Sistem Presensi QR Code, Absensi Offline-First, dan Rekap Laporan Resmi Forum Marching Band" />
+    
+    <!-- Favicon & Vector Icons -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate icon" type="image/svg+xml" href="/icon.svg" />
+
+    <!-- Apple iOS / iPadOS PWA Configuration -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="FMB Absensi" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icon.svg" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/icon.svg" />
+
+    <!-- Android / Chrome PWA Configuration -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="FMB Absensi" />
     <link rel="manifest" href="/manifest.json" />
-    <title>Forum Marching Band - Sistem Absensi & Presensi</title>
-    <meta name="description" content="An application built with Google AI Studio." />
-    <meta property="og:title" content="My Google AI Studio App" />
-    <meta property="og:description" content="An application built with Google AI Studio." />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- General Mobile Configuration -->
+    <meta name="format-detection" content="telephone=no" />
+
+    <title>Absensi Forum Ekstrakurikuler Marching Band</title>
   </head>
-  <body>
+  <body class="bg-slate-900 text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

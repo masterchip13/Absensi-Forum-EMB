@@ -1,5 +1,31 @@
 @import "tailwindcss";
 
+/* iOS Safe Area & Mobile Device Layout Optimizations */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+html, body {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.safe-top {
+  padding-top: max(0px, env(safe-area-inset-top));
+}
+
+.safe-bottom {
+  padding-bottom: max(0px, env(safe-area-inset-bottom));
+}
+
+/* iOS Safari Smooth Momentum Scrolling */
+.scroll-touch {
+  -webkit-overflow-scrolling: touch;
+}
+
 @media print {
   body {
     background-color: #ffffff !important;
@@ -8,7 +34,7 @@
   }
 
   /* Hide everything on page except printable area */
-  header, nav, aside, .no-print, button, select, input, .top-header-banner {
+  header, nav, aside, .no-print, button, select, input, .top-header-banner, .pwa-banner {
     display: none !important;
   }
 

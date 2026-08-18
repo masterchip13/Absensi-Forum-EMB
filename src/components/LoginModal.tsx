@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { User, UserRole } from '../types';
 import { StorageService } from '../data/storage';
 import { TutWuriLogo, MarchingBandLogo } from './Logos';
-import { Shield, UserCheck, Users, ArrowRight } from 'lucide-react';
+import { Shield, UserCheck, Users, ArrowRight, Smartphone, Apple } from 'lucide-react';
 
 interface LoginViewProps {
   onLoginSuccess: (user: User) => void;
+  onOpenInstallModal?: () => void;
 }
 
-export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
+export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onOpenInstallModal }) => {
   const [roleTab, setRoleTab] = useState<UserRole>('pelatih');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -194,7 +195,22 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         </div>
       </div>
 
-      <p className="text-[11px] text-slate-500 mt-6 text-center">
+      {/* PWA Install Button for Android & Apple */}
+      {onOpenInstallModal && (
+        <button
+          type="button"
+          onClick={onOpenInstallModal}
+          className="mt-4 px-4 py-2 bg-slate-800/90 hover:bg-slate-750 border border-slate-700/80 hover:border-slate-600 rounded-2xl text-xs text-slate-300 hover:text-white transition flex items-center gap-2 shadow-lg group"
+        >
+          <div className="flex items-center gap-1 text-emerald-400 group-hover:text-emerald-300">
+            <Smartphone className="w-3.5 h-3.5" />
+            <Apple className="w-3.5 h-3.5" />
+          </div>
+          <span className="font-semibold">Pasang Aplikasi di Android & Apple (iPhone/iPad)</span>
+        </button>
+      )}
+
+      <p className="text-[11px] text-slate-500 mt-4 text-center">
         © 2026 Forum Ekstrakurikuler Marching Band. Hak Cipta Dilindungi.
       </p>
     </div>
