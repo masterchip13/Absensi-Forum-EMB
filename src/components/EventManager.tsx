@@ -129,8 +129,8 @@ export const EventManager: React.FC<EventManagerProps> = ({
       tanggal: formTanggal,
       namaEvent: formNamaEvent.trim(),
       lokasi: formLokasi.trim(),
-      keterangan: '',
-      prestasi: '',
+      keterangan: formKeterangan.trim(),
+      prestasi: formPrestasi.trim(),
       fotoUrl: formFotoUrl,
       tahunAjaran: activeTahunAjaran,
       createdByName: currentUser?.name || 'Pelatih'
@@ -422,6 +422,35 @@ export const EventManager: React.FC<EventManagerProps> = ({
                   required
                   className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-300 text-xs font-semibold focus:ring-2 focus:ring-purple-500 focus:outline-none"
                 />
+              </div>
+
+              {/* Prestasi & Keterangan (Opsional) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Pencapaian / Prestasi (Opsional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Juara 1 Display / Juara 2 Street Parade"
+                    value={formPrestasi}
+                    onChange={(e) => setFormPrestasi(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-300 text-xs font-semibold focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Keterangan Tambahan (Opsional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Menampilkan lagu wajib & pilihan"
+                    value={formKeterangan}
+                    onChange={(e) => setFormKeterangan(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-300 text-xs font-semibold focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                  />
+                </div>
               </div>
 
               {/* Foto Dokumentasi Upload */}

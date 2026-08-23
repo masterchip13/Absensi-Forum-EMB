@@ -9,7 +9,6 @@ import { PelatihDashboard } from './components/PelatihDashboard';
 import { AsistenPelatihDashboard } from './components/AsistenPelatihDashboard';
 import { QrScannerModal } from './components/QrScannerModal';
 import { TahunAjaranModal } from './components/TahunAjaranModal';
-import { InstallAppModal } from './components/InstallAppModal';
 import { OfflineBanner } from './components/OfflineBanner';
 
 export default function App() {
@@ -29,7 +28,6 @@ export default function App() {
   const [activeTahunAjaran, setActiveTahunAjaran] = useState<string>('2024/2025');
   const [tahunAjaranList, setTahunAjaranList] = useState<string[]>([]);
   const [isTahunAjaranModalOpen, setIsTahunAjaranModalOpen] = useState(false);
-  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
 
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('offline');
@@ -123,14 +121,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col">
         <OfflineBanner />
-        <LoginView 
-          onLoginSuccess={(u) => { setCurrentUser(u); loadAllData(); }} 
-          onOpenInstallModal={() => setIsInstallModalOpen(true)}
-        />
-        <InstallAppModal
-          isOpen={isInstallModalOpen}
-          onClose={() => setIsInstallModalOpen(false)}
-        />
+        <LoginView onLoginSuccess={(u) => { setCurrentUser(u); loadAllData(); }} />
       </div>
     );
   }
@@ -158,7 +149,6 @@ export default function App() {
         onOpenManageTahunAjaran={() => setIsTahunAjaranModalOpen(true)}
         onOpenQrScanner={() => setIsQrScannerOpen(true)}
         onLogout={handleLogout}
-        onOpenInstallModal={() => setIsInstallModalOpen(true)}
         syncStatus={syncStatus}
         onManualSync={async () => {
           await FirebaseSync.pushAllLocalToFirebase();
@@ -229,12 +219,6 @@ export default function App() {
         absenPelatihList={absenPelatihList}
         onSelectActive={handleSelectTahunAjaran}
         onDataChanged={loadAllData}
-      />
-
-      {/* PWA Install Guide Modal for Android & Apple */}
-      <InstallAppModal
-        isOpen={isInstallModalOpen}
-        onClose={() => setIsInstallModalOpen(false)}
       />
 
       {/* Footer */}

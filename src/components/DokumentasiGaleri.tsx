@@ -1,26 +1,33 @@
 import React, { useState, useMemo } from 'react';
-import { AbsenPelatihItem, Sekolah, User } from '../types';
-import { Camera, Search, Filter, Calendar, School, User as UserIcon, Award, Download, X, Maximize2, Sparkles, CheckCircle2, Clock, FileText } from 'lucide-react';
+import { AbsenPelatihItem, EventLog, Sekolah, User } from '../types';
+import { Camera, Search, Filter, Calendar, School, User as UserIcon, Award, Download, X, Maximize2, Sparkles, CheckCircle2, Clock, FileText, Trophy, MapPin } from 'lucide-react';
 
 interface DokumentasiGaleriProps {
   absenPelatihList: AbsenPelatihItem[];
+  eventsList?: EventLog[];
   sekolahList: Sekolah[];
   usersList?: User[];
   selectedSekolahId?: string;
   onSelectSekolah?: (id: string) => void;
 }
 
+export type PhotoItemType = 
+  | { kind: 'latihan'; data: AbsenPelatihItem; id: string; date: string; schoolId: string; photoUrl: string; title: string; subtitle?: string }
+  | { kind: 'event'; data: EventLog; id: string; date: string; schoolId: string; photoUrl: string; title: string; subtitle?: string };
+
 export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
   absenPelatihList,
+  eventsList = [],
   sekolahList,
   usersList = [],
   selectedSekolahId,
   onSelectSekolah
 }) => {
   const [filterSekolahId, setFilterSekolahId] = useState<string>(selectedSekolahId || 'ALL');
+  const [filterCategory, setFilterCategory] = useState<'ALL' | 'LATIHAN' | 'EVENT'>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [sortOption, setSortOption] = useState<'newest' | 'oldest' | 'pencapaian_desc' | 'pencapaian_asc'>('newest');
-  const [selectedItemForLightbox, setSelectedItemForLightbox] = useState<AbsenPelatihItem | null>(null);
+  const [sortOption, setSortOption] = useState<'newest' | 'oldest'>('newest');
+  const [selectedItemForLightbox, setSelectedItemForLightbox] = useState<PhotoItemType | null>(null);
 
   // Sync state if prop changes
   React.useEffect(() => {
@@ -36,31 +43,76 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
     }
   };
 
+  // Unified items list
+  const allPhotoItems = useMemo<PhotoItemType[]>(() => {
+    const items: PhotoItemType[] = [];
+
+    // Training photos
+    absenPelatihList.forEach((item) => {
+      if (item.fotoDokumentasiUrl) {
+        items.push({
+          kind: 'latihan',
+          data: item,
+          id: `lat-${item.id}`,
+          date: item.tanggal,
+          schoolId: item.sekolahId,
+          photoUrl: item.fotoDokumentasiUrl,
+          title: item.materiPokok,
+          subtitle: item.hariTanggalFormat
+        });
+      }
+    });
+
+    // Event photos
+    eventsList.forEach((evt) => {
+      if (evt.fotoUrl) {
+        items.push({
+          kind: 'event',
+          data: evt,
+          id: `evt-${evt.id}`,
+          date: evt.tanggal,
+          schoolId: evt.sekolahId,
+          photoUrl: evt.fotoUrl,
+          title: evt.namaEvent,
+          subtitle: evt.lokasi ? `Lokasi: ${evt.lokasi}` : undefined
+        });
+      }
+    });
+
+    return items;
+  }, [absenPelatihList, eventsList]);
+
   // Filtered and Sorted Documentation Items
   const filteredItems = useMemo(() => {
-    return absenPelatihList
+    return allPhotoItems
       .filter((item) => {
-        // Must have photo
-        if (!item.fotoDokumentasiUrl) return false;
+        // Category filter
+        if (filterCategory === 'LATIHAN' && item.kind !== 'latihan') return false;
+        if (filterCategory === 'EVENT' && item.kind !== 'event') return false;
 
         // School filter
-        if (filterSekolahId !== 'ALL' && item.sekolahId !== filterSekolahId) {
+        if (filterSekolahId !== 'ALL' && item.schoolId !== filterSekolahId) {
           return false;
         }
 
-        // Search query filter (matches materi, notes, date, or school name)
+        // Search query filter
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
-          const school = sekolahList.find((s) => s.id === item.sekolahId);
-          const trainer = usersList.find((u) => u.id === item.pelatihId);
+          const school = sekolahList.find((s) => s.id === item.schoolId);
 
-          const matchesMateri = item.materiPokok?.toLowerCase().includes(q);
-          const matchesCatatan = item.catatan?.toLowerCase().includes(q);
-          const matchesDate = item.hariTanggalFormat?.toLowerCase().includes(q);
+          const matchesTitle = item.title?.toLowerCase().includes(q);
+          const matchesDate = item.date?.toLowerCase().includes(q);
           const matchesSchool = school?.namaSekolah.toLowerCase().includes(q);
-          const matchesTrainer = trainer?.name.toLowerCase().includes(q);
 
-          if (!matchesMateri && !matchesCatatan && !matchesDate && !matchesSchool && !matchesTrainer) {
+          let matchesExtra = false;
+          if (item.kind === 'latihan') {
+            const trainer = usersList.find((u) => u.id === item.data.pelatihId);
+            matchesExtra = !!(item.data.catatan?.toLowerCase().includes(q) || trainer?.name.toLowerCase().includes(q));
+          } else if (item.kind === 'event') {
+            matchesExtra = !!(item.data.lokasi?.toLowerCase().includes(q) || item.data.prestasi?.toLowerCase().includes(q) || item.data.keterangan?.toLowerCase().includes(q));
+          }
+
+          if (!matchesTitle && !matchesDate && !matchesSchool && !matchesExtra) {
             return false;
           }
         }
@@ -68,33 +120,29 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
         return true;
       })
       .sort((a, b) => {
+        const timeA = new Date(a.date).getTime() || 0;
+        const timeB = new Date(b.date).getTime() || 0;
         if (sortOption === 'newest') {
-          return new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime();
+          return timeB - timeA;
         }
-        if (sortOption === 'oldest') {
-          return new Date(a.tanggal).getTime() - new Date(b.tanggal).getTime();
-        }
-        if (sortOption === 'pencapaian_desc') {
-          return b.pencapaianPercent - a.pencapaianPercent;
-        }
-        if (sortOption === 'pencapaian_asc') {
-          return a.pencapaianPercent - b.pencapaianPercent;
-        }
-        return 0;
+        return timeA - timeB;
       });
-  }, [absenPelatihList, filterSekolahId, searchQuery, sortOption, sekolahList, usersList]);
+  }, [allPhotoItems, filterCategory, filterSekolahId, searchQuery, sortOption, sekolahList, usersList]);
 
   const activeSchoolObj = sekolahList.find((s) => s.id === filterSekolahId);
 
-  const handleDownloadImage = (item: AbsenPelatihItem) => {
-    const schoolName = sekolahList.find((s) => s.id === item.sekolahId)?.namaSekolah || 'Sekolah';
+  const handleDownloadImage = (item: PhotoItemType) => {
+    const schoolName = sekolahList.find((s) => s.id === item.schoolId)?.namaSekolah || 'Sekolah';
     const link = document.createElement('a');
-    link.href = item.fotoDokumentasiUrl;
-    link.download = `Dokumentasi-${schoolName.replace(/\s+/g, '_')}-${item.tanggal}.jpg`;
+    link.href = item.photoUrl;
+    link.download = `Dokumentasi-${item.kind === 'event' ? 'Event' : 'Latihan'}-${schoolName.replace(/[^a-zA-Z0-9]/g, '_')}-${item.date}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
+
+  const totalLatihanPhotos = allPhotoItems.filter(p => p.kind === 'latihan').length;
+  const totalEventPhotos = allPhotoItems.filter(p => p.kind === 'event').length;
 
   return (
     <div className="space-y-5">
@@ -106,23 +154,68 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
           </div>
           <div>
             <h2 className="text-lg font-black text-slate-900 leading-tight">
-              Galeri Dokumentasi Foto Latihan
+              Galeri Dokumentasi Foto Kegiatan & Event
             </h2>
             <p className="text-xs text-slate-500">
-              Kumpulan bukti foto kehadiran dan kegiatan melatih marching band antar sekolah
+              Kumpulan bukti foto kegiatan latihan rutin dan laporan dokumentasi event / perlombaan marching band
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl shrink-0">
-          <span className="text-xs font-bold text-slate-600 px-2.5">
-            Total Foto: <strong className="text-slate-900 font-extrabold">{filteredItems.length}</strong>
+        <div className="flex flex-wrap items-center gap-2 bg-slate-100 p-1.5 rounded-2xl shrink-0">
+          <span className="text-xs font-bold text-slate-600 px-2 py-1">
+            Total: <strong className="text-slate-900 font-extrabold">{filteredItems.length} Foto</strong>
+          </span>
+          <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-1 rounded-xl border border-blue-200">
+            🏃 {totalLatihanPhotos} Latihan
+          </span>
+          <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-1 rounded-xl border border-purple-200">
+            🏆 {totalEventPhotos} Event
           </span>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+        {/* Category Tabs: Semua, Latihan, Event */}
+        <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+          <button
+            onClick={() => setFilterCategory('ALL')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 ${
+              filterCategory === 'ALL'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <Camera className="w-3.5 h-3.5" />
+            <span>Semua Foto ({allPhotoItems.length})</span>
+          </button>
+
+          <button
+            onClick={() => setFilterCategory('LATIHAN')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 ${
+              filterCategory === 'LATIHAN'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            <span>Foto Latihan Reguler ({totalLatihanPhotos})</span>
+          </button>
+
+          <button
+            onClick={() => setFilterCategory('EVENT')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 ${
+              filterCategory === 'EVENT'
+                ? 'bg-purple-600 text-white shadow-xs'
+                : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+            }`}
+          >
+            <Trophy className="w-3.5 h-3.5" />
+            <span>Foto Laporan Event ({totalEventPhotos})</span>
+          </button>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* School Selector Dropdown */}
           <div>
@@ -137,7 +230,7 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
             >
               <option value="ALL">🌟 Semua Sekolah Binaan ({sekolahList.length})</option>
               {sekolahList.map((school) => {
-                const count = absenPelatihList.filter(a => a.sekolahId === school.id && a.fotoDokumentasiUrl).length;
+                const count = allPhotoItems.filter(a => a.schoolId === school.id).length;
                 return (
                   <option key={school.id} value={school.id}>
                     🏫 {school.namaSekolah} ({count} Foto)
@@ -151,12 +244,12 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
           <div>
             <label className="block text-xs font-extrabold text-slate-700 mb-1 flex items-center gap-1.5">
               <Search className="w-3.5 h-3.5 text-blue-600" />
-              <span>Cari Materi / Catatan</span>
+              <span>Cari Foto / Event / Materi</span>
             </label>
             <div className="relative">
               <input
                 type="text"
-                placeholder="Cari materi pokok, tanggal, pelatih..."
+                placeholder="Cari materi, nama event, lokasi, tanggal..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -186,8 +279,6 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
             >
               <option value="newest">📅 Tanggal Terbaru</option>
               <option value="oldest">📅 Tanggal Terlama</option>
-              <option value="pencapaian_desc">🎯 Pencapaian Tertinggi (%)</option>
-              <option value="pencapaian_asc">🎯 Pencapaian Terrendah (%)</option>
             </select>
           </div>
         </div>
@@ -230,15 +321,14 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
           <h3 className="font-extrabold text-slate-800 text-base">Tidak Ada Foto Dokumentasi</h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
             {filterSekolahId !== 'ALL'
-              ? `Belum ada foto kegiatan melatih terunggah untuk ${activeSchoolObj?.namaSekolah || 'sekolah ini'}.`
-              : 'Belum ada bukti foto latihan yang diisi oleh pelatih.'}
+              ? `Belum ada foto kegiatan terunggah untuk ${activeSchoolObj?.namaSekolah || 'sekolah ini'}.`
+              : 'Belum ada bukti foto latihan atau foto event yang diunggah.'}
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredItems.map((item) => {
-            const school = sekolahList.find((s) => s.id === item.sekolahId);
-            const trainer = usersList.find((u) => u.id === item.pelatihId);
+            const school = sekolahList.find((s) => s.id === item.schoolId);
 
             return (
               <div
@@ -248,18 +338,25 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
                 {/* Photo Preview Frame */}
                 <div className="relative h-48 bg-slate-900 overflow-hidden cursor-pointer" onClick={() => setSelectedItemForLightbox(item)}>
                   <img
-                    src={item.fotoDokumentasiUrl}
-                    alt={item.materiPokok}
+                    src={item.photoUrl}
+                    alt={item.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                   />
                   {/* Overlay Gradient */}
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition" />
 
-                  {/* Achievement Badge */}
-                  <div className="absolute top-2.5 right-2.5 bg-emerald-600/90 backdrop-blur-xs text-white text-[11px] font-black px-2.5 py-1 rounded-full shadow-md flex items-center gap-1 border border-emerald-400/30">
-                    <Award className="w-3 h-3 text-amber-300" />
-                    <span>{item.pencapaianPercent}%</span>
-                  </div>
+                  {/* Category Badge Top Right */}
+                  {item.kind === 'event' ? (
+                    <div className="absolute top-2.5 right-2.5 bg-purple-700/90 backdrop-blur-xs text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-md flex items-center gap-1 border border-purple-400/30">
+                      <Trophy className="w-3 h-3 text-amber-300" />
+                      <span>FOTO EVENT</span>
+                    </div>
+                  ) : (
+                    <div className="absolute top-2.5 right-2.5 bg-emerald-600/90 backdrop-blur-xs text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-md flex items-center gap-1 border border-emerald-400/30">
+                      <Award className="w-3 h-3 text-amber-300" />
+                      <span>{item.data.pencapaianPercent}%</span>
+                    </div>
+                  )}
 
                   {/* School Badge Top Left */}
                   <div className="absolute top-2.5 left-2.5 bg-slate-900/80 backdrop-blur-xs text-white text-[10px] font-bold px-2.5 py-1 rounded-lg border border-slate-700/60 max-w-[150px] truncate">
@@ -285,28 +382,49 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
                     <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
                       <span className="font-semibold text-slate-700 flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5 text-blue-600" />
-                        {item.hariTanggalFormat}
+                        {item.date}
                       </span>
-                      <span className="font-mono text-slate-500">
-                        {item.jamMulai} - {item.jamSelesai}
-                      </span>
+                      {item.kind === 'latihan' ? (
+                        <span className="font-mono text-slate-500 text-[10px]">
+                          {item.data.jamMulai} - {item.data.jamSelesai}
+                        </span>
+                      ) : item.data.lokasi ? (
+                        <span className="text-[10px] text-purple-700 font-bold flex items-center gap-0.5 truncate max-w-[120px]">
+                          <MapPin className="w-3 h-3 shrink-0" />
+                          {item.data.lokasi}
+                        </span>
+                      ) : null}
                     </div>
 
                     <h4 className="font-extrabold text-slate-900 text-xs leading-snug line-clamp-2">
-                      {item.materiPokok}
+                      {item.title}
                     </h4>
 
-                    {item.catatan && (
+                    {item.kind === 'event' && item.data.prestasi && (
+                      <div className="mt-1 flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md text-[10.5px] font-bold text-amber-900">
+                        <Trophy className="w-3 h-3 text-amber-600 shrink-0" />
+                        <span className="truncate">{item.data.prestasi}</span>
+                      </div>
+                    )}
+
+                    {item.kind === 'latihan' && item.data.catatan && (
                       <p className="text-[11px] text-slate-600 italic mt-1 line-clamp-2 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
-                        "{item.catatan}"
+                        "{item.data.catatan}"
                       </p>
                     )}
                   </div>
 
                   <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                    <span className="font-bold text-blue-700 flex items-center gap-1 truncate max-w-[140px]">
-                      <UserIcon className="w-3 h-3 text-blue-500 shrink-0" />
-                      {trainer?.name || 'Pelatih'}
+                    <span className="font-bold text-slate-600 flex items-center gap-1 truncate max-w-[140px]">
+                      {item.kind === 'event' ? (
+                        <span className="text-purple-700 text-[10.5px] font-extrabold flex items-center gap-1">
+                          <Trophy className="w-3 h-3" /> Event Sekolah
+                        </span>
+                      ) : (
+                        <span className="text-blue-700 text-[10.5px] font-extrabold flex items-center gap-1">
+                          <UserIcon className="w-3 h-3" /> Pelatih
+                        </span>
+                      )}
                     </span>
 
                     <button
@@ -331,13 +449,19 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
             {/* Modal Header */}
             <div className="bg-slate-900 text-white p-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
-                <Camera className="w-5 h-5 text-amber-400" />
+                {selectedItemForLightbox.kind === 'event' ? (
+                  <Trophy className="w-5 h-5 text-amber-400" />
+                ) : (
+                  <Camera className="w-5 h-5 text-amber-400" />
+                )}
                 <div>
                   <h3 className="font-extrabold text-sm text-white">
-                    {sekolahList.find((s) => s.id === selectedItemForLightbox.sekolahId)?.namaSekolah}
+                    {sekolahList.find((s) => s.id === selectedItemForLightbox.schoolId)?.namaSekolah}
                   </h3>
                   <p className="text-[11px] text-slate-400">
-                    Sesi Latihan {selectedItemForLightbox.hariTanggalFormat} ({selectedItemForLightbox.jamMulai} - {selectedItemForLightbox.jamSelesai})
+                    {selectedItemForLightbox.kind === 'event'
+                      ? `Dokumentasi Event: ${selectedItemForLightbox.title} (${selectedItemForLightbox.date})`
+                      : `Sesi Latihan: ${selectedItemForLightbox.subtitle} (${selectedItemForLightbox.data.jamMulai} - ${selectedItemForLightbox.data.jamSelesai})`}
                   </p>
                 </div>
               </div>
@@ -355,8 +479,8 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
               {/* Photo Large View */}
               <div className="bg-slate-950 rounded-2xl overflow-hidden max-h-[400px] flex items-center justify-center relative group">
                 <img
-                  src={selectedItemForLightbox.fotoDokumentasiUrl}
-                  alt={selectedItemForLightbox.materiPokok}
+                  src={selectedItemForLightbox.photoUrl}
+                  alt={selectedItemForLightbox.title}
                   className="max-h-[400px] w-auto object-contain"
                 />
 
@@ -369,48 +493,64 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
                 </button>
               </div>
 
-              {/* Training Details */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs">
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Materi Pokok Latihan</span>
-                  <p className="font-extrabold text-slate-900 text-sm">{selectedItemForLightbox.materiPokok}</p>
-                </div>
+              {/* Details for Event or Training */}
+              {selectedItemForLightbox.kind === 'event' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-purple-50/70 p-4 rounded-2xl border border-purple-200 text-xs">
+                  <div>
+                    <span className="text-[10px] text-purple-700 font-bold uppercase tracking-wider block mb-1">Nama Kegiatan / Event</span>
+                    <p className="font-extrabold text-slate-900 text-sm">{selectedItemForLightbox.data.namaEvent}</p>
+                  </div>
 
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Tingkat Pencapaian Target</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-black text-emerald-700">{selectedItemForLightbox.pencapaianPercent}%</span>
-                    <div className="flex-1 bg-slate-200 h-2 rounded-full overflow-hidden">
-                      <div
-                        className="bg-emerald-600 h-full rounded-full"
-                        style={{ width: `${selectedItemForLightbox.pencapaianPercent}%` }}
-                      />
+                  <div>
+                    <span className="text-[10px] text-purple-700 font-bold uppercase tracking-wider block mb-1">Tanggal & Lokasi</span>
+                    <p className="font-bold text-slate-800">
+                      📅 {selectedItemForLightbox.data.tanggal}
+                      {selectedItemForLightbox.data.lokasi && ` • 📍 ${selectedItemForLightbox.data.lokasi}`}
+                    </p>
+                  </div>
+
+                  {selectedItemForLightbox.data.prestasi && (
+                    <div className="sm:col-span-2 pt-2 border-t border-purple-200">
+                      <span className="text-[10px] text-amber-700 font-bold uppercase tracking-wider block mb-0.5">Prestasi / Penghargaan</span>
+                      <p className="font-extrabold text-amber-900 bg-amber-100/70 px-2.5 py-1 rounded-lg border border-amber-200">
+                        🏆 {selectedItemForLightbox.data.prestasi}
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedItemForLightbox.data.keterangan && (
+                    <div className="sm:col-span-2 pt-2 border-t border-purple-200">
+                      <span className="text-[10px] text-purple-700 font-bold uppercase tracking-wider block mb-0.5">Keterangan / Uraian</span>
+                      <p className="text-slate-700 font-medium italic">{selectedItemForLightbox.data.keterangan}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Materi Pokok Latihan</span>
+                    <p className="font-extrabold text-slate-900 text-sm">{selectedItemForLightbox.data.materiPokok}</p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Tingkat Pencapaian Target</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-black text-emerald-700">{selectedItemForLightbox.data.pencapaianPercent}%</span>
+                      <div className="flex-1 bg-slate-200 h-2 rounded-full overflow-hidden">
+                        <div
+                          className="bg-emerald-600 h-full rounded-full"
+                          style={{ width: `${selectedItemForLightbox.data.pencapaianPercent}%` }}
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {selectedItemForLightbox.catatan && (
-                  <div className="sm:col-span-2 pt-2 border-t border-slate-200">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Catatan Pelatih</span>
-                    <p className="text-slate-700 font-medium italic">{selectedItemForLightbox.catatan}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Trainer Paraf Signature if Available */}
-              {selectedItemForLightbox.parafPelatihUrl && (
-                <div className="flex items-center justify-between p-3 bg-blue-50/60 rounded-2xl border border-blue-200">
-                  <div>
-                    <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">Paraf Pengesahan Pelatih</span>
-                    <span className="text-xs font-extrabold text-slate-800">
-                      {usersList.find((u) => u.id === selectedItemForLightbox.pelatihId)?.name || 'Pelatih'}
-                    </span>
-                  </div>
-                  <img
-                    src={selectedItemForLightbox.parafPelatihUrl}
-                    alt="Paraf"
-                    className="h-10 border border-blue-300 rounded-lg bg-white p-1"
-                  />
+                  {selectedItemForLightbox.data.catatan && (
+                    <div className="sm:col-span-2 pt-2 border-t border-slate-200">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Catatan Pelatih</span>
+                      <p className="text-slate-700 font-medium italic">{selectedItemForLightbox.data.catatan}</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -666,6 +666,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {activeTab === 'dokumentasi' && (
           <DokumentasiGaleri
             absenPelatihList={absenPelatihList}
+            eventsList={eventsList}
             sekolahList={sekolahList}
             usersList={usersList}
           />
