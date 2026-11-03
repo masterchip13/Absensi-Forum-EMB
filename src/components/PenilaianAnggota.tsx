@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { Sekolah, Anggota, AbsenSiswaEntry } from '../types';
 import { StorageService } from '../data/storage';
 import {
@@ -358,36 +359,255 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
     }
   };
 
-  // CSV Export for Excel with monthly columns
-  const handleExportCsv = () => {
-    const monthHeaders = semesterMonths.map(m => `Kehadiran ${m}`);
-    const headers = ['No', 'Nama Anggota', 'Kelas', 'Divisi/Alat', ...monthHeaders, 'Total Hadir', 'Persentase', 'Nilai Huruf', 'Predikat', 'Keterangan'];
-    const rows = gradedStudents.map((row, idx) => [
-      idx + 1,
-      `"${row.anggota.nama}"`,
-      `"${row.anggota.kelas || '-'}"`,
-      `"${row.anggota.divisiNama || '-'}"`,
-      ...semesterMonths.map(m => row.monthlyAttendance[m] || 0),
-      row.totalHadir,
-      `${row.persentaseKehadiran}%`,
-      row.nilaiHuruf,
-      `"${row.predikat}"`,
-      `"${row.keterangan}"`
-    ]);
+  // Native Excel (.xlsx) Export with multi-column grades and rubrics
+  const handleExportExcel = () => {
+    try {
+      const wb = XLSX.utils.book_new();
 
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' +
-      `DAFTAR NILAI EKSTRAKURIKULER\n` +
-      `Sekolah: ${selectedSekolah?.namaSekolah || '-'}\n` +
-      `Semester: ${filterSemester} - Tahun Ajaran: ${filterTahunAjaran}\n\n` +
-      [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+      const headers = [
+        'No',
+        'Nama Siswa / Anggota',
+        'Kelas',
+        'Divisi / Alat Musik',
+        ...semesterMonths.map(m => `Hadir ${m}`),
+        'Total Hadir',
+        'Total Pertemuan',
+        'Persentase (%)',
+        'Nilai Huruf',
+        'Predikat',
+        'Deskripsi Capaian'
+      ];
 
-    const encodedUri = encodeURI(csvContent);
+      const rows: any[][] = [
+        ['DAFTAR NILAI & RAPORT EKSTRAKURIKULER MARCHING BAND'],
+        [`Sekolah: ${selectedSekolah?.namaSekolah || '-'}`],
+        [`Semester: ${filterSemester} | Tahun Pelajaran: ${filterTahunAjaran}`],
+        [`Pelatih: ${pelatihUser?.name || 'Pelatih Ekstrakurikuler'}`],
+        [],
+        headers
+      ];
+
+      if (gradedStudents.length === 0) {
+        rows.push(['-', 'Belum ada data anggota pada sekolah/semester ini', '-', '-', ...semesterMonths.map(() => '-'), 0, 0, '0%', '-', '-', '-']);
+      } else {
+        gradedStudents.forEach((row, idx) => {
+          rows.push([
+            idx + 1,
+            row.anggota.nama,
+            row.anggota.kelas || '-',
+            row.anggota.divisiNama || '-',
+            ...semesterMonths.map(m => row.monthlyAttendance[m] || 0),
+            row.totalHadir,
+            row.totalPertemuan,
+            `${row.persentaseKehadiran}%`,
+            row.nilaiHuruf,
+            row.predikat,
+            row.keterangan
+          ]);
+        });
+      }
+
+      // Add summary statistics
+      rows.push([]);
+      rows.push(['REKAPITULASI PREDIKAT NILAI']);
+      rows.push(['Predikat A (Sangat Baik - >=85%)', stats.countA, `${stats.pctA}%`]);
+      rows.push(['Predikat B (Baik - 70%-84%)', stats.countB, `${stats.pctB}%`]);
+      rows.push(['Predikat C (Cukup - 55%-69%)', stats.countC, `${stats.pctC}%`]);
+      rows.push(['Predikat D (Kurang - <55%)', stats.countD, `${stats.pctD}%`]);
+      rows.push(['Total Anggota Dinilai', gradedStudents.length]);
+
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [
+        { wch: 6 },
+        { wch: 28 },
+        { wch: 10 },
+        { wch: 20 },
+        ...semesterMonths.map(() => ({ wch: 12 })),
+        { wch: 12 },
+        { wch: 16 },
+        { wch: 16 },
+        { wch: 12 },
+        { wch: 16 },
+        { wch: 45 }
+      ];
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Nilai Raport Ekskul');
+      const cleanSchool = (selectedSekolah?.namaSekolah || 'Sekolah').replace(/[^a-zA-Z0-9]/g, '_');
+      const fileName = `Nilai_Ekskul_${cleanSchool}_Semester_${filterSemester}_${filterTahunAjaran.replace('/', '-')}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (err) {
+      console.error('Export Excel failed:', err);
+      alert('Terjadi kesalahan saat mengekspor Excel.');
+    }
+  };
+
+  // Microsoft Word (.doc) Export
+  const handleExportWord = () => {
+    const cleanSchool = (selectedSekolah?.namaSekolah || 'Sekolah').replace(/[^a-zA-Z0-9]/g, '_');
+    const fileName = `Nilai_Ekskul_${cleanSchool}_Semester_${filterSemester}_${filterTahunAjaran.replace('/', '-')}.doc`;
+
+    const htmlHeader = `
+<html xmlns:o='urn:schemas-microsoft-com:office:office'
+      xmlns:w='urn:schemas-microsoft-com:office:word'
+      xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+  <meta charset='utf-8'>
+  <title>Daftar Nilai Ekstrakurikuler - ${selectedSekolah?.namaSekolah || ''}</title>
+  <!--[if gte mso 9]>
+  <xml>
+    <w:WordDocument>
+      <w:View>Print</w:View>
+      <w:Zoom>100</w:Zoom>
+      <w:DoNotOptimizeForBrowser/>
+    </w:WordDocument>
+  </xml>
+  <![endif]-->
+  <style>
+    @page {
+      size: 297mm 210mm; /* Landscape */
+      margin: 15mm 15mm 15mm 15mm;
+    }
+    body {
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 9.5pt;
+      color: #000000;
+      line-height: 1.25;
+    }
+    .header-box {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .header-title {
+      font-size: 13pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      margin: 0;
+    }
+    .header-sub {
+      font-size: 11pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      margin: 2px 0;
+    }
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 15px;
+      font-size: 9pt;
+    }
+    table.data-table th, table.data-table td {
+      border: 1px solid #000000;
+      padding: 5px 4px;
+      text-align: center;
+      vertical-align: middle;
+    }
+    table.data-table th {
+      background-color: #f1f5f9;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+    .text-left { text-align: left !important; }
+    .rubrik-box {
+      border: 1px solid #000;
+      padding: 8px 12px;
+      margin-top: 15px;
+      margin-bottom: 20px;
+      font-size: 8.5pt;
+      background-color: #fafafa;
+    }
+    .sig-table {
+      width: 100%;
+      margin-top: 30px;
+      border: none;
+      font-size: 9.5pt;
+    }
+    .sig-table td {
+      border: none;
+      text-align: center;
+      vertical-align: top;
+      width: 50%;
+    }
+  </style>
+</head>
+<body>
+  <div class="header-box">
+    <div class="header-title">DAFTAR NILAI EKSTRAKURIKULER MARCHING BAND</div>
+    <div class="header-sub">${(selectedSekolah?.namaSekolah || 'NAMA SEKOLAH').toUpperCase()}</div>
+    <div class="header-sub">SEMESTER ${filterSemester.toUpperCase()} — TAHUN PELAJARAN ${filterTahunAjaran}</div>
+  </div>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th style="width: 4%;">No</th>
+        <th style="width: 20%;">Nama Lengkap Anggota</th>
+        <th style="width: 8%;">Kelas</th>
+        <th style="width: 14%;">Divisi / Alat</th>
+        ${semesterMonths.map(m => `<th style="width: 6%;">${m.substring(0, 3)}</th>`).join('')}
+        <th style="width: 6%;">Hadir</th>
+        <th style="width: 6%;">%</th>
+        <th style="width: 6%;">Nilai</th>
+        <th style="width: 10%;">Predikat</th>
+        <th>Deskripsi Capaian</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${gradedStudents.map((row, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td class="text-left"><b>${row.anggota.nama}</b></td>
+          <td>${row.anggota.kelas || '-'}</td>
+          <td class="text-left">${row.anggota.divisiNama || '-'}</td>
+          ${semesterMonths.map(m => `<td>${row.monthlyAttendance[m] || 0}</td>`).join('')}
+          <td><b>${row.totalHadir}</b></td>
+          <td>${row.persentaseKehadiran}%</td>
+          <td><b>${row.nilaiHuruf}</b></td>
+          <td>${row.predikat}</td>
+          <td class="text-left" style="font-size: 8pt;">${row.keterangan}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>
+
+  <div class="rubrik-box">
+    <b>SKALA & KRITERIA PENILAIAN EKSTRAKURIKULER:</b><br/>
+    • <b>Nilai A (Sangat Baik)</b>: Kehadiran &ge; 85% — Sangat aktif, berdedikasi tinggi, dan selalu disiplin dalam setiap latihan.<br/>
+    • <b>Nilai B (Baik)</b>: Kehadiran 70% – 84% — Aktif dan disiplin mengikuti latihan ekstrakurikuler marching band.<br/>
+    • <b>Nilai C (Cukup)</b>: Kehadiran 55% – 69% — Cukup aktif, perlu ditingkatkan kedisiplinan dan kehadirannya.<br/>
+    • <b>Nilai D (Kurang)</b>: Kehadiran &lt; 55% — Tingkat kehadiran rendah, memerlukan bimbingan dan motivasi kehadiran.
+  </div>
+
+  <table class="sig-table">
+    <tr>
+      <td>
+        <div>Mengetahui,</div>
+        <div><b>Kepala Sekolah</b></div>
+        <div style="height: 60px;"></div>
+        <div><u><b>${selectedSekolah?.kepalaSekolah || '...........................................'}</b></u></div>
+        <div>NIP. ${selectedSekolah?.nipKepalaSekolah || '...........................................'}</div>
+      </td>
+      <td>
+        <div>Bogor, ...........................................</div>
+        <div><b>Pelatih Ekstrakurikuler</b></div>
+        <div style="height: 60px;"></div>
+        <div><u><b>${pelatihUser?.name || '...........................................'}</b></u></div>
+        <div>NIP/NUPTK. ${pelatihUser?.nip || '...........................................'}</div>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `;
+
+    const blob = new Blob(['\ufeff', htmlHeader], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Nilai_${selectedSekolah?.namaSekolah}_Semester_${filterSemester}_${filterTahunAjaran.replace('/', '-')}.csv`);
+    link.href = url;
+    link.download = fileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Handle Save Custom Signature
@@ -418,41 +638,52 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200">
           <div>
             <div className="flex items-center gap-2">
-              <div className="p-2 bg-blue-100 text-blue-700 rounded-xl">
+              <div className="p-2.5 bg-blue-100 text-blue-700 rounded-xl">
                 <Award className="w-5 h-5" />
               </div>
               <h2 className="text-lg font-black text-slate-800 tracking-tight">
-                Daftar Nilai Ekstrakurikuler
+                Daftar Nilai & Raport Ekstrakurikuler
               </h2>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Perhitungan nilai (Predikat A, B, C, D) berdasarkan jumlah kehadiran anggota per bulan dalam satu semester dilengkapi cetak tanda tangan basah & stempel resmi.
+              Perhitungan nilai (Predikat A, B, C, D) otomatis dari presensi bulanan lengkap dengan ekspor resmi Excel, Word, dan PDF siap cetak.
             </p>
           </div>
 
-          {/* Action Buttons */}
+          {/* Action Buttons: 4 Format Downloads */}
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs"
+              title="Cetak langsung menggunakan printer dialog browser"
             >
-              <Printer className="w-4 h-4 text-slate-600" />
-              <span>Cetak / Print</span>
+              <Printer className="w-4 h-4 text-slate-300" />
+              <span>Cetak</span>
             </button>
             <button
-              onClick={handleExportCsv}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
+              onClick={handleExportExcel}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-md cursor-pointer"
+              title="Unduh rekap nilai ke format Microsoft Excel (.xlsx)"
             >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-100" />
-              <span>Ekspor Excel/CSV</span>
+              <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+              <span>Unduh Excel (.xlsx)</span>
+            </button>
+            <button
+              onClick={handleExportWord}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition shadow-md cursor-pointer"
+              title="Unduh rekap nilai ke format Microsoft Word (.doc)"
+            >
+              <Download className="w-4 h-4 text-blue-200" />
+              <span>Unduh Word (.doc)</span>
             </button>
             <button
               onClick={handleExportPdf}
               disabled={isExporting}
-              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition shadow-sm cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition shadow-md cursor-pointer disabled:opacity-50"
+              title="Unduh rekap nilai ke format PDF resmi"
             >
-              <Download className="w-4 h-4 text-blue-100" />
-              <span>{isExporting ? 'Memproses PDF...' : 'Unduh Raport PDF'}</span>
+              <Download className="w-4 h-4 text-white" />
+              <span>{isExporting ? 'Memproses PDF...' : 'Unduh PDF'}</span>
             </button>
           </div>
         </div>

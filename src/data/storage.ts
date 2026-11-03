@@ -139,8 +139,17 @@ export const StorageService = {
 
   // Users
   getUsers: (): User[] => {
-    const users = getStoredItem<User[]>(STORAGE_KEYS.USERS, INITIAL_USERS);
-    return users.filter(u => u.username !== 'budi' && u.username !== 'siti' && u.id !== 'u-pelatih-1' && u.id !== 'u-pelatih-2');
+    let users = getStoredItem<User[]>(STORAGE_KEYS.USERS, INITIAL_USERS);
+    users = users.filter(u => u.username !== 'budi' && u.username !== 'siti' && u.id !== 'u-pelatih-1' && u.id !== 'u-pelatih-2');
+    
+    // Ensure default coach accounts exist if none present
+    const hasCoach = users.some(u => u.role === 'pelatih');
+    if (!hasCoach) {
+      const coachDefaults = INITIAL_USERS.filter(u => u.role === 'pelatih');
+      users = [...users, ...coachDefaults];
+      setStoredItem(STORAGE_KEYS.USERS, users);
+    }
+    return users;
   },
   saveUser: (user: User) => {
     const users = StorageService.getUsers();
@@ -161,8 +170,22 @@ export const StorageService = {
 
   // Sekolah
   getSekolah: (): Sekolah[] => {
-    const list = getStoredItem<Sekolah[]>(STORAGE_KEYS.SEKOLAH, INITIAL_SEKOLAH);
-    return list.filter(s => s.pelatihId !== 'u-pelatih-1' && s.pelatihId !== 'u-pelatih-2' && !['sch-1', 'sch-2', 'sch-3'].includes(s.id));
+    let list = getStoredItem<Sekolah[]>(STORAGE_KEYS.SEKOLAH, INITIAL_SEKOLAH);
+    list = list.filter(s => s.pelatihId !== 'u-pelatih-1' && s.pelatihId !== 'u-pelatih-2' && !['sch-1', 'sch-2', 'sch-3'].includes(s.id));
+    
+    // Auto-migrate any unassigned or admin-assigned schools to first available coach
+    let needsSave = false;
+    list = list.map(s => {
+      if (!s.pelatihId || s.pelatihId === 'u-admin') {
+        needsSave = true;
+        return { ...s, pelatihId: 'u-coach-1' };
+      }
+      return s;
+    });
+    if (needsSave) {
+      setStoredItem(STORAGE_KEYS.SEKOLAH, list);
+    }
+    return list;
   },
   saveSekolah: (sekolah: Sekolah) => {
     const list = StorageService.getSekolah();

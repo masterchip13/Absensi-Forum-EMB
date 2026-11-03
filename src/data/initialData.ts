@@ -32,6 +32,29 @@ export const INITIAL_USERS: User[] = [
     password: 'admin123',
     role: 'admin',
     phone: '081234567890',
+    nip: '198205102008011005',
+    active: true,
+  },
+  {
+    id: 'u-coach-1',
+    name: 'Hendra Pratama, S.Pd',
+    username: 'coach',
+    password: 'coach123',
+    role: 'pelatih',
+    phone: '081298765432',
+    nip: '198904122015021004',
+    specialty: 'Head Coach Marching Band (Brass & Display)',
+    active: true,
+  },
+  {
+    id: 'u-coach-2',
+    name: 'Rizky Ramadhan, S.Pd',
+    username: 'coach2',
+    password: 'coach123',
+    role: 'pelatih',
+    phone: '081387654321',
+    nip: '199203152018011002',
+    specialty: 'Percussion & Battery Coach',
     active: true,
   }
 ];
@@ -39,30 +62,30 @@ export const INITIAL_USERS: User[] = [
 export const INITIAL_SEKOLAH: Sekolah[] = [
   {
     id: 'sch-smpn2-cigombong',
-    pelatihId: 'u-admin',
+    pelatihId: 'u-coach-1',
     namaSekolah: 'SMP NEGERI 2 CIGOMBONG KABUPATEN BOGOR',
     kepalaSekolah: 'Kepala SMPN 2 Cigombong',
-    nipKepalaSekolah: '',
+    nipKepalaSekolah: '197103141998021001',
     tahunAjaran: '2026/2027',
-    alamat: 'Cigombong, Kab. Bogor'
+    alamat: 'Jl. Raya Cigombong No. 12, Kab. Bogor'
   },
   {
     id: 'sch-sdn-sukaharja-01',
-    pelatihId: 'u-admin',
+    pelatihId: 'u-coach-1',
     namaSekolah: 'SDN SUKAHARJA 01',
     kepalaSekolah: 'NITA HERNITA, S.Pd.MM',
     nipKepalaSekolah: '197310221996032002',
     tahunAjaran: '2026/2027',
-    alamat: 'Sukaharja, Kab. Bogor'
+    alamat: 'Kp. Sukaharja RT 02/01, Cijeruk, Kab. Bogor'
   },
   {
     id: 'sch-sdn-sukaharja-03',
-    pelatihId: 'u-admin',
+    pelatihId: 'u-coach-2',
     namaSekolah: 'SDN SUKAHARJA 03',
     kepalaSekolah: 'HJ YENI SUMARNI, S.Pd.MM',
     nipKepalaSekolah: '196612031988032005',
     tahunAjaran: '2026/2027',
-    alamat: 'Sukaharja, Kab. Bogor'
+    alamat: 'Jl. Babakan Sukaharja, Cijeruk, Kab. Bogor'
   }
 ];
 

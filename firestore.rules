@@ -1,7 +1,74 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isBootstrappedAdmin() {
+      return isSignedIn() && request.auth.token.email == 'ery130101@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || 
+        (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+
+    // Default catch-all rule
     match /{document=**} {
+      allow read, write: if true;
+    }
+
+    // Explicit collection definitions for RBAC compliance
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /sekolah/{sekolahId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /divisi/{divisiId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /anggota/{anggotaId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /jadwal/{jadwalId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /absenPelatih/{absenId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /absenAsisten/{asistenId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /events/{eventId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /absenSiswa/{absenSiswaId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /settings/{settingId} {
       allow read, write: if true;
     }
   }

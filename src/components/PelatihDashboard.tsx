@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { User, Sekolah, Divisi, Anggota, JadwalLatihan, AbsenPelatihItem, AbsenSiswaEntry, EventLog } from '../types';
-import { SekolahManager } from './SekolahManager';
 import { DivisiManager } from './DivisiManager';
 import { JadwalManager } from './JadwalManager';
 import { AbsenPelatih } from './AbsenPelatih';
@@ -12,7 +11,26 @@ import { EventManager } from './EventManager';
 import { PenilaianAnggota } from './PenilaianAnggota';
 import { TrainingReminderBanner } from './TrainingReminderBanner';
 import { StorageService } from '../data/storage';
-import { School, Layers, Clock, Camera, Users, FileText, QrCode, Bell, Plus, Calendar, ArrowRight, CheckCircle2, BarChart3, Award, ChevronDown } from 'lucide-react';
+import { 
+  School, 
+  Layers, 
+  Clock, 
+  Camera, 
+  Users, 
+  FileText, 
+  QrCode, 
+  Bell, 
+  Plus, 
+  Calendar, 
+  ArrowRight, 
+  CheckCircle2, 
+  BarChart3, 
+  Award, 
+  ChevronDown, 
+  UserCheck, 
+  Sparkles,
+  FileSpreadsheet
+} from 'lucide-react';
 
 interface PelatihDashboardProps {
   currentUser: User;
@@ -47,9 +65,9 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
   activeTahunAjaran = '2024/2025',
   onOpenManageTahunAjaran
 }) => {
-  const [activeTab, setActiveTab] = useState<'beranda' | 'statistik' | 'penilaian' | 'sekolah' | 'divisi' | 'jadwal' | 'absen_pelatih' | 'galeri_foto' | 'anggota' | 'event' | 'rekap_pdf'>('beranda');
+  const [activeTab, setActiveTab] = useState<'beranda' | 'anggota' | 'absen_pelatih' | 'penilaian' | 'rekap_pdf' | 'jadwal' | 'divisi' | 'statistik' | 'event' | 'galeri_foto'>('beranda');
 
-  // Data filtering for current logged in pelatih
+  // RBAC Constraint: Coach ONLY manages their assigned schools
   const userSekolahList = sekolahList.filter(s => s.pelatihId === currentUser.id);
   const activeSchool = userSekolahList.find(s => s.id === selectedSekolahId) || userSekolahList[0];
   const userDivisiList = divisiList.filter(d => d.pelatihId === currentUser.id);
@@ -65,6 +83,24 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
   const schoolJadwal = userJadwalList.filter(j => j.sekolahId === selectedSekolahId);
   const schoolAbsenPelatih = userAbsenPelatihList.filter(a => a.sekolahId === selectedSekolahId);
 
+  // If coach has no schools assigned yet
+  if (userSekolahList.length === 0) {
+    return (
+      <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm text-center max-w-xl mx-auto my-12">
+        <div className="w-16 h-16 bg-amber-100 text-amber-700 rounded-3xl flex items-center justify-center mx-auto mb-4">
+          <School className="w-8 h-8" />
+        </div>
+        <h3 className="text-lg font-black text-slate-900">Belum Ada Sekolah yang Ditugaskan</h3>
+        <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+          Akun Coach <strong>{currentUser.name}</strong> belum memiliki penugasan sekolah binaan di sistem. Silakan hubungi <strong>Administrator</strong> untuk menugaskan sekolah ke akun Anda.
+        </p>
+        <div className="mt-5 p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-600 font-mono">
+          ID Pelatih: {currentUser.id} • Username: {currentUser.username}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Active Training Reminder Banner (< 1 Hour alert) */}
@@ -78,92 +114,171 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
         onNavigateToJadwal={() => setActiveTab('jadwal')}
       />
 
-      {/* Navigation Dropdown & Quick Hub Bar */}
-      <div className="bg-white p-3 rounded-2xl shadow-xs border border-slate-200 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 flex-1 min-w-[280px]">
-          <span className="text-xs font-bold text-slate-500 shrink-0 hidden sm:inline">Navigasi Modul:</span>
-          
-          {/* Main Dropdown Navigation */}
-          <div className="relative flex-1 max-w-md">
+      {/* Navigation Bar for Coach */}
+      <div className="bg-white p-3.5 rounded-3xl shadow-sm border border-slate-200">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-2.5">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">
+              <UserCheck className="w-4 h-4" />
+            </span>
+            <span className="text-xs font-bold text-slate-700">
+              Sekolah Binaan Aktif: <strong className="text-blue-700">{activeSchool?.namaSekolah}</strong>
+            </span>
+          </div>
+
+          {/* Quick Select for Mobile */}
+          <div className="lg:hidden relative">
             <select
               value={activeTab}
               onChange={(e) => setActiveTab(e.target.value as any)}
-              className="w-full appearance-none bg-slate-50 hover:bg-slate-100 font-bold text-slate-900 border border-slate-300 rounded-xl px-4 py-2.5 pr-10 text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer transition shadow-xs"
+              className="appearance-none bg-slate-100 font-bold text-slate-800 border border-slate-300 rounded-xl px-3.5 py-1.5 pr-8 text-xs focus:ring-2 focus:ring-blue-500 cursor-pointer"
             >
-              <option value="beranda">🏠 Beranda</option>
-              <option value="penilaian">🎖️ Nilai Anggota</option>
-              <option value="statistik">📊 Statistik Kehadiran Siswa</option>
-              <option value="sekolah">🏫 Sekolah</option>
-              <option value="divisi">🎺 Divisi</option>
-              <option value="absen_pelatih">📷 Absensi Pelatih</option>
-              <option value="galeri_foto">🖼️ Riwayat Dokumentasi</option>
-              <option value="event">🏆 Event</option>
-              <option value="rekap_pdf">📄 Cetak Rekap Absensi</option>
-              <option value="anggota">👥 Data Anggota & Barcode</option>
+              <option value="beranda">🏠 Beranda & Ringkasan</option>
+              <option value="anggota">👥 Data Siswa & Barcode</option>
+              <option value="absen_pelatih">📷 Absensi Pelatih (Jurnal)</option>
+              <option value="penilaian">🎖️ Nilai Anggota & Raport</option>
+              <option value="rekap_pdf">📄 Unduh Laporan Kegiatan</option>
               <option value="jadwal">⏰ Jadwal Latihan</option>
+              <option value="divisi">🎺 Divisi / Alat Musik</option>
+              <option value="statistik">📊 Statistik Kehadiran</option>
+              <option value="event">🏆 Event & Prestasi</option>
+              <option value="galeri_foto">🖼️ Galeri Dokumentasi</option>
             </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
-              <ChevronDown className="w-4 h-4" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+              <ChevronDown className="w-3.5 h-3.5" />
             </div>
           </div>
         </div>
 
-        {/* Quick Shortcut Buttons */}
-        <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+        {/* Desktop Tab Pills */}
+        <div className="hidden lg:flex flex-wrap gap-1.5 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80">
           <button
             type="button"
             onClick={() => setActiveTab('beranda')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
               activeTab === 'beranda'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
             }`}
           >
-            Beranda
+            <span>Beranda</span>
           </button>
+
           <button
             type="button"
-            onClick={() => setActiveTab('penilaian')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeTab === 'penilaian'
-                ? 'bg-amber-500 text-slate-950 shadow-xs font-black'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            onClick={() => setActiveTab('anggota')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              activeTab === 'anggota'
+                ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
             }`}
           >
-            Nilai Anggota
+            <Users className="w-3.5 h-3.5" />
+            <span>Data Siswa & Barcode ({schoolAnggota.length})</span>
           </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('statistik')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeTab === 'statistik'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Statistik Kehadiran
-          </button>
+
           <button
             type="button"
             onClick={() => setActiveTab('absen_pelatih')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
               activeTab === 'absen_pelatih'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
             }`}
           >
-            Absensi Pelatih
+            <Camera className="w-3.5 h-3.5" />
+            <span>Absensi Pelatih ({schoolAbsenPelatih.length})</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('penilaian')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              activeTab === 'penilaian'
+                ? 'bg-white text-amber-700 shadow-sm border border-slate-200'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <Award className="w-3.5 h-3.5" />
+            <span>Nilai Anggota (Raport)</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setActiveTab('rekap_pdf')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
               activeTab === 'rekap_pdf'
-                ? 'bg-indigo-600 text-white shadow-xs font-black'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
             }`}
           >
-            Cetak Rekap
+            <FileText className="w-3.5 h-3.5" />
+            <span>Cetak Laporan Kegiatan</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('jadwal')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              activeTab === 'jadwal'
+                ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>Jadwal ({schoolJadwal.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('divisi')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              activeTab === 'divisi'
+                ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Divisi</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('statistik')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              activeTab === 'statistik'
+                ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            <span>Statistik</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('event')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              activeTab === 'event'
+                ? 'bg-white text-purple-700 shadow-sm border border-slate-200'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Event ({userEventsList.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('galeri_foto')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              activeTab === 'galeri_foto'
+                ? 'bg-white text-emerald-700 shadow-sm border border-slate-200'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <Camera className="w-3.5 h-3.5" />
+            <span>Galeri Foto</span>
           </button>
         </div>
       </div>
@@ -172,72 +287,67 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
       {activeTab === 'beranda' && (
         <div className="space-y-4">
           {/* Welcome Banner */}
-          <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-3xl p-5 shadow-md relative overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-3xl p-5 shadow-sm relative overflow-hidden">
             <div className="relative z-10">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                 <div>
                   <span className="text-[10px] font-extrabold uppercase tracking-widest bg-blue-500/30 text-blue-200 px-3 py-1 rounded-full border border-blue-400/30 inline-block mb-1">
-                    Portal Pelatih Marching Band
+                    Portal Coach Marching Band
                   </span>
-                  <h2 className="text-xl font-black">Selamat Datang, {currentUser.name}!</h2>
-                  <p className="text-xs text-blue-200 mt-1 max-w-lg">
-                    Mengajar di <strong className="text-white">{activeSchool?.namaSekolah || 'Sekolah Binaan'}</strong>
+                  <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+                    Selamat Datang, {currentUser.name}!
+                  </h2>
+                  <p className="text-xs text-blue-200 mt-0.5">
+                    Sekolah Aktif: <strong>{activeSchool?.namaSekolah}</strong> ({activeTahunAjaran})
                   </p>
                 </div>
 
-                {/* Academic Year Badge */}
-                {onOpenManageTahunAjaran && (
-                  <button
-                    onClick={onOpenManageTahunAjaran}
-                    className="flex items-center gap-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-extrabold text-xs px-3.5 py-2 rounded-2xl transition cursor-pointer"
-                    title="Ubah atau kelola tahun ajaran aktif"
-                  >
-                    <Calendar className="w-4 h-4 text-amber-400" />
-                    <span>Tahun Ajaran: {activeTahunAjaran}</span>
-                  </button>
-                )}
+                <div className="text-right hidden sm:block">
+                  <span className="text-xs text-blue-300 font-medium block">Total Sekolah Binaan Anda:</span>
+                  <span className="text-2xl font-black text-amber-300">{userSekolahList.length} Sekolah</span>
+                </div>
               </div>
 
               {/* Quick Actions Bar */}
               <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-blue-800/80">
                 <button
                   onClick={onOpenQrScanner}
-                  className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-md transition"
+                  className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-extrabold text-xs px-3.5 py-2.5 rounded-xl shadow-md transition cursor-pointer"
                 >
                   <QrCode className="w-4 h-4" />
-                  <span>Scan QR Presensi Anggota</span>
+                  <span>Scan QR Presensi Siswa</span>
                 </button>
 
                 <button
                   onClick={() => setActiveTab('absen_pelatih')}
-                  className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition border border-white/20"
+                  className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition border border-white/20 cursor-pointer"
                 >
                   <Camera className="w-4 h-4 text-emerald-300" />
-                  <span>Isi Bukti Foto Melatih</span>
+                  <span>Isi Jurnal & Foto Melatih</span>
                 </button>
 
                 <button
-                  onClick={() => setActiveTab('event')}
-                  className="flex items-center gap-1.5 bg-purple-600/80 hover:bg-purple-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition border border-purple-400/30"
+                  onClick={() => setActiveTab('anggota')}
+                  className="flex items-center gap-1.5 bg-blue-600/80 hover:bg-blue-600 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition border border-blue-400/30 cursor-pointer"
                 >
-                  <Award className="w-4 h-4 text-amber-300" />
-                  <span>Isi Laporan Event</span>
+                  <Users className="w-4 h-4 text-blue-200" />
+                  <span>Kelola Siswa & Kartu QR</span>
                 </button>
 
                 <button
-                  onClick={() => setActiveTab('statistik')}
-                  className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition border border-blue-400/30"
+                  onClick={() => setActiveTab('penilaian')}
+                  className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs px-3.5 py-2.5 rounded-xl transition cursor-pointer"
                 >
-                  <BarChart3 className="w-4 h-4 text-emerald-300" />
-                  <span>Statistik Kehadiran</span>
+                  <Award className="w-4 h-4" />
+                  <span>Rekap Nilai Siswa</span>
                 </button>
 
                 <button
                   onClick={() => setActiveTab('rekap_pdf')}
-                  className="flex items-center gap-1.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition"
+                  className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition cursor-pointer"
                 >
-                  <FileText className="w-4 h-4 text-yellow-300" />
-                  <span>Cetak PDF Laporan</span>
+                  <FileText className="w-4 h-4 text-white" />
+                  <span>Cetak / Unduh Laporan</span>
                 </button>
               </div>
             </div>
@@ -245,19 +355,31 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
 
           {/* Quick Metrics */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-3 bg-white rounded-2xl border border-slate-200 shadow-xs">
+            <div 
+              onClick={() => setActiveTab('anggota')}
+              className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-blue-300 transition"
+            >
               <span className="text-[11px] text-slate-400 font-semibold block">Anggota Sekolah Ini</span>
               <p className="text-xl font-black text-slate-900 mt-0.5">{schoolAnggota.length} Anggota</p>
             </div>
-            <div className="p-3 bg-white rounded-2xl border border-slate-200 shadow-xs">
+            <div 
+              onClick={() => setActiveTab('jadwal')}
+              className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-blue-300 transition"
+            >
               <span className="text-[11px] text-slate-400 font-semibold block">Jadwal Rutin</span>
-              <p className="text-xl font-black text-slate-900 mt-0.5">{schoolJadwal.length} Hari / Mgg</p>
+              <p className="text-xl font-black text-slate-900 mt-0.5">{schoolJadwal.length} Sesi / Minggu</p>
             </div>
-            <div className="p-3 bg-white rounded-2xl border border-slate-200 shadow-xs">
-              <span className="text-[11px] text-slate-400 font-semibold block">Sesi Latihan Log</span>
-              <p className="text-xl font-black text-slate-900 mt-0.5">{schoolAbsenPelatih.length} Sesi</p>
+            <div 
+              onClick={() => setActiveTab('absen_pelatih')}
+              className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-blue-300 transition"
+            >
+              <span className="text-[11px] text-slate-400 font-semibold block">Jurnal Latihan Terisi</span>
+              <p className="text-xl font-black text-slate-900 mt-0.5">{schoolAbsenPelatih.length} Pertemuan</p>
             </div>
-            <div className="p-3 bg-white rounded-2xl border border-slate-200 shadow-xs">
+            <div 
+              onClick={() => setActiveTab('divisi')}
+              className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-blue-300 transition"
+            >
               <span className="text-[11px] text-slate-400 font-semibold block">Divisi Terdaftar</span>
               <p className="text-xl font-black text-slate-900 mt-0.5">{userDivisiList.length} Divisi</p>
             </div>
@@ -268,41 +390,34 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
                 <Bell className="w-4 h-4 text-amber-500" />
-                Jadwal & Pengingat Latihan Sekolah Aktif
+                Jadwal Latihan Sekolah: {activeSchool?.namaSekolah}
               </h3>
               <button
                 onClick={() => setActiveTab('jadwal')}
-                className="text-xs text-blue-600 font-bold hover:underline"
+                className="text-xs text-blue-600 font-bold hover:underline cursor-pointer"
               >
                 + Kelola Jadwal
               </button>
             </div>
 
             {schoolJadwal.length === 0 ? (
-              <p className="text-xs text-slate-400 italic p-3 text-center bg-slate-50 rounded-xl">
-                Belum ada jadwal latihan terdaftar untuk {activeSchool?.namaSekolah}.
+              <p className="text-xs text-slate-500 italic py-2">
+                Belum ada jadwal latihan rutin yang ditambahkan untuk sekolah ini.
               </p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
                 {schoolJadwal.map((j) => (
                   <div key={j.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
                     <div>
-                      <span className="text-xs font-black bg-slate-900 text-amber-300 px-2 py-0.5 rounded">
-                        Hari {j.hari}
+                      <span className="text-xs font-bold text-slate-900 block">{j.hari}</span>
+                      <span className="text-xs font-mono text-blue-700 font-bold">
+                        {j.jamMulai} - {j.jamSelesai}
                       </span>
-                      <p className="text-xs font-bold text-slate-800 mt-1">
-                        Jam: {j.jamMulai} S/D {j.jamSelesai}
-                      </p>
-                      {j.reminderEnabled && (
-                        <span className="text-[10px] text-emerald-700 font-semibold block mt-0.5">
-                          ✓ Pengingat otomatis {j.reminderMinutesBefore}m sebelum latihan
-                        </span>
-                      )}
                     </div>
                     <button
                       onClick={onOpenQrScanner}
-                      className="p-2 bg-emerald-600 text-white rounded-lg font-bold text-xs shadow-sm hover:bg-emerald-700 transition"
-                      title="Mulai Scan Absen"
+                      className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg font-bold text-xs shadow-xs hover:bg-emerald-700 transition cursor-pointer"
+                      title="Mulai Scan Absen Siswa"
                     >
                       Scan QR
                     </button>
@@ -317,30 +432,36 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
                 <Users className="w-4 h-4 text-blue-600" />
-                Daftar Anggota ({schoolAnggota.length})
+                Daftar Siswa ({schoolAnggota.length})
               </h3>
               <button
                 onClick={() => setActiveTab('anggota')}
-                className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1"
+                className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1 cursor-pointer"
               >
-                <span>Lihat Semua & Cetak QR</span>
+                <span>Lihat Semua & Cetak Kartu Barcode</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-              {schoolAnggota.slice(0, 6).map((student) => (
-                <div key={student.id} className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-bold text-slate-800">{student.nama}</p>
-                    <p className="text-[10px] text-slate-500">{student.kelas} • {student.divisiNama}</p>
+            {schoolAnggota.length === 0 ? (
+              <div className="text-center py-6 text-slate-400 text-xs">
+                Belum ada data siswa. Klik <button onClick={() => setActiveTab('anggota')} className="text-blue-600 underline font-bold">Kelola Siswa</button> untuk menambahkan data atau import dari Excel.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                {schoolAnggota.slice(0, 6).map((student) => (
+                  <div key={student.id} className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">{student.nama}</p>
+                      <p className="text-[10px] text-slate-500">{student.kelas} • {student.divisiNama}</p>
+                    </div>
+                    <span className="text-[10px] font-mono bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">
+                      QR Ready
+                    </span>
                   </div>
-                  <span className="text-[10px] font-mono bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
-                    QR Ready
-                  </span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -355,15 +476,6 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
           absenPelatihList={userAbsenPelatihList}
           selectedSekolahId={selectedSekolahId}
           onSelectSekolah={onSelectSekolah}
-        />
-      )}
-
-      {/* SEKOLAH MANAGER VIEW */}
-      {activeTab === 'sekolah' && (
-        <SekolahManager
-          currentPelatihId={currentUser.id}
-          sekolahList={userSekolahList}
-          onDataChanged={onDataChanged}
         />
       )}
 

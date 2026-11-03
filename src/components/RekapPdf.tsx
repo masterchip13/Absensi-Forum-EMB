@@ -1,9 +1,10 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import * as XLSX from 'xlsx';
 import { Sekolah, AbsenPelatihItem, Anggota, AbsenSiswaEntry, EventLog } from '../types';
 import { TutWuriLogo, MarchingBandLogo } from './Logos';
-import { FileText, Download, Printer, Filter, Sparkles, School, Calendar, CheckCircle2, UserCheck, Users, PenTool, X, RotateCcw, Image as ImageIcon } from 'lucide-react';
+import { FileText, Download, Printer, Filter, Sparkles, School, Calendar, CheckCircle2, UserCheck, Users, PenTool, X, RotateCcw, Image as ImageIcon, FileSpreadsheet } from 'lucide-react';
 import { StorageService } from '../data/storage';
 import { StudentWetSignature, getStudentSignatureDataUrl } from '../utils/studentSignature';
 import { SignaturePad } from './SignaturePad';
@@ -286,6 +287,146 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
       window.print();
     } finally {
       setIsGeneratingPdf(false);
+    }
+  };
+
+  const exportExcel = () => {
+    try {
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: Agenda & Jurnal Latihan
+      const agendaData: any[][] = [
+        ['LAPORAN AGENDA & JURNAL LATIHAN EKSTRAKURIKULER'],
+        [`Sekolah: ${selectedSekolah?.namaSekolah || '-'}`],
+        [`Bulan: ${filterBulan} | Tahun Pelajaran: ${filterTahunAjaran}`],
+        [`Pelatih: ${pelatihName}${pelatihNip ? ` (NIP: ${pelatihNip})` : ''}`],
+        [],
+        ['No', 'Hari & Tanggal', 'Waktu Latihan', 'Materi Pokok / Kegiatan', 'Pencapaian (%)', 'Status Pengesahan', 'Catatan / Evaluasi']
+      ];
+
+      if (schoolAbsenPelatih.length === 0) {
+        agendaData.push(['-', 'Belum ada catatan jurnal latihan pada periode ini', '-', '-', '-', '-', '-']);
+      } else {
+        schoolAbsenPelatih.forEach((item, idx) => {
+          agendaData.push([
+            idx + 1,
+            item.hariTanggalFormat || item.tanggal || '-',
+            `${item.jamMulai || '-'} s/d ${item.jamSelesai || '-'}`,
+            item.materiPokok || '-',
+            `${item.pencapaianPercent || 0}%`,
+            item.statusKepalaSekolah || 'Mengetahui',
+            item.catatan || '-'
+          ]);
+        });
+      }
+
+      const wsAgenda = XLSX.utils.aoa_to_sheet(agendaData);
+      wsAgenda['!cols'] = [
+        { wch: 6 },
+        { wch: 22 },
+        { wch: 18 },
+        { wch: 38 },
+        { wch: 16 },
+        { wch: 18 },
+        { wch: 30 }
+      ];
+      XLSX.utils.book_append_sheet(wb, wsAgenda, 'Agenda Latihan');
+
+      // Sheet 2: Daftar Hadir Anggota
+      const attendanceData: any[][] = [
+        ['DAFTAR PRESENSI KEHADIRAN ANGGOTA MARCHING BAND'],
+        [`Sekolah: ${selectedSekolah?.namaSekolah || '-'}`],
+        [`Bulan: ${filterBulan} | Tahun Pelajaran: ${filterTahunAjaran}`],
+        [],
+        ['No', 'Nama Siswa / Anggota', 'Kelas', 'Divisi / Alat', 'Pertemuan 1', 'Pertemuan 2', 'Pertemuan 3', 'Pertemuan 4', 'Pertemuan 5', 'Total Hadir', 'Persentase (%)']
+      ];
+
+      if (schoolAnggota.length === 0) {
+        attendanceData.push(['-', 'Belum ada anggota terdaftar di sekolah ini', '-', '-', '-', '-', '-', '-', '-', 0, '0%']);
+      } else {
+        schoolAnggota.forEach((student, idx) => {
+          let totalHadir = 0;
+          const cols = [1, 2, 3, 4, 5].map(col => {
+            const status = getStudentAttendanceStatus(student, col);
+            if (status.isPresent) {
+              totalHadir++;
+              return 'Hadir';
+            }
+            return status.label || 'Alfa';
+          });
+          const pct = Math.round((totalHadir / 5) * 100);
+
+          attendanceData.push([
+            idx + 1,
+            student.nama,
+            student.kelas || '-',
+            student.divisiNama || '-',
+            cols[0],
+            cols[1],
+            cols[2],
+            cols[3],
+            cols[4],
+            totalHadir,
+            `${pct}%`
+          ]);
+        });
+      }
+
+      const wsAttendance = XLSX.utils.aoa_to_sheet(attendanceData);
+      wsAttendance['!cols'] = [
+        { wch: 6 },
+        { wch: 28 },
+        { wch: 10 },
+        { wch: 18 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 12 },
+        { wch: 14 }
+      ];
+      XLSX.utils.book_append_sheet(wb, wsAttendance, 'Presensi Anggota');
+
+      // Sheet 3: Event & Dokumentasi
+      if (schoolEvents.length > 0) {
+        const eventData: any[][] = [
+          ['LAPORAN EVENT & KEGIATAN UNGGULAN MARCHING BAND'],
+          [`Sekolah: ${selectedSekolah?.namaSekolah || '-'}`],
+          [`Tahun Pelajaran: ${filterTahunAjaran}`],
+          [],
+          ['No', 'Nama Event / Kegiatan', 'Tanggal', 'Lokasi', 'Prestasi / Penghargaan', 'Keterangan']
+        ];
+
+        schoolEvents.forEach((evt, idx) => {
+          eventData.push([
+            idx + 1,
+            evt.namaEvent || '-',
+            evt.tanggal || '-',
+            evt.lokasi || '-',
+            evt.prestasi || '-',
+            evt.keterangan || '-'
+          ]);
+        });
+
+        const wsEvent = XLSX.utils.aoa_to_sheet(eventData);
+        wsEvent['!cols'] = [
+          { wch: 6 },
+          { wch: 30 },
+          { wch: 16 },
+          { wch: 22 },
+          { wch: 24 },
+          { wch: 32 }
+        ];
+        XLSX.utils.book_append_sheet(wb, wsEvent, 'Event & Prestasi');
+      }
+
+      const cleanSchoolName = namaSekolahFormatted.replace(/[^a-zA-Z0-9]/g, '_');
+      const fileName = `Laporan-Ekstrakurikuler-${cleanSchoolName}-${filterBulan}-${filterTahunAjaran.replace('/', '-')}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (err) {
+      console.error('Export Excel failed:', err);
+      alert('Terjadi kesalahan saat mengekspor Excel.');
     }
   };
 
@@ -729,16 +870,25 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-xs transition"
+            className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-3 py-2 rounded-xl shadow-xs transition cursor-pointer"
             title="Cetak langsung menggunakan dialog printer browser"
           >
-            <Printer className="w-4 h-4 text-blue-400" />
-            <span>Cetak Browser</span>
+            <Printer className="w-4 h-4 text-slate-300" />
+            <span>Cetak</span>
+          </button>
+
+          <button
+            onClick={exportExcel}
+            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-md transition cursor-pointer"
+            title="Ekspor laporan kegiatan & presensi ke Microsoft Excel (.xlsx)"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+            <span>Unduh Excel (.xlsx)</span>
           </button>
 
           <button
             onClick={exportWord}
-            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-md transition"
+            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-md transition cursor-pointer"
             title="Ekspor ke dokumen Microsoft Word (.doc)"
           >
             <Download className="w-4 h-4 text-blue-200" />
@@ -748,11 +898,11 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
           <button
             onClick={exportPdf}
             disabled={isGeneratingPdf}
-            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md transition disabled:opacity-50"
+            className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md transition disabled:opacity-50 cursor-pointer"
             title="Ekspor laporan ke file PDF"
           >
-            <Download className="w-4 h-4 text-yellow-300" />
-            <span>{isGeneratingPdf ? 'Memproses PDF...' : 'Unduh File PDF'}</span>
+            <Download className="w-4 h-4 text-white" />
+            <span>{isGeneratingPdf ? 'Memproses PDF...' : 'Unduh PDF'}</span>
           </button>
         </div>
       </div>
