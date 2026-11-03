@@ -27,19 +27,26 @@ html, body {
 }
 
 @media print {
-  body {
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  html, body {
     background-color: #ffffff !important;
     margin: 0 !important;
     padding: 0 !important;
+    width: 100% !important;
   }
 
-  /* Hide everything on page except printable area */
-  header, nav, aside, .no-print, button, select, input, .top-header-banner, .pwa-banner {
+  /* Hide navigation, buttons, modals, alerts, and non-printable elements */
+  header, nav, aside, .no-print, button, select, input, .top-header-banner, .pwa-banner, .fixed:not(#printable-qr-container) {
     display: none !important;
   }
 
   #printable-pdf-area {
-    margin: 0 !important;
+    margin: 0 auto !important;
     padding: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
@@ -50,10 +57,59 @@ html, body {
     page-break-after: always !important;
     page-break-inside: avoid !important;
     box-shadow: none !important;
-    margin: 0 auto !important;
+    margin: 0 auto 10mm auto !important;
     width: 210mm !important;
     min-height: 297mm !important;
-    max-height: 297mm !important;
     border: none !important;
+    background-color: #ffffff !important;
+  }
+
+  /* Table rules for all print dialogs (Safari, Chrome, Edge, Firefox) */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    page-break-inside: auto !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tfoot {
+    display: table-footer-group !important;
+  }
+
+  th, td {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Signature sections: strictly maintain horizontal orientation across mobile & desktop */
+  .signature-row, .signature-grid, .print-horizontal {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    flex-wrap: nowrap !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .signature-row > *, .signature-grid > * {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Images & canvas */
+  img {
+    max-width: 100% !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
+

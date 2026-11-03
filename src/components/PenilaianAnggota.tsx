@@ -933,7 +933,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
               {/* Header baris 1 */}
               <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
                 <th rowSpan={2} className="py-2.5 px-2.5 border-r border-slate-300 text-center w-10">No</th>
-                <th rowSpan={2} className="py-2.5 px-3 border-r border-slate-300">Nama Anggota</th>
+                <th rowSpan={2} className="py-2.5 px-3 border-r border-slate-300 text-center">Nama Anggota</th>
                 <th rowSpan={2} className="py-2.5 px-2 border-r border-slate-300 text-center w-14">Kelas</th>
                 <th rowSpan={2} className="py-2.5 px-3 border-r border-slate-300">Divisi / Alat</th>
                 <th colSpan={semesterMonths.length} className="py-1.5 px-2 border-r border-slate-300 text-center bg-blue-50/60 font-black">
@@ -984,7 +984,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
                       <td className="py-2 px-2.5 border-r border-slate-200 text-center font-semibold text-slate-600">
                         {index + 1}
                       </td>
-                      <td className="py-2 px-3 border-r border-slate-200 font-bold text-slate-900">
+                      <td className="py-2 px-3 border-r border-slate-200 font-bold text-slate-900 text-center">
                         {row.anggota.nama}
                       </td>
                       <td className="py-2 px-2 border-r border-slate-200 text-center text-slate-700 font-medium">
@@ -1053,7 +1053,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
         </div>
 
         {/* Official Signatures Section with Authentic Wet Ink (Tanpa Stempel) */}
-        <div className="grid grid-cols-2 gap-8 text-xs pt-4 border-t border-slate-300">
+        <div className="signature-row grid grid-cols-2 gap-8 text-xs pt-4 border-t border-slate-300">
           {/* Sisi Kiri: Mengetahui Kepala Sekolah */}
           <div className="text-center relative flex flex-col items-center">
             <p className="text-slate-500 font-semibold mb-1">Mengetahui,</p>

@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { WifiOff, Wifi, Database, CheckCircle2, RefreshCw, Smartphone } from 'lucide-react';
 
 export const OfflineBanner: React.FC = () => {
-  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  const [isOnline, setIsOnline] = useState<boolean>(() => 
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
   const [showRestoredToast, setShowRestoredToast] = useState<boolean>(false);
-  const [swActive, setSwActive] = useState<boolean>(false);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -20,11 +21,6 @@ export const OfflineBanner: React.FC = () => {
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
-    // Check if Service Worker is controlling the page
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      setSwActive(true);
-    }
 
     return () => {
       window.removeEventListener('online', handleOnline);

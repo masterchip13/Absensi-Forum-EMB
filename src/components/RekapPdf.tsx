@@ -535,7 +535,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         return `
           <tr style="height: 22px;">
             <td>${idx + 1}</td>
-            <td class="text-left">${student?.nama || ''}</td>
+            <td style="text-align: center;">${student?.nama || ''}</td>
             <td>${student?.kelas || ''}</td>
             <td>${sigCols[0]}</td>
             <td>${sigCols[1]}</td>
@@ -547,24 +547,27 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
       }).join('');
 
       const cigombongSignatureHtml = includeAsistenPelatih ? `
-        <div style="margin-top: 35px;">
-          <div style="text-align: right; margin-bottom: 12px; font-size: 9pt;">Cigombong, ................................</div>
-          <table style="width: 100%; border: none; text-align: center; font-size: 9.5pt;">
-            <tr>
-              <td style="width: 50%; vertical-align: top; border: none;">
-                <div><b>Pelatih Ekstrakurikuler</b></div>
-                <div style="height: 55px;"></div>
-                <div><b>(${pelatihName})</b></div>
-                ${pelatihNip ? `<div style="font-size: 8.5pt;">NIP/NUPTK. ${pelatihNip}</div>` : ''}
-              </td>
-              <td style="width: 50%; vertical-align: top; border: none;">
-                <div><b>Asisten Pelatih</b></div>
-                <div style="height: 55px;"></div>
-                <div><b>(${asistenName})</b></div>
-                ${asistenNip ? `<div style="font-size: 8.5pt;">NIP/NUPTK. ${asistenNip}</div>` : ''}
-              </td>
-            </tr>
-          </table>
+        <div style="margin-top: 35px; text-align: right;">
+          <div style="margin-bottom: 8px; font-size: 9pt;">Cigombong, ................................</div>
+          <div style="display: inline-block; text-align: center;">
+            <div style="font-weight: bold; margin-bottom: 8px;">TIM PELATIH EKSTRAKURIKULER</div>
+            <table style="border: none; text-align: center; font-size: 9.5pt; width: auto; margin-left: auto;">
+              <tr>
+                <td style="width: 160px; vertical-align: top; border: none; padding-right: 25px;">
+                  <div><b>Pelatih Utama</b></div>
+                  <div style="height: 55px;"></div>
+                  <div><b>(${pelatihName})</b></div>
+                  ${pelatihNip ? `<div style="font-size: 8.5pt;">NIP/NUPTK. ${pelatihNip}</div>` : ''}
+                </td>
+                <td style="width: 160px; vertical-align: top; border: none; padding-left: 25px;">
+                  <div><b>Asisten Pelatih</b></div>
+                  <div style="height: 55px;"></div>
+                  <div><b>(${asistenName})</b></div>
+                  ${asistenNip ? `<div style="font-size: 8.5pt;">NIP/NUPTK. ${asistenNip}</div>` : ''}
+                </td>
+              </tr>
+            </table>
+          </div>
         </div>
       ` : `
         <div style="text-align: right; margin-top: 40px; font-size: 9.5pt;">
@@ -645,14 +648,14 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         return `
           <tr style="height: 18px;">
             <td style="text-align: center; font-size: 8.5pt;">${idx + 1}</td>
-            <td class="text-left" style="font-size: 8.5pt; padding-left: 6px;">${student?.nama || ''}</td>
+            <td style="text-align: center; font-size: 8.5pt;">${student?.nama || ''}</td>
             <td style="text-align: center; font-size: 8.5pt;">${ttdHtml}</td>
           </tr>
         `;
       }).join('') + `
         <tr style="height: 18px; font-weight: bold;">
           <td style="text-align: center; font-size: 8.5pt;">NO</td>
-          <td class="text-left" style="font-size: 8.5pt; padding-left: 6px;">NAMA</td>
+          <td style="text-align: center; font-size: 8.5pt;">NAMA</td>
           <td style="text-align: center; font-size: 8.5pt;">TTD</td>
         </tr>
       `;
@@ -671,7 +674,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         return `
           <tr style="height: 18px;">
             <td style="text-align: center; font-size: 8.5pt;">${idx + 31}</td>
-            <td class="text-left" style="font-size: 8.5pt; padding-left: 6px;">${student?.nama || ''}</td>
+            <td style="text-align: center; font-size: 8.5pt;">${student?.nama || ''}</td>
             <td style="text-align: center; font-size: 8.5pt;">${ttdHtml}</td>
           </tr>
         `;
@@ -691,24 +694,31 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
       const sukaharjaSignatureHtml = includeAsistenPelatih ? `
         <table style="width: 100%; margin-top: 18px; text-align: left; font-size: 9pt; border: none;">
           <tr>
-            <td style="width: 38%; vertical-align: top; border: none;">
+            <td style="width: 45%; vertical-align: top; border: none;">
               <div>MENGETAHUI,</div>
               <div>KEPALA ${schoolTitle}</div>
               <div style="height: 50px;"></div>
               <div><u><b>${kepalaSekolahInfo.nama}</b></u></div>
               <div>NIP. ${kepalaSekolahInfo.nip || '................................................'}</div>
             </td>
-            <td style="width: 31%; vertical-align: top; border: none; text-align: center;">
-              <div>PELATIH UTAMA</div>
-              <div style="height: 50px;"></div>
-              <div><b>(${pelatihName})</b></div>
-              <div style="margin-top: 2px; font-size: 8pt;">NIP/NUPTK. ${pelatihNip || '....................'}</div>
-            </td>
-            <td style="width: 31%; vertical-align: top; border: none; text-align: center;">
-              <div>ASISTEN PELATIH</div>
-              <div style="height: 50px;"></div>
-              <div><b>(${asistenName})</b></div>
-              <div style="margin-top: 2px; font-size: 8pt;">NIP/NUPTK. ${asistenNip || '....................'}</div>
+            <td style="width: 55%; vertical-align: top; border: none; text-align: center;">
+              <div><b>TIM PELATIH / PEMBIMBING</b></div>
+              <table style="width: 100%; border: none; margin-top: 4px;">
+                <tr>
+                  <td style="width: 50%; border: none; text-align: center; vertical-align: top;">
+                    <div style="font-size: 8.5pt; font-weight: bold;">Pelatih Utama</div>
+                    <div style="height: 44px;"></div>
+                    <div><b>(${pelatihName})</b></div>
+                    <div style="margin-top: 2px; font-size: 8pt;">NIP/NUPTK. ${pelatihNip || '....................'}</div>
+                  </td>
+                  <td style="width: 50%; border: none; text-align: center; vertical-align: top;">
+                    <div style="font-size: 8.5pt; font-weight: bold;">Asisten Pelatih</div>
+                    <div style="height: 44px;"></div>
+                    <div><b>(${asistenName})</b></div>
+                    <div style="margin-top: 2px; font-size: 8pt;">NIP/NUPTK. ${asistenNip || '....................'}</div>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
         </table>
@@ -1210,52 +1220,55 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                 </div>
 
                 {/* Footer Signature */}
-                {includeAsistenPelatih ? (
-                  <div className="mt-10 mb-4 text-xs">
+                <div className="flex justify-end mt-10 mb-4 text-xs">
+                  <div className="text-center">
                     <div className="text-right mb-2 font-normal">Cigombong, ................................</div>
-                    <div className="grid grid-cols-2 gap-8 text-center">
-                      <div>
-                        <div className="font-bold">Pelatih Ekstrakurikuler</div>
+                    <div className="font-bold mb-1">
+                      {includeAsistenPelatih ? 'TIM PELATIH EKSTRAKURIKULER' : 'Pelatih Ekstrakurikuler'}
+                    </div>
+
+                    {includeAsistenPelatih ? (
+                      <div className="signature-row flex items-start gap-8 mt-2">
+                        {/* Pelatih Utama */}
+                        <div className="min-w-[130px] text-center">
+                          <div className="font-bold text-[11px]">Pelatih Utama</div>
+                          <div className="h-16 flex items-center justify-center my-1">
+                            {coachSignatureUrl && (
+                              <img src={coachSignatureUrl} alt="TTD Pelatih Utama" className="h-14 max-w-[120px] object-contain" />
+                            )}
+                          </div>
+                          <div className="border-b border-dotted border-black w-36 mx-auto"></div>
+                          <div className="font-bold mt-1">({pelatihName})</div>
+                          {pelatihNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {pelatihNip}</div>}
+                        </div>
+
+                        {/* Asisten Pelatih */}
+                        <div className="min-w-[130px] text-center">
+                          <div className="font-bold text-[11px]">Asisten Pelatih</div>
+                          <div className="h-16 flex items-center justify-center my-1">
+                            {asistenSignatureUrl && (
+                              <img src={asistenSignatureUrl} alt="TTD Asisten" className="h-14 max-w-[120px] object-contain" />
+                            )}
+                          </div>
+                          <div className="border-b border-dotted border-black w-36 mx-auto"></div>
+                          <div className="font-bold mt-1">({asistenName})</div>
+                          {asistenNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {asistenNip}</div>}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-56 text-center">
                         <div className="h-16 flex items-center justify-center my-1">
                           {coachSignatureUrl && (
                             <img src={coachSignatureUrl} alt="TTD Pelatih" className="h-14 max-w-[120px] object-contain" />
                           )}
                         </div>
-                        <div className="border-b border-dotted border-black w-44 mx-auto"></div>
+                        <div className="border-b border-dotted border-black w-48 mx-auto"></div>
                         <div className="font-bold mt-1">({pelatihName})</div>
                         {pelatihNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {pelatihNip}</div>}
                       </div>
-
-                      <div>
-                        <div className="font-bold">Asisten Pelatih</div>
-                        <div className="h-16 flex items-center justify-center my-1">
-                          {asistenSignatureUrl && (
-                            <img src={asistenSignatureUrl} alt="TTD Asisten" className="h-14 max-w-[120px] object-contain" />
-                          )}
-                        </div>
-                        <div className="border-b border-dotted border-black w-44 mx-auto"></div>
-                        <div className="font-bold mt-1">({asistenName})</div>
-                        {asistenNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {asistenNip}</div>}
-                      </div>
-                    </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="flex justify-end mt-12 mb-4 text-xs">
-                    <div className="w-64 text-center">
-                      <div>Cigombong, ................................</div>
-                      <div className="mt-1">Pelatih Ekstrakurikuler</div>
-
-                      <div className="h-16 flex items-center justify-center my-1">
-                        {coachSignatureUrl && (
-                          <img src={coachSignatureUrl} alt="TTD Pelatih" className="h-14 max-w-[120px] object-contain" />
-                        )}
-                      </div>
-
-                      <div className="border-b border-dotted border-black w-48 mx-auto"></div>
-                      <div className="font-bold mt-1">({pelatihName})</div>
-                    </div>
-                  </div>
-                )}
+                </div>
               </div>
 
 
@@ -1283,7 +1296,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                     <thead>
                       <tr className="font-bold border-b border-black">
                         <th rowSpan={2} className="border border-black p-1 w-8 align-middle">No.</th>
-                        <th rowSpan={2} className="border border-black p-1 text-left align-middle pl-2">Nama Anggota</th>
+                        <th rowSpan={2} className="border border-black p-1 text-center align-middle">Nama Anggota</th>
                         <th rowSpan={2} className="border border-black p-1 w-16 align-middle">Kelas</th>
                         <th colSpan={5} className="border border-black p-1">Tanggal/Tanda Tangan</th>
                       </tr>
@@ -1301,7 +1314,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                         return (
                           <tr key={idx} className="h-5 border-b border-black">
                             <td className="border border-black p-0.5 font-bold align-middle">{no}</td>
-                            <td className="border border-black p-0.5 text-left align-middle font-medium truncate max-w-[170px] pl-2">
+                            <td className="border border-black p-0.5 text-center align-middle font-medium truncate max-w-[170px]">
                               {student?.nama || ''}
                             </td>
                             <td className="border border-black p-0.5 align-middle">{student?.kelas || ''}</td>
@@ -1333,52 +1346,55 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                 </div>
 
                 {/* Footer Signature */}
-                {includeAsistenPelatih ? (
-                  <div className="mt-6 mb-2 text-xs">
+                <div className="flex justify-end mt-6 mb-2 text-xs">
+                  <div className="text-center">
                     <div className="text-right mb-2 font-normal">Cigombong, ......................................</div>
-                    <div className="grid grid-cols-2 gap-8 text-center">
-                      <div>
-                        <div className="font-bold">Pelatih Ekstrakurikuler</div>
+                    <div className="font-bold mb-1">
+                      {includeAsistenPelatih ? 'TIM PELATIH EKSTRAKURIKULER' : 'Pelatih Ekstrakurikuler'}
+                    </div>
+
+                    {includeAsistenPelatih ? (
+                      <div className="signature-row flex items-start gap-8 mt-2">
+                        {/* Pelatih Utama */}
+                        <div className="min-w-[130px] text-center">
+                          <div className="font-bold text-[11px]">Pelatih Utama</div>
+                          <div className="h-14 flex items-center justify-center my-1">
+                            {coachSignatureUrl && (
+                              <img src={coachSignatureUrl} alt="TTD Pelatih Utama" className="h-12 max-w-[120px] object-contain" />
+                            )}
+                          </div>
+                          <div className="border-b border-dotted border-black w-36 mx-auto"></div>
+                          <div className="font-bold mt-1">({pelatihName})</div>
+                          {pelatihNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {pelatihNip}</div>}
+                        </div>
+
+                        {/* Asisten Pelatih */}
+                        <div className="min-w-[130px] text-center">
+                          <div className="font-bold text-[11px]">Asisten Pelatih</div>
+                          <div className="h-14 flex items-center justify-center my-1">
+                            {asistenSignatureUrl && (
+                              <img src={asistenSignatureUrl} alt="TTD Asisten" className="h-12 max-w-[120px] object-contain" />
+                            )}
+                          </div>
+                          <div className="border-b border-dotted border-black w-36 mx-auto"></div>
+                          <div className="font-bold mt-1">({asistenName})</div>
+                          {asistenNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {asistenNip}</div>}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-56 text-center">
                         <div className="h-14 flex items-center justify-center my-1">
                           {coachSignatureUrl && (
                             <img src={coachSignatureUrl} alt="TTD Pelatih" className="h-12 max-w-[120px] object-contain" />
                           )}
                         </div>
-                        <div className="border-b border-dotted border-black w-44 mx-auto"></div>
+                        <div className="border-b border-dotted border-black w-48 mx-auto"></div>
                         <div className="font-bold mt-1">({pelatihName})</div>
                         {pelatihNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {pelatihNip}</div>}
                       </div>
-
-                      <div>
-                        <div className="font-bold">Asisten Pelatih</div>
-                        <div className="h-14 flex items-center justify-center my-1">
-                          {asistenSignatureUrl && (
-                            <img src={asistenSignatureUrl} alt="TTD Asisten" className="h-12 max-w-[120px] object-contain" />
-                          )}
-                        </div>
-                        <div className="border-b border-dotted border-black w-44 mx-auto"></div>
-                        <div className="font-bold mt-1">({asistenName})</div>
-                        {asistenNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {asistenNip}</div>}
-                      </div>
-                    </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="flex justify-end mt-6 mb-2 text-xs">
-                    <div className="w-64 text-center">
-                      <div>Cigombong, ......................................</div>
-                      <div className="mt-1">Pelatih Ekstrakurikuler</div>
-
-                      <div className="h-14 flex items-center justify-center my-1">
-                        {coachSignatureUrl && (
-                          <img src={coachSignatureUrl} alt="TTD Pelatih" className="h-12 max-w-[120px] object-contain" />
-                        )}
-                      </div>
-
-                      <div className="border-b border-dotted border-black w-48 mx-auto"></div>
-                      <div className="font-bold mt-1">({pelatihName})</div>
-                    </div>
-                  </div>
-                )}
+                </div>
               </div>
 
               {/* PAGE 3 (Optional if > 30 students): DAFTAR HADIR PESERTA EKSTRAKURIKULER (NO 31 - 60) */}
@@ -1406,7 +1422,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                       <thead>
                         <tr className="font-bold border-b border-black">
                           <th rowSpan={2} className="border border-black p-1 w-8 align-middle">No.</th>
-                          <th rowSpan={2} className="border border-black p-1 text-left align-middle pl-2">Nama Anggota</th>
+                          <th rowSpan={2} className="border border-black p-1 text-center align-middle">Nama Anggota</th>
                           <th rowSpan={2} className="border border-black p-1 w-16 align-middle">Kelas</th>
                           <th colSpan={5} className="border border-black p-1">Tanggal/Tanda Tangan</th>
                         </tr>
@@ -1424,7 +1440,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                           return (
                             <tr key={idx} className="h-5 border-b border-black">
                               <td className="border border-black p-0.5 font-bold align-middle">{no}</td>
-                              <td className="border border-black p-0.5 text-left align-middle font-medium truncate max-w-[170px] pl-2">
+                              <td className="border border-black p-0.5 text-center align-middle font-medium truncate max-w-[170px]">
                                 {student?.nama || ''}
                               </td>
                               <td className="border border-black p-0.5 align-middle">{student?.kelas || ''}</td>
@@ -1454,50 +1470,55 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                     </table>
                   </div>
 
-                  {includeAsistenPelatih ? (
-                    <div className="mt-6 mb-2 text-xs">
+                  <div className="flex justify-end mt-6 mb-2 text-xs">
+                    <div className="text-center">
                       <div className="text-right mb-2 font-normal">Cigombong, ......................................</div>
-                      <div className="grid grid-cols-2 gap-8 text-center">
-                        <div>
-                          <div className="font-bold">Pelatih Ekstrakurikuler</div>
+                      <div className="font-bold mb-1">
+                        {includeAsistenPelatih ? 'TIM PELATIH EKSTRAKURIKULER' : 'Pelatih Ekstrakurikuler'}
+                      </div>
+
+                      {includeAsistenPelatih ? (
+                        <div className="signature-row flex items-start gap-8 mt-2">
+                          {/* Pelatih Utama */}
+                          <div className="min-w-[130px] text-center">
+                            <div className="font-bold text-[11px]">Pelatih Utama</div>
+                            <div className="h-14 flex items-center justify-center my-1">
+                              {coachSignatureUrl && (
+                                <img src={coachSignatureUrl} alt="TTD Pelatih Utama" className="h-12 max-w-[120px] object-contain" />
+                              )}
+                            </div>
+                            <div className="border-b border-dotted border-black w-36 mx-auto"></div>
+                            <div className="font-bold mt-1">({pelatihName})</div>
+                            {pelatihNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {pelatihNip}</div>}
+                          </div>
+
+                          {/* Asisten Pelatih */}
+                          <div className="min-w-[130px] text-center">
+                            <div className="font-bold text-[11px]">Asisten Pelatih</div>
+                            <div className="h-14 flex items-center justify-center my-1">
+                              {asistenSignatureUrl && (
+                                <img src={asistenSignatureUrl} alt="TTD Asisten" className="h-12 max-w-[120px] object-contain" />
+                              )}
+                            </div>
+                            <div className="border-b border-dotted border-black w-36 mx-auto"></div>
+                            <div className="font-bold mt-1">({asistenName})</div>
+                            {asistenNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {asistenNip}</div>}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-56 text-center">
                           <div className="h-14 flex items-center justify-center my-1">
                             {coachSignatureUrl && (
                               <img src={coachSignatureUrl} alt="TTD Pelatih" className="h-12 max-w-[120px] object-contain" />
                             )}
                           </div>
-                          <div className="border-b border-dotted border-black w-44 mx-auto"></div>
+                          <div className="border-b border-dotted border-black w-48 mx-auto"></div>
                           <div className="font-bold mt-1">({pelatihName})</div>
                           {pelatihNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {pelatihNip}</div>}
                         </div>
-
-                        <div>
-                          <div className="font-bold">Asisten Pelatih</div>
-                          <div className="h-14 flex items-center justify-center my-1">
-                            {asistenSignatureUrl && (
-                              <img src={asistenSignatureUrl} alt="TTD Asisten" className="h-12 max-w-[120px] object-contain" />
-                            )}
-                          </div>
-                          <div className="border-b border-dotted border-black w-44 mx-auto"></div>
-                          <div className="font-bold mt-1">({asistenName})</div>
-                          {asistenNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {asistenNip}</div>}
-                        </div>
-                      </div>
+                      )}
                     </div>
-                  ) : (
-                    <div className="flex justify-end mt-6 mb-2 text-xs">
-                      <div className="w-64 text-center">
-                        <div>Cigombong, ......................................</div>
-                        <div className="mt-1">Pelatih Ekstrakurikuler</div>
-                        <div className="h-14 flex items-center justify-center my-1">
-                          {coachSignatureUrl && (
-                            <img src={coachSignatureUrl} alt="TTD Pelatih" className="h-12 max-w-[120px] object-contain" />
-                          )}
-                        </div>
-                        <div className="border-b border-dotted border-black w-48 mx-auto"></div>
-                        <div className="font-bold mt-1">({pelatihName})</div>
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </div>
               )}
 
@@ -1702,7 +1723,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                                 return (
                                   <tr key={idx} className="h-4 border-b border-black">
                                     <td className="border border-black p-0.5 font-normal align-middle text-[8.5px]">{no}</td>
-                                    <td className="border border-black p-0.5 text-left align-middle pl-1.5 truncate max-w-[130px] font-normal text-[8.5px]">
+                                    <td className="border border-black p-0.5 text-center align-middle truncate max-w-[130px] font-normal text-[8.5px]">
                                       {student?.nama || ''}
                                     </td>
                                     <td className="border border-black p-0.5 align-middle">
@@ -1742,7 +1763,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                                 return (
                                   <tr key={idx} className="h-4 border-b border-black">
                                     <td className="border border-black p-0.5 w-8 font-normal align-middle text-[8.5px]">{no}</td>
-                                    <td className="border border-black p-0.5 text-left align-middle pl-1.5 truncate max-w-[130px] font-normal text-[8.5px]">
+                                    <td className="border border-black p-0.5 text-center align-middle truncate max-w-[130px] font-normal text-[8.5px]">
                                       {student?.nama || ''}
                                     </td>
                                     <td className="border border-black p-0.5 w-16 align-middle">
@@ -1778,96 +1799,79 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                       </div>
                     </div>
 
-                    {/* Footer: Mengetahui Kepala Sekolah & Pembimbing / Asisten Pelatih */}
-                    {includeAsistenPelatih ? (
-                      <div className="grid grid-cols-3 gap-3 mt-6 text-xs text-left">
-                        {/* Left: Kepala Sekolah */}
-                        <div className="pl-1">
-                          <div className="font-normal">MENGETAHUI,</div>
-                          <div className="uppercase font-normal">KEPALA {schoolTitle}</div>
+                    {/* Footer: Mengetahui Kepala Sekolah & Tim Pelatih (Pelatih Utama & Asisten Pelatih Bersatu) */}
+                    <div className="signature-row flex justify-between items-start mt-6 text-xs text-left">
+                      {/* Left: Kepala Sekolah */}
+                      <div className="pl-1 min-w-[180px]">
+                        <div className="font-normal">MENGETAHUI,</div>
+                        <div className="uppercase font-normal">KEPALA {schoolTitle}</div>
 
-                          <div className="h-14 flex items-center">
-                            {/* Signature space */}
-                          </div>
-
-                          <div className="font-bold text-xs uppercase tracking-wide underline">
-                            {kepalaSekolahInfo.nama}
-                          </div>
-                          <div className="font-normal text-[10.5px] mt-0.5">
-                            NIP. {kepalaSekolahInfo.nip || '................................................'}
-                          </div>
+                        <div className="h-14 flex items-center">
+                          {/* Signature space */}
                         </div>
 
-                        {/* Center: Pelatih Utama */}
-                        <div className="text-center">
-                          <div className="font-normal">PELATIH UTAMA</div>
-
-                          <div className="h-14 flex items-center justify-center">
-                            {coachSignatureUrl && (
-                              <img src={coachSignatureUrl} alt="TTD Pembimbing" className="h-11 max-w-[110px] object-contain" />
-                            )}
-                          </div>
-
-                          <div className="border-b border-dotted border-black w-full max-w-[160px] mx-auto"></div>
-                          <div className="font-bold text-xs mt-1">({pelatihName})</div>
-                          <div className="font-normal text-[10px] mt-0.5">
-                            NIP/NUPTK. {pelatihNip || '....................'}
-                          </div>
+                        <div className="font-bold text-xs uppercase tracking-wide underline">
+                          {kepalaSekolahInfo.nama}
                         </div>
-
-                        {/* Right: Asisten Pelatih */}
-                        <div className="text-center">
-                          <div className="font-normal">ASISTEN PELATIH</div>
-
-                          <div className="h-14 flex items-center justify-center">
-                            {asistenSignatureUrl && (
-                              <img src={asistenSignatureUrl} alt="TTD Asisten" className="h-11 max-w-[110px] object-contain" />
-                            )}
-                          </div>
-
-                          <div className="border-b border-dotted border-black w-full max-w-[160px] mx-auto"></div>
-                          <div className="font-bold text-xs mt-1">({asistenName})</div>
-                          <div className="font-normal text-[10px] mt-0.5">
-                            NIP/NUPTK. {asistenNip || '....................'}
-                          </div>
+                        <div className="font-normal text-[10.5px] mt-0.5">
+                          NIP. {kepalaSekolahInfo.nip || '................................................'}
                         </div>
                       </div>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-4 mt-6 text-xs text-left">
-                        {/* Left: Kepala Sekolah */}
-                        <div className="pl-1">
-                          <div className="font-normal">MENGETAHUI,</div>
-                          <div className="uppercase font-normal">KEPALA {schoolTitle}</div>
 
-                          <div className="h-16 flex items-center">
-                            {/* Signature space */}
-                          </div>
-
-                          <div className="font-bold text-xs uppercase tracking-wide underline">
-                            {kepalaSekolahInfo.nama}
-                          </div>
-                          <div className="font-normal text-[11px] mt-0.5">
-                            NIP. {kepalaSekolahInfo.nip || '................................................'}
-                          </div>
+                      {/* Right: Tim Pelatih / Pembimbing */}
+                      <div className="text-center">
+                        <div className="font-normal mb-1">
+                          {includeAsistenPelatih ? 'TIM PELATIH / PEMBIMBING' : 'PEMBIMBING'}
                         </div>
 
-                        {/* Right: Pembimbing */}
-                        <div className="pl-1">
-                          <div className="font-normal">PEMBIMBING</div>
+                        {includeAsistenPelatih ? (
+                          <div className="signature-grid flex items-start gap-6">
+                            {/* Pelatih Utama */}
+                            <div className="text-center min-w-[130px]">
+                              <div className="font-semibold text-[11px]">Pelatih Utama</div>
+                              <div className="h-14 flex items-center justify-center">
+                                {coachSignatureUrl && (
+                                  <img src={coachSignatureUrl} alt="TTD Pelatih Utama" className="h-11 max-w-[110px] object-contain" />
+                                )}
+                              </div>
+                              <div className="border-b border-dotted border-black w-36 mx-auto"></div>
+                              <div className="font-bold text-xs mt-1">({pelatihName})</div>
+                              <div className="font-normal text-[10px] mt-0.5">
+                                NIP/NUPTK. {pelatihNip || '....................'}
+                              </div>
+                            </div>
 
-                          <div className="h-16 flex items-center">
-                            {coachSignatureUrl && (
-                              <img src={coachSignatureUrl} alt="TTD Pembimbing" className="h-11 max-w-[120px] object-contain" />
-                            )}
+                            {/* Asisten Pelatih */}
+                            <div className="text-center min-w-[130px]">
+                              <div className="font-semibold text-[11px]">Asisten Pelatih</div>
+                              <div className="h-14 flex items-center justify-center">
+                                {asistenSignatureUrl && (
+                                  <img src={asistenSignatureUrl} alt="TTD Asisten" className="h-11 max-w-[110px] object-contain" />
+                                )}
+                              </div>
+                              <div className="border-b border-dotted border-black w-36 mx-auto"></div>
+                              <div className="font-bold text-xs mt-1">({asistenName})</div>
+                              <div className="font-normal text-[10px] mt-0.5">
+                                NIP/NUPTK. {asistenNip || '....................'}
+                              </div>
+                            </div>
                           </div>
-
-                          <div className="border-b border-dotted border-black w-full max-w-[240px]"></div>
-                          <div className="font-normal text-[11px] mt-0.5">
-                            NIP/NUPTK. {pelatihNip || ''}
+                        ) : (
+                          <div className="min-w-[180px] text-center">
+                            <div className="h-14 flex items-center justify-center">
+                              {coachSignatureUrl && (
+                                <img src={coachSignatureUrl} alt="TTD Pembimbing" className="h-11 max-w-[120px] object-contain" />
+                              )}
+                            </div>
+                            <div className="border-b border-dotted border-black w-full max-w-[200px] mx-auto"></div>
+                            <div className="font-bold text-xs mt-1">({pelatihName})</div>
+                            <div className="font-normal text-[10.5px] mt-0.5">
+                              NIP/NUPTK. {pelatihNip || '....................'}
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
                 );
               })}
@@ -2133,7 +2137,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                     <thead>
                       <tr className="bg-slate-100 font-bold border-b border-black">
                         <th className="border border-black p-1 w-6">NO</th>
-                        <th className="border border-black p-1 text-left">NAMA ANGGOTA</th>
+                        <th className="border border-black p-1 text-center">NAMA ANGGOTA</th>
                         <th className="border border-black p-1 w-16">KELAS</th>
                         <th className="border border-black p-1 w-24">DIVISI</th>
                         <th className="border border-black p-1 w-8">1</th>
@@ -2149,7 +2153,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                         return (
                           <tr key={idx} className="h-6 border-b border-black">
                             <td className="border border-black p-0.5 font-bold align-middle">{no}</td>
-                            <td className="border border-black p-0.5 text-left align-middle font-medium truncate max-w-[140px]">
+                            <td className="border border-black p-0.5 text-center align-middle font-medium truncate max-w-[140px]">
                               {student?.nama || ''}
                             </td>
                             <td className="border border-black p-0.5 align-middle">{student?.kelas || ''}</td>
@@ -2211,7 +2215,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                     <thead>
                       <tr className="bg-slate-100 font-bold border-b border-black">
                         <th className="border border-black p-1 w-6">NO</th>
-                        <th className="border border-black p-1 text-left">NAMA ANGGOTA</th>
+                        <th className="border border-black p-1 text-center">NAMA ANGGOTA</th>
                         <th className="border border-black p-1 w-16">KELAS</th>
                         <th className="border border-black p-1 w-24">DIVISI</th>
                         <th className="border border-black p-1 w-8">1</th>
@@ -2227,7 +2231,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                         return (
                           <tr key={idx} className="h-6 border-b border-black">
                             <td className="border border-black p-0.5 font-bold align-middle">{no}</td>
-                            <td className="border border-black p-0.5 text-left align-middle font-medium truncate max-w-[140px]">
+                            <td className="border border-black p-0.5 text-center align-middle font-medium truncate max-w-[140px]">
                               {student?.nama || ''}
                             </td>
                             <td className="border border-black p-0.5 align-middle">{student?.kelas || ''}</td>

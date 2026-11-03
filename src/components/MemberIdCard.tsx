@@ -1,8 +1,7 @@
 import React, { useRef, useState } from 'react';
 import html2canvas from 'html2canvas';
 import { Anggota } from '../types';
-import { MarchingBandLogo } from './Logos';
-import { Download, Printer, Check, Copy } from 'lucide-react';
+import { Download, Printer, Copy, Check } from 'lucide-react';
 import { formatCardMemberName } from '../utils/nameFormatter';
 
 interface MemberIdCardProps {
@@ -24,15 +23,17 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const handleDownloadPng = async () => {
     if (!cardRef.current) return;
     try {
       setDownloading(true);
       const canvas = await html2canvas(cardRef.current, {
-        scale: 3, // High-res for clear physical printing (approx 300 DPI)
+        scale: 3, // High-res 300 DPI for physical printing
         useCORS: true,
-        backgroundColor: '#ffffff',
+        allowTaint: true,
+        backgroundColor: null,
         logging: false
       });
       const link = document.createElement('a');
@@ -50,109 +51,89 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
     window.print();
   };
 
+  const handleCopyCode = () => {
+    const code = member.qrCodeData || `FMB-${member.sekolahId}-${member.id}`;
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <div className={`flex flex-col items-center ${className}`}>
       {/* 
         ID CARD CONTAINER:
-        Standard Indonesian School ID Card Ratio (~85.6mm x 54mm or 1011x639px ratio)
+        Standard Indonesian Marching Band ID Card (Aspect Ratio ~1.49 matching template image 2528x1696)
       */}
       <div
         id={id}
         ref={cardRef}
-        className="id-card-element relative w-[370px] h-[230px] sm:w-[420px] sm:h-[262px] bg-white rounded-xl shadow-md border border-slate-300 overflow-hidden flex flex-col justify-between select-none print:shadow-none print:border-slate-800 print:rounded-none"
+        className="id-card-element relative w-[370px] h-[248px] sm:w-[420px] sm:h-[282px] rounded-xl shadow-xl overflow-hidden select-none print:shadow-none print:rounded-none"
         style={{
-          boxSizing: 'border-box'
+          boxSizing: 'border-box',
+          backgroundImage: "url('/assets/aistudio/1793721342067_1292d0de.jpg')",
+          backgroundSize: '100% 100%',
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'center'
         }}
       >
-        {/* ================= TOP GEOMETRIC ACCENTS ================= */}
-        <div className="absolute top-0 left-0 right-0 h-8 pointer-events-none z-10 overflow-hidden">
-          {/* Top Left Orange Wedge */}
-          <svg className="absolute top-0 left-0 w-36 sm:w-44 h-8" viewBox="0 0 160 32" fill="none">
-            <polygon points="0,0 160,0 0,32" fill="#F59E0B" />
-          </svg>
-          {/* Top Right Dark Navy Blue Wedge */}
-          <svg className="absolute top-0 right-0 w-64 sm:w-80 h-8" viewBox="0 0 300 32" fill="none">
-            <polygon points="50,0 300,0 300,32 0,0" fill="#14116E" />
-          </svg>
+        {/* ================= LEFT GOLD BOX FOR QR CODE ================= */}
+        {/* 
+          Template Box Coordinates:
+          Left: 12.1%, Top: 28.4%, Width: 28.4%, Height: 42.3%
+          Inner area: Left: 13.5%, Top: 30.2%, Width: 25.5%, Height: 38.5%
+        */}
+        <div className="absolute left-[13.6%] top-[30.2%] w-[25.5%] h-[38.7%] bg-white p-1 rounded-xs flex items-center justify-center overflow-hidden shadow-inner">
+          {qrDataUrl ? (
+            <img
+              src={qrDataUrl}
+              alt={`QR ${member.nama}`}
+              className="w-full h-full object-contain"
+              style={{ imageRendering: 'pixelated' }}
+            />
+          ) : (
+            <div className="w-full h-full bg-slate-50 flex items-center justify-center text-[9px] text-slate-400 font-bold">
+              Memuat QR...
+            </div>
+          )}
         </div>
 
-        {/* ================= BOTTOM GEOMETRIC ACCENTS ================= */}
-        <div className="absolute bottom-0 left-0 right-0 h-8 pointer-events-none z-10 overflow-hidden">
-          {/* Bottom Left Dark Navy Blue Wedge */}
-          <svg className="absolute bottom-0 left-0 w-72 sm:w-88 h-8" viewBox="0 0 320 32" fill="none">
-            <polygon points="0,0 260,32 0,32" fill="#14116E" />
-          </svg>
-          {/* Bottom Right Orange Wedge */}
-          <svg className="absolute bottom-0 right-0 w-44 sm:w-56 h-8" viewBox="0 0 200 32" fill="none">
-            <polygon points="40,32 200,32 200,6" fill="#F59E0B" />
-          </svg>
-        </div>
-
-        {/* ================= WATERMARK EMBLEM IN BACKGROUND ================= */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.13] z-0">
-          <div className="w-56 h-56 -ml-3">
-            <MarchingBandLogo className="w-full h-full object-contain" />
-          </div>
-        </div>
-
-        {/* ================= CARD MAIN CONTENT ================= */}
-        <div className="relative z-10 w-full h-full flex items-center px-4 sm:px-5 py-5">
+        {/* ================= RIGHT DETAILS: NAMA, SEKOLAH, DIVISI ================= */}
+        {/*
+          Seamless dark navy backdrop overlay to cleanly cover placeholder text and 
+          display member data with gold/white typography
+        */}
+        <div className="absolute right-[5.5%] top-[27.5%] w-[52%] h-[47%] flex flex-col justify-center items-end text-right px-2.5 py-1 bg-gradient-to-l from-[#081226]/95 via-[#0b1834]/90 to-transparent rounded-lg">
           
-          {/* LEFT SIDE: Vertical Navy Strip + Framed QR/Barcode Box */}
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-            {/* Vertical Dark Navy Strip */}
-            <div className="w-3 sm:w-3.5 h-[125px] sm:h-[145px] bg-[#14116E] rounded-md shadow-xs shrink-0" />
-
-            {/* Square Barcode/QR Box with Orange Border */}
-            <div className="w-[120px] h-[120px] sm:w-[140px] sm:h-[140px] bg-white rounded-xs border-[3.5px] sm:border-[4px] border-[#F5A623] shadow-xs flex items-center justify-center p-1.5 overflow-hidden">
-              {qrDataUrl ? (
-                <img
-                  src={qrDataUrl}
-                  alt={`QR ${member.nama}`}
-                  className="w-full h-full object-contain"
-                  style={{ imageRendering: 'pixelated' }}
-                />
-              ) : (
-                <div className="w-full h-full bg-slate-50 flex items-center justify-center text-[9px] text-slate-400 font-bold">
-                  Memuat Barcode...
-                </div>
-              )}
-            </div>
+          {/* NAMA ANGGOTA (Bold White Display Font) */}
+          <div className="w-full text-right mb-1">
+            <span
+              className="font-sans font-black text-white text-[13.5px] sm:text-[15.5px] uppercase tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] line-clamp-1 block leading-tight"
+              title={member.nama}
+            >
+              {formatCardMemberName(member.nama, 20)}
+            </span>
+            {member.nis && (
+              <span className="text-[9px] sm:text-[10px] text-amber-300 font-mono tracking-widest font-bold opacity-90 block">
+                NIS: {member.nis}
+              </span>
+            )}
           </div>
 
-          {/* RIGHT SIDE: Header + Nama Anggota + Asal Sekolah + Divisi */}
-          <div className="flex-1 flex flex-col items-center justify-center text-center pl-3 sm:pl-4 space-y-1.5 sm:space-y-2 overflow-hidden">
-            
-            {/* Header: FORUM EKSTRAKURIKULER MARCHING BAND */}
-            <div className="leading-tight">
-              <h3 className="font-black text-slate-900 text-[11px] sm:text-[13px] uppercase tracking-wider">
-                FORUM EKSTRAKURIKULER
-              </h3>
-              <h4 className="font-black text-slate-900 text-[12px] sm:text-[14px] uppercase tracking-widest -mt-0.5">
-                MARCHING BAND
-              </h4>
-            </div>
+          {/* ASAL SEKOLAH (Gold Display Serif Font) */}
+          <div className="w-full text-right mb-1">
+            <p
+              className="font-serif font-black text-[#f6d787] text-[11.5px] sm:text-[13.5px] uppercase tracking-widest drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] truncate leading-tight"
+              title={schoolName}
+            >
+              {schoolName || 'SMPN 2 CIGOMBONG'}
+            </p>
+          </div>
 
-            {/* NAMA ANGGOTA (Navy blue rounded pill container with bold white text) */}
-            <div className="w-full max-w-[210px] sm:max-w-[230px] bg-[#14116E] text-white py-1 sm:py-1.5 px-3 rounded-lg shadow-sm flex items-center justify-center">
-              <span className="font-black text-xs sm:text-[13.5px] uppercase tracking-wide truncate leading-tight" title={member.nama}>
-                {formatCardMemberName(member.nama, 18)}
-              </span>
-            </div>
-
-            {/* ASAL SEKOLAH (Bold Orange / Gold Text) */}
-            <div className="w-full max-w-[210px] sm:max-w-[230px]">
-              <p className="font-black text-[#F5A623] text-xs sm:text-[14px] uppercase tracking-wide truncate leading-tight">
-                {schoolName || 'MARCHING BAND'}
-              </p>
-            </div>
-
-            {/* DIVISI (Bold Dark Text) */}
-            <div className="w-full max-w-[210px] sm:max-w-[230px] -mt-0.5">
-              <p className="font-black text-slate-900 text-[11px] sm:text-[13px] uppercase tracking-wider truncate leading-tight">
-                DIVISI {member.divisiNama || 'UMUM'} {member.kelas ? `• ${member.kelas}` : ''}
-              </p>
-            </div>
+          {/* DIVISI (Gold Display Serif Font) */}
+          <div className="w-full text-right">
+            <p className="font-serif font-bold text-[#e5be64] text-[10.5px] sm:text-[12px] uppercase tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] truncate leading-tight">
+              DIVISI {member.divisiNama || 'UMUM'} {member.kelas ? `• ${member.kelas}` : ''}
+            </p>
           </div>
         </div>
       </div>
@@ -178,6 +159,16 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
           >
             <Printer className="w-4 h-4" />
             <span>Cetak Langsung</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleCopyCode}
+            className="flex items-center gap-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold text-xs px-3 py-2 rounded-xl shadow-xs transition cursor-pointer"
+            title="Salin kode Barcode / QR ID Anggota"
+          >
+            {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-500" />}
+            <span>{copied ? 'Tersalin' : 'Salin Kode'}</span>
           </button>
         </div>
       )}

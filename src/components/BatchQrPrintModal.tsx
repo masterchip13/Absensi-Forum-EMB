@@ -176,10 +176,10 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
           }
           .id-card-element {
             width: 95mm !important;
-            height: 59mm !important;
-            border: 1px dashed #cbd5e1 !important;
+            height: 63.7mm !important;
+            border: 1px solid #1e293b !important;
             box-shadow: none !important;
-            border-radius: 6px !important;
+            border-radius: 4px !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fmb-absensi-v2';
+const CACHE_NAME = 'fmb-absensi-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -39,6 +39,20 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // Only handle http/https GET requests
   if (event.request.method !== 'GET' || !event.request.url.startsWith('http')) {
+    return;
+  }
+
+  const url = new URL(event.request.url);
+
+  // Never intercept or cache dev dependencies, Vite internals, or modules
+  if (
+    url.pathname.includes('/node_modules/') ||
+    url.pathname.includes('/@') ||
+    url.pathname.includes('/src/') ||
+    url.searchParams.has('v') ||
+    url.searchParams.has('import') ||
+    url.searchParams.has('t')
+  ) {
     return;
   }
 
