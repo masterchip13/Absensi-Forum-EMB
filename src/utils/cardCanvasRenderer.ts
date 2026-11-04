@@ -132,8 +132,8 @@ export async function renderMemberCardToCanvas(
   ctx.fillStyle = '#F6D787';
   ctx.fillText(schoolText, rightX, schoolY);
 
-  // DIVISI (Gold Display Serif)
-  const divisiText = `DIVISI ${(member.divisiNama || 'UMUM').toUpperCase()}${member.kelas ? ` • ${member.kelas.toUpperCase()}` : ''}`;
+  // DIVISI (Gold Display Serif) - User requirement: "Hilangkan kelas di kartu anggota"
+  const divisiText = `DIVISI ${(member.divisiNama || 'UMUM').toUpperCase()}`;
   fitFontSize(
     divisiText,
     maxAvailableWidth,

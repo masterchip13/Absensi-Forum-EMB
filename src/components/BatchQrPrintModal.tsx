@@ -45,6 +45,8 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
   const [membersWithQr, setMembersWithQr] = useState<MemberWithQr[]>([]);
   const [loadingQr, setLoadingQr] = useState<boolean>(false);
   const [printLayout, setPrintLayout] = useState<'idcard' | 'compact'>('idcard');
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [pdfProgressText, setPdfProgressText] = useState('');
 
   // Sync selected school on open
   useEffect(() => {
@@ -132,9 +134,6 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
       prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
     );
   };
-
-  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
-  const [pdfProgressText, setPdfProgressText] = useState('');
 
   const handlePrint = () => {
     window.print();
@@ -248,9 +247,10 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
           pdf.text(shortName.toUpperCase(), x + cardW / 2, y + 37, { align: 'center' });
 
           pdf.setFontSize(6.5);
-          pdf.setFont('helvetica', 'normal');
+          pdf.setFont('helvetica', 'bold');
           pdf.setTextColor(71, 85, 105);
-          pdf.text(`${student.kelas || '-'} • ${student.divisiNama || 'Umum'}`, x + cardW / 2, y + 42, { align: 'center' });
+          pdf.text(`DIVISI ${student.divisiNama || 'UMUM'}`.toUpperCase(), x + cardW / 2, y + 42, { align: 'center' });
+          pdf.setFont('helvetica', 'normal');
           pdf.text(studentSchool, x + cardW / 2, y + 46, { align: 'center' });
         }
       }
@@ -576,12 +576,9 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
                         <h4 className="font-extrabold text-slate-900 text-xs truncate uppercase" title={student.nama}>
                           {idx + 1}. {formatCardMemberName(student.nama, 18)}
                         </h4>
-                        <div className="flex items-center justify-center gap-2 text-[10px] font-bold text-slate-700 mt-0.5">
-                          <span className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                            Kelas: {student.kelas}
-                          </span>
-                          <span className="bg-blue-50 text-blue-800 px-2 py-0.5 rounded border border-blue-200">
-                            {student.divisiNama}
+                        <div className="flex items-center justify-center text-[10px] font-bold text-slate-700 mt-0.5">
+                          <span className="bg-blue-50 text-blue-800 px-2.5 py-0.5 rounded border border-blue-200 uppercase">
+                            DIVISI {student.divisiNama || 'UMUM'}
                           </span>
                         </div>
                       </div>

@@ -48,7 +48,8 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
     return 'text-[11.5px] sm:text-[13.5px]';
   };
 
-  const divisiText = `DIVISI ${(member.divisiNama || 'UMUM').toUpperCase()}${member.kelas ? ` • ${member.kelas.toUpperCase()}` : ''}`;
+  // User requirement: "Hilangkan kelas di kartu anggota"
+  const divisiText = `DIVISI ${(member.divisiNama || 'UMUM').toUpperCase()}`;
   const divisiLength = divisiText.length;
   const getDivisiFontSizeClass = () => {
     if (divisiLength <= 18) return 'text-[13px] sm:text-[15.5px]';
