@@ -118,7 +118,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
       );
     } catch (err: any) {
       console.warn('Camera access error:', err);
-      setCameraError('Kamera tidak dapat diakses atau izin ditolak. Anda dapat menggunakan tab Pilih Siswa atau Unggah QR.');
+      setCameraError('Kamera tidak dapat diakses atau izin ditolak. Anda dapat menggunakan tab Pilih Anggota atau Unggah QR.');
       setIsScanningCamera(false);
     }
   };
@@ -204,7 +204,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-base leading-none">Scanner Presensi Siswa</h3>
+                <h3 className="font-extrabold text-base leading-none">Scanner Presensi Anggota</h3>
                 <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-400 text-slate-950 px-2 py-0.5 rounded-full">
                   Auto-Confirm
                 </span>
@@ -285,7 +285,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
             }`}
           >
             <Sparkles className="w-4 h-4 text-amber-500" />
-            Pilih Siswa
+            Pilih Anggota
           </button>
         </div>
 
@@ -393,7 +393,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
                 htmlFor="file-qr-input"
                 className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md transition"
               >
-                Pilih Foto QR Siswa
+                Pilih Foto QR Anggota
               </label>
               <div id="file-qr-temp" className="hidden" />
             </div>
@@ -403,7 +403,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
           {activeTab === 'manual' && (
             <div className="space-y-2">
               <p className="text-xs text-slate-600 font-bold">
-                Klik nama siswa di bawah untuk langsung mengonfirmasi absensi kolom ke-{selectedColumn}:
+                Klik nama anggota di bawah untuk langsung mengonfirmasi absensi kolom ke-{selectedColumn}:
               </p>
               <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
                 {schoolAnggota.length === 0 ? (
@@ -462,7 +462,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                   <History className="w-3.5 h-3.5 text-slate-500" />
-                  Riwayat Scan Sesi Ini ({scannedHistory.length} Siswa)
+                  Riwayat Scan Sesi Ini ({scannedHistory.length} Anggota)
                 </span>
                 <span className="text-[10px] text-slate-400 font-medium">Bulan {selectedMonth}</span>
               </div>

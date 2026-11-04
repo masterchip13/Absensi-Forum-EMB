@@ -134,7 +134,7 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
               className="appearance-none bg-slate-100 font-bold text-slate-800 border border-slate-300 rounded-xl px-3.5 py-1.5 pr-8 text-xs focus:ring-2 focus:ring-blue-500 cursor-pointer"
             >
               <option value="beranda">🏠 Beranda & Ringkasan</option>
-              <option value="anggota">👥 Data Siswa & Barcode</option>
+              <option value="anggota">👥 Data Anggota & Barcode</option>
               <option value="absen_pelatih">📷 Absensi Pelatih (Jurnal)</option>
               <option value="penilaian">🎖️ Nilai Anggota & Raport</option>
               <option value="rekap_pdf">📄 Unduh Laporan Kegiatan</option>
@@ -174,7 +174,7 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>Data Siswa & Barcode ({schoolAnggota.length})</span>
+            <span>Data Anggota & Barcode ({schoolAnggota.length})</span>
           </button>
 
           <button
@@ -315,7 +315,7 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
                   className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-extrabold text-xs px-3.5 py-2.5 rounded-xl shadow-md transition cursor-pointer"
                 >
                   <QrCode className="w-4 h-4" />
-                  <span>Scan QR Presensi Siswa</span>
+                  <span>Scan QR Presensi Anggota</span>
                 </button>
 
                 <button
@@ -331,7 +331,7 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
                   className="flex items-center gap-1.5 bg-blue-600/80 hover:bg-blue-600 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition border border-blue-400/30 cursor-pointer"
                 >
                   <Users className="w-4 h-4 text-blue-200" />
-                  <span>Kelola Siswa & Kartu QR</span>
+                  <span>Kelola Anggota & Kartu QR</span>
                 </button>
 
                 <button
@@ -339,7 +339,7 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
                   className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs px-3.5 py-2.5 rounded-xl transition cursor-pointer"
                 >
                   <Award className="w-4 h-4" />
-                  <span>Rekap Nilai Siswa</span>
+                  <span>Rekap Nilai Anggota</span>
                 </button>
 
                 <button
@@ -417,7 +417,7 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
                     <button
                       onClick={onOpenQrScanner}
                       className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg font-bold text-xs shadow-xs hover:bg-emerald-700 transition cursor-pointer"
-                      title="Mulai Scan Absen Siswa"
+                      title="Mulai Scan Absen Anggota"
                     >
                       Scan QR
                     </button>
@@ -432,7 +432,7 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
                 <Users className="w-4 h-4 text-blue-600" />
-                Daftar Siswa ({schoolAnggota.length})
+                Daftar Anggota ({schoolAnggota.length})
               </h3>
               <button
                 onClick={() => setActiveTab('anggota')}
@@ -445,7 +445,7 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
 
             {schoolAnggota.length === 0 ? (
               <div className="text-center py-6 text-slate-400 text-xs">
-                Belum ada data siswa. Klik <button onClick={() => setActiveTab('anggota')} className="text-blue-600 underline font-bold">Kelola Siswa</button> untuk menambahkan data atau import dari Excel.
+                Belum ada data anggota. Klik <button onClick={() => setActiveTab('anggota')} className="text-blue-600 underline font-bold">Kelola Anggota</button> untuk menambahkan data atau import dari Excel.
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">

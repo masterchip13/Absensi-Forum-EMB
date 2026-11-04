@@ -82,7 +82,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             <UserCheck className="w-4 h-4 text-blue-200" />
             <div className="text-left">
               <span className="block text-xs font-black">Coach (Pelatih)</span>
-              <span className="text-[10px] text-blue-200/80 block -mt-0.5">Kelola Absen & Siswa</span>
+              <span className="text-[10px] text-blue-200/80 block -mt-0.5">Kelola Absen & Anggota</span>
             </div>
           </button>
 
@@ -123,7 +123,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 <UserCheck className="w-4 h-4 shrink-0 text-blue-400 mt-0.5" />
                 <div>
                   <span className="font-bold block text-blue-300">Akses Khusus Coach / Pelatih:</span>
-                  Input presensi QR siswa, tulis jurnal latihan harian, kelola siswa & unduh laporan khusus sekolah binaan yang ditugaskan.
+                  Input presensi QR anggota, tulis jurnal latihan harian, kelola anggota & unduh laporan khusus sekolah binaan yang ditugaskan.
                 </div>
               </div>
             )}

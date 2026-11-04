@@ -768,11 +768,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Cari Nama Siswa:</label>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Cari Nama Anggota:</label>
                     <div className="relative">
                       <input
                         type="text"
-                        placeholder="Ketik nama siswa..."
+                        placeholder="Ketik nama anggota..."
                         value={searchAnggotaText}
                         onChange={(e) => setSearchAnggotaText(e.target.value)}
                         className="w-full px-3 py-1.5 pl-8 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500"
@@ -790,7 +790,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {filteredAbsenSiswa.length === 0 ? (
                   <div className="p-8 text-center text-slate-500 bg-white">
                     <Users className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                    <p className="text-xs font-bold text-slate-700">Tidak ada data presensi siswa yang sesuai filter.</p>
+                    <p className="text-xs font-bold text-slate-700">Tidak ada data presensi anggota yang sesuai filter.</p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto max-h-[550px]">
@@ -798,7 +798,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <thead className="bg-slate-100 text-slate-700 font-extrabold uppercase text-[10px] tracking-wider sticky top-0 border-b border-slate-200">
                         <tr>
                           <th className="p-3 text-center w-12">No</th>
-                          <th className="p-3">Nama Siswa</th>
+                          <th className="p-3 text-center">Nama Anggota</th>
                           <th className="p-3">Sekolah</th>
                           <th className="p-3 text-center">Kelas</th>
                           <th className="p-3">Divisi</th>
@@ -815,7 +815,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           return (
                             <tr key={entry.id} className="hover:bg-slate-50/80 transition">
                               <td className="p-3 text-center font-medium text-slate-500">{idx + 1}</td>
-                              <td className="p-3 font-bold text-slate-900">{student?.nama || 'Siswa Dihapus'}</td>
+                              <td className="p-3 font-bold text-slate-900 text-center">{student?.nama || 'Anggota Dihapus'}</td>
                               <td className="p-3 font-medium text-slate-700 truncate max-w-[200px]">{school?.namaSekolah || '-'}</td>
                               <td className="p-3 text-center text-slate-600 font-semibold">{student?.kelas || '-'}</td>
                               <td className="p-3 text-slate-700">{student?.divisiNama || '-'}</td>

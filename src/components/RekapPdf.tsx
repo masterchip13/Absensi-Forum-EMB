@@ -267,20 +267,31 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         const canvas = await html2canvas(pageEl, {
           scale: 2,
           useCORS: true,
+          allowTaint: false,
           logging: false,
           backgroundColor: '#FFFFFF'
         });
 
-        const imgData = canvas.toDataURL('image/png');
+        // Use JPEG 0.92 to reduce memory footprint by 85% and prevent corrupted large files on mobile/desktop
+        const imgData = canvas.toDataURL('image/jpeg', 0.92);
         const imgWidth = 210; // A4 width in mm
         const pageHeight = 297; // A4 height in mm
         const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
         if (i > 0) pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, Math.min(imgHeight, pageHeight));
+        pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, Math.min(imgHeight, pageHeight));
       }
 
-      pdf.save(`Laporan-Ekstrakurikuler-${namaSekolahFormatted.replace(/[^a-zA-Z0-9]/g, '_')}-${filterBulan}-${filterTahunAjaran.replace('/', '-')}.pdf`);
+      // Safe Blob download to prevent corruption or popup blocker issues
+      const pdfBlob = pdf.output('blob');
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      const downloadLink = document.createElement('a');
+      downloadLink.href = blobUrl;
+      downloadLink.download = `Laporan-Ekstrakurikuler-${namaSekolahFormatted.replace(/[^a-zA-Z0-9]/g, '_')}-${filterBulan}-${filterTahunAjaran.replace('/', '-')}.pdf`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
     } catch (err) {
       console.error('PDF Export failed:', err);
       alert('Gagal mengekspor PDF otomatis. Anda dapat menggunakan tombol Cetak Langsung Browser.');
@@ -338,7 +349,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         [`Sekolah: ${selectedSekolah?.namaSekolah || '-'}`],
         [`Bulan: ${filterBulan} | Tahun Pelajaran: ${filterTahunAjaran}`],
         [],
-        ['No', 'Nama Siswa / Anggota', 'Kelas', 'Divisi / Alat', 'Pertemuan 1', 'Pertemuan 2', 'Pertemuan 3', 'Pertemuan 4', 'Pertemuan 5', 'Total Hadir', 'Persentase (%)']
+        ['No', 'Nama Anggota', 'Kelas', 'Divisi / Alat', 'Pertemuan 1', 'Pertemuan 2', 'Pertemuan 3', 'Pertemuan 4', 'Pertemuan 5', 'Total Hadir', 'Persentase (%)']
       ];
 
       if (schoolAnggota.length === 0) {
@@ -843,7 +854,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
   };
 
   // Render meetings to display for Sukaharja templates

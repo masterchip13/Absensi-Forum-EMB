@@ -324,10 +324,11 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
+        allowTaint: false,
         logging: false,
         backgroundColor: '#ffffff'
       });
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -350,10 +351,20 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
         heightLeft -= pageHeight;
       }
 
-      const fileName = `Nilai_Ekskul_${selectedSekolah?.namaSekolah.replace(/\s+/g, '_')}_Semester_${filterSemester}_${filterTahunAjaran.replace('/', '-')}.pdf`;
-      pdf.save(fileName);
+      const pdfBlob = pdf.output('blob');
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      const cleanSchoolName = (selectedSekolah?.namaSekolah || 'Sekolah').replace(/\s+/g, '_');
+      const fileName = `Nilai_Ekskul_${cleanSchoolName}_Semester_${filterSemester}_${filterTahunAjaran.replace('/', '-')}.pdf`;
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
     } catch (err) {
       console.error('Export PDF error:', err);
+      alert('Gagal mengekspor PDF otomatis. Anda dapat menggunakan tombol Cetak Langsung.');
     } finally {
       setIsExporting(false);
     }
@@ -366,7 +377,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
 
       const headers = [
         'No',
-        'Nama Siswa / Anggota',
+        'Nama Anggota',
         'Kelas',
         'Divisi / Alat Musik',
         ...semesterMonths.map(m => `Hadir ${m}`),
@@ -555,7 +566,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
       ${gradedStudents.map((row, idx) => `
         <tr>
           <td>${idx + 1}</td>
-          <td class="text-left"><b>${row.anggota.nama}</b></td>
+          <td style="text-align: center;"><b>${row.anggota.nama}</b></td>
           <td>${row.anggota.kelas || '-'}</td>
           <td class="text-left">${row.anggota.divisiNama || '-'}</td>
           ${semesterMonths.map(m => `<td>${row.monthlyAttendance[m] || 0}</td>`).join('')}
