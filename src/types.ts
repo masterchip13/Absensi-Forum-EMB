@@ -37,6 +37,7 @@ export interface Anggota {
   nama: string;
   kelas: string;
   divisiNama: string;
+  nis?: string;
   qrCodeData: string;
   signatureUrl?: string; // Data URL of drawn signature
   createdAt: string;

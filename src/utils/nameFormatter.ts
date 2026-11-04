@@ -1,60 +1,106 @@
 /**
  * Helper to format member name for ID Cards and QR Code prints.
- * If the full name exceeds maxLen (default: 18 characters),
- * the last name is automatically abbreviated to its initial with a period.
+ * User requirement: "Untuk nama yang terlalu panjang di kartu anggota, buat singkat akhirnya saja."
+ * 
+ * If the full name exceeds maxLen (default: 20 characters),
+ * ONLY the trailing word(s) are abbreviated to their initial with a period.
+ * The first/given name is NEVER abbreviated.
  * 
  * Examples:
  * - "Muhammad Rizky Pratama" -> "Muhammad Rizky P."
  * - "Ahmad Fauzi Nurhadi" -> "Ahmad Fauzi N."
- * - "Siti Nurhaliza Rahmadani" -> "Siti Nurhaliza R."
+ * - "Siti Nurhaliza Ramadhani" -> "Siti Nurhaliza R."
+ * - "Muhammad Aliansyah Ramadhan Kusuma" -> "Muhammad Aliansyah R. K."
  */
-export function formatCardMemberName(name: string, maxLen: number = 18): string {
+export function formatCardMemberName(name?: string | null, maxLen: number = 20): string {
   if (!name) return '';
-  const trimmed = name.trim();
-  if (trimmed.length <= maxLen) {
-    return trimmed;
+  const cleaned = name.trim().replace(/\s+/g, ' ');
+  if (!cleaned) return '';
+
+  const words = cleaned.split(' ');
+
+  // Auto capitalize each word into proper Title Case
+  const formattedWords = words.map(w => {
+    if (!w) return '';
+    if (w.length === 1) return w.toUpperCase();
+    if (w.includes('.')) {
+      return w
+        .split('.')
+        .map(p => p ? p.charAt(0).toUpperCase() + p.slice(1).toLowerCase() : '')
+        .join('.');
+    }
+    return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+  });
+
+  const fullFormatted = formattedWords.join(' ');
+  // If length is within bounds or only one word, return full name
+  if (fullFormatted.length <= maxLen || formattedWords.length <= 1) {
+    return fullFormatted;
   }
 
-  const parts = trimmed.split(/\s+/);
-  if (parts.length <= 1) {
-    return trimmed;
+  // Only abbreviate the trailing word(s). NEVER abbreviate the first name (index 0).
+  const copy = [...formattedWords];
+  const lastIndex = copy.length - 1;
+
+  // 1. Abbreviate the very last word first: e.g. "Muhammad Rizky Pratama" -> "Muhammad Rizky P."
+  const lastWord = copy[lastIndex];
+  if (lastWord.length > 1 && !lastWord.endsWith('.')) {
+    copy[lastIndex] = `${lastWord[0].toUpperCase()}.`;
   }
 
-  // Copy parts array
-  const partsCopy = [...parts];
-  const lastIdx = partsCopy.length - 1;
-  const lastWord = partsCopy[lastIdx];
-
-  // Abbreviate last name to initial
-  if (lastWord.length > 1) {
-    partsCopy[lastIdx] = `${lastWord[0].toUpperCase()}.`;
+  if (copy.join(' ').length <= maxLen) {
+    return copy.join(' ');
   }
 
-  const resultWithLastAbbr = partsCopy.join(' ');
-  if (resultWithLastAbbr.length <= maxLen) {
-    return resultWithLastAbbr;
-  }
-
-  // If still too long and has >= 3 words, abbreviate previous middle names from right to left
-  for (let i = lastIdx - 1; i >= 1; i--) {
-    const word = partsCopy[i];
+  // 2. If still exceeds maxLen and there are 3+ words, abbreviate backwards from second-to-last word
+  // Note: loop terminates at i >= 1, NEVER touching copy[0] (first name)!
+  for (let i = lastIndex - 1; i >= 1; i--) {
+    const word = copy[i];
     if (word.length > 1 && !word.endsWith('.')) {
-      partsCopy[i] = `${word[0].toUpperCase()}.`;
-      const attempt = partsCopy.join(' ');
-      if (attempt.length <= maxLen) {
-        return attempt;
+      copy[i] = `${word[0].toUpperCase()}.`;
+      if (copy.join(' ').length <= maxLen) {
+        return copy.join(' ');
       }
     }
   }
 
-  // If still exceeds maxLen, abbreviate first name as well
-  if (partsCopy[0].length > 1) {
-    partsCopy[0] = `${partsCopy[0][0].toUpperCase()}.`;
-    const attemptFirst = partsCopy.join(' ');
-    if (attemptFirst.length <= maxLen) {
-      return attemptFirst;
-    }
-  }
+  // Return result with only the end abbreviated, first name is guaranteed intact
+  return copy.join(' ');
+}
 
-  return partsCopy.join(' ');
+/**
+ * Automatically format member name with proper Title Case capitalization for reports.
+ * User requirement: "Untuk di laporan kegiatan, gunakan kapitalisasi otomatis nama anggotanya"
+ * 
+ * Examples:
+ * - "MUHAMMAD RIZKY RAMADHAN" -> "Muhammad Rizky Ramadhan"
+ * - "siti nurhaliza" -> "Siti Nurhaliza"
+ * - "ahmad fauzi n." -> "Ahmad Fauzi N."
+ * - "NUR-AFIFAH" -> "Nur-Afifah"
+ */
+export function formatNamaKapital(name?: string | null): string {
+  if (!name) return '';
+  return name
+    .trim()
+    .replace(/\s+/g, ' ')
+    .split(' ')
+    .map(word => {
+      if (!word) return '';
+      // Handle abbreviations like "M.", "S.Pd", "H."
+      if (word.includes('.')) {
+        return word
+          .split('.')
+          .map(part => part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : '')
+          .join('.');
+      }
+      // Handle hyphenated names like "Nur-Ainun"
+      if (word.includes('-')) {
+        return word
+          .split('-')
+          .map(part => part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : '')
+          .join('-');
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(' ');
 }

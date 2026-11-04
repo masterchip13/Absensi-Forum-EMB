@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 import { Sekolah, AbsenPelatihItem, Anggota, AbsenSiswaEntry, EventLog } from '../types';
@@ -7,6 +7,7 @@ import { TutWuriLogo, MarchingBandLogo } from './Logos';
 import { FileText, Download, Printer, Filter, Sparkles, School, Calendar, CheckCircle2, UserCheck, Users, PenTool, X, RotateCcw, Image as ImageIcon, FileSpreadsheet } from 'lucide-react';
 import { StorageService } from '../data/storage';
 import { StudentWetSignature, getStudentSignatureDataUrl } from '../utils/studentSignature';
+import { formatNamaKapital } from '../utils/nameFormatter';
 import { SignaturePad } from './SignaturePad';
 
 interface RekapPdfProps {
@@ -114,7 +115,12 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
     };
   }, [resolvedTemplate, selectedSekolah]);
 
-  const schoolAnggota = anggotaList.filter(a => a.sekolahId === filterSekolahId);
+  // Sort school members alphabetically so names are clean and structured
+  const schoolAnggota = useMemo(() => {
+    return anggotaList
+      .filter(a => a.sekolahId === filterSekolahId)
+      .sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
+  }, [anggotaList, filterSekolahId]);
 
   // Filter Absen Pelatih by selected school, year, and month
   const selectedMonthShort = MONTH_SHORT_MAP[filterBulan] || filterBulan.substring(0, 3);
@@ -151,10 +157,64 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
   // Prioritize active month event photos, fallback to all school event photos if none in selected month
   const activeEventPhotos = eventPhotosForMonth.length > 0 ? eventPhotosForMonth : allSchoolEventPhotos;
 
-  // Pagination for members
+  // DYNAMIC PAGINATION: Automatically include ALL registered members without cut-off!
+  // For Cigombong & Standard Format: 30 members per sheet
+  const anggotaPages = useMemo(() => {
+    if (schoolAnggota.length === 0) {
+      return [{
+        members: Array.from({ length: 30 }, () => null),
+        pageIndex: 0,
+        startNo: 1,
+        totalInPage: 0
+      }];
+    }
+    const pages = [];
+    const pageSize = 30;
+    for (let i = 0; i < schoolAnggota.length; i += pageSize) {
+      const slice = schoolAnggota.slice(i, i + pageSize);
+      // Pad to 30 rows with null to maintain exact standard paper layout
+      const members = Array.from({ length: 30 }, (_, idx) => slice[idx] || null);
+      pages.push({
+        members,
+        pageIndex: Math.floor(i / pageSize),
+        startNo: i + 1,
+        totalInPage: slice.length
+      });
+    }
+    return pages;
+  }, [schoolAnggota]);
+
+  // For Sukaharja 01 & 03: 60 members per sheet (30 left column, 30 right column)
+  const sukaharjaAnggotaPages = useMemo(() => {
+    if (schoolAnggota.length === 0) {
+      return [{
+        left: Array.from({ length: 30 }, () => null),
+        right: Array.from({ length: 30 }, () => null),
+        pageIndex: 0,
+        startNo: 1
+      }];
+    }
+    const pages = [];
+    const pageSize = 60;
+    for (let i = 0; i < schoolAnggota.length; i += pageSize) {
+      const slice = schoolAnggota.slice(i, i + pageSize);
+      const leftSlice = slice.slice(0, 30);
+      const rightSlice = slice.slice(30, 60);
+      const left = Array.from({ length: 30 }, (_, idx) => leftSlice[idx] || null);
+      const right = Array.from({ length: 30 }, (_, idx) => rightSlice[idx] || null);
+      pages.push({
+        left,
+        right,
+        pageIndex: Math.floor(i / pageSize),
+        startNo: i + 1
+      });
+    }
+    return pages;
+  }, [schoolAnggota]);
+
+  // Backward-compatible fallback references
   const page1to30Anggota = schoolAnggota.slice(0, 30);
   const page31to60Anggota = schoolAnggota.slice(30, 60);
-
   const paddedPage1to30Rows = Array.from({ length: 30 }, (_, i) => page1to30Anggota[i] || null);
   const paddedPage31to60Rows = Array.from({ length: 30 }, (_, i) => page31to60Anggota[i] || null);
 
@@ -301,6 +361,69 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
     }
   };
 
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [imageProgressText, setImageProgressText] = useState('');
+
+  // Export every page of the report as high-resolution JPG / PNG image
+  const exportImage = async (format: 'jpeg' | 'png') => {
+    if (!pdfContainerRef.current) return;
+    setIsGeneratingImage(true);
+    const formatLabel = format === 'jpeg' ? 'JPG' : 'PNG';
+    const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+    const ext = format === 'jpeg' ? 'jpg' : 'png';
+    const quality = format === 'jpeg' ? 0.95 : undefined;
+
+    try {
+      const container = pdfContainerRef.current;
+      const pages = container.querySelectorAll<HTMLElement>('.pdf-page');
+
+      if (pages.length === 0) {
+        alert('Tidak ada halaman laporan untuk diekspor ke gambar.');
+        return;
+      }
+
+      for (let i = 0; i < pages.length; i++) {
+        setImageProgressText(`Memproses ${formatLabel} Hal ${i + 1}/${pages.length}...`);
+        const pageEl = pages[i];
+        const canvas = await html2canvas(pageEl, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: false,
+          logging: false,
+          backgroundColor: '#FFFFFF'
+        });
+
+        await new Promise<void>((resolve) => {
+          canvas.toBlob((blob) => {
+            if (!blob) {
+              resolve();
+              return;
+            }
+            const blobUrl = URL.createObjectURL(blob);
+            const downloadLink = document.createElement('a');
+            downloadLink.href = blobUrl;
+            downloadLink.download = `Laporan-${namaSekolahFormatted.replace(/[^a-zA-Z0-9]/g, '_')}-Hal-${i + 1}-${filterBulan}-${filterTahunAjaran.replace('/', '-')}.${ext}`;
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
+            resolve();
+          }, mimeType, quality);
+        });
+
+        if (pages.length > 1 && i < pages.length - 1) {
+          await new Promise(r => setTimeout(r, 400));
+        }
+      }
+    } catch (err) {
+      console.error('Image Export failed:', err);
+      alert(`Gagal mengekspor berkas ${formatLabel}.`);
+    } finally {
+      setIsGeneratingImage(false);
+      setImageProgressText('');
+    }
+  };
+
   const exportExcel = () => {
     try {
       const wb = XLSX.utils.book_new();
@@ -369,7 +492,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
 
           attendanceData.push([
             idx + 1,
-            student.nama,
+            formatNamaKapital(student.nama),
             student.kelas || '-',
             student.divisiNama || '-',
             cols[0],
@@ -533,7 +656,9 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         </tr>
       `).join('');
 
-      const studentsRows = paddedPage1to30Rows.map((student, idx) => {
+      // Include all registered school members in the Word export table, or at least padded to 30 rows if empty/small
+      const allMembersToExport = schoolAnggota.length > 0 ? schoolAnggota : paddedPage1to30Rows;
+      const studentsRows = allMembersToExport.map((student, idx) => {
         const sigCols = [1, 2, 3, 4, 5].map(col => {
           if (!student) return '';
           const status = getStudentAttendanceStatus(student, col);
@@ -543,10 +668,11 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
           }
           return status.label || '';
         });
+        const capitalizedName = formatNamaKapital(student?.nama);
         return `
           <tr style="height: 22px;">
             <td>${idx + 1}</td>
-            <td style="text-align: center;">${student?.nama || ''}</td>
+            <td style="text-align: center;">${capitalizedName || ''}</td>
             <td>${student?.kelas || ''}</td>
             <td>${sigCols[0]}</td>
             <td>${sigCols[1]}</td>
@@ -659,7 +785,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         return `
           <tr style="height: 18px;">
             <td style="text-align: center; font-size: 8.5pt;">${idx + 1}</td>
-            <td style="text-align: center; font-size: 8.5pt;">${student?.nama || ''}</td>
+            <td style="text-align: center; font-size: 8.5pt;">${formatNamaKapital(student?.nama) || ''}</td>
             <td style="text-align: center; font-size: 8.5pt;">${ttdHtml}</td>
           </tr>
         `;
@@ -685,7 +811,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         return `
           <tr style="height: 18px;">
             <td style="text-align: center; font-size: 8.5pt;">${idx + 31}</td>
-            <td style="text-align: center; font-size: 8.5pt;">${student?.nama || ''}</td>
+            <td style="text-align: center; font-size: 8.5pt;">${formatNamaKapital(student?.nama) || ''}</td>
             <td style="text-align: center; font-size: 8.5pt;">${ttdHtml}</td>
           </tr>
         `;
@@ -918,12 +1044,32 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
 
           <button
             onClick={exportPdf}
-            disabled={isGeneratingPdf}
+            disabled={isGeneratingPdf || isGeneratingImage}
             className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md transition disabled:opacity-50 cursor-pointer"
             title="Ekspor laporan ke file PDF"
           >
             <Download className="w-4 h-4 text-white" />
             <span>{isGeneratingPdf ? 'Memproses PDF...' : 'Unduh PDF'}</span>
+          </button>
+
+          <button
+            onClick={() => exportImage('jpeg')}
+            disabled={isGeneratingPdf || isGeneratingImage}
+            className="flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-md transition disabled:opacity-50 cursor-pointer"
+            title="Ekspor setiap lembar laporan menjadi gambar JPG berkualitas tinggi"
+          >
+            <ImageIcon className="w-4 h-4 text-amber-200" />
+            <span>{isGeneratingImage ? (imageProgressText || 'Memproses JPG...') : 'Unduh JPG'}</span>
+          </button>
+
+          <button
+            onClick={() => exportImage('png')}
+            disabled={isGeneratingPdf || isGeneratingImage}
+            className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-md transition disabled:opacity-50 cursor-pointer"
+            title="Ekspor setiap lembar laporan menjadi gambar PNG resolusi tinggi"
+          >
+            <ImageIcon className="w-4 h-4 text-indigo-200" />
+            <span>{isGeneratingImage ? (imageProgressText || 'Memproses PNG...') : 'Unduh PNG'}</span>
           </button>
         </div>
       </div>
@@ -1283,255 +1429,142 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
               </div>
 
 
-              {/* PAGE 2: DAFTAR HADIR PESERTA EKSTRAKURIKULER (NO 1 - 30) */}
-              <div
-                style={timesNewRomanFont}
-                className="pdf-page bg-white w-[210mm] min-h-[297mm] p-[16mm] shadow-lg text-black box-border flex flex-col justify-between mx-auto relative"
-              >
-                <div>
-                  {/* Header Title */}
-                  <div className="text-center font-bold leading-tight mb-6">
-                    <h1 className="text-base tracking-wide uppercase">DAFTAR HADIR PESERTA EKSTRAKURIKULER</h1>
-                    <h2 className="text-base tracking-wide uppercase">SMP NEGERI 2 CIGOMBONG KABUPATEN BOGOR</h2>
-                    <h3 className="text-base tracking-wide uppercase">TAHUN PELAJARAN {filterTahunAjaran}</h3>
-                  </div>
+              {/* PAGES 2+: DAFTAR HADIR PESERTA EKSTRAKURIKULER (DYNAMIC CONSECUTIVE SHEETS FOR ALL MEMBERS) */}
+              {anggotaPages.map((page, pIdx) => {
+                const startNum = page.startNo;
+                const endNum = page.startNo + 29;
+                return (
+                  <div
+                    key={`cigombong-page-${pIdx}`}
+                    style={timesNewRomanFont}
+                    className="pdf-page bg-white w-[210mm] min-h-[297mm] p-[16mm] shadow-lg text-black box-border flex flex-col justify-between mx-auto relative"
+                  >
+                    <div>
+                      {/* Header Title */}
+                      <div className="text-center font-bold leading-tight mb-6">
+                        <h1 className="text-base tracking-wide uppercase">DAFTAR HADIR PESERTA EKSTRAKURIKULER</h1>
+                        <h2 className="text-base tracking-wide uppercase">SMP NEGERI 2 CIGOMBONG KABUPATEN BOGOR</h2>
+                        <h3 className="text-base tracking-wide uppercase">TAHUN PELAJARAN {filterTahunAjaran}</h3>
+                        {anggotaPages.length > 1 && (
+                          <div className="text-xs font-normal text-slate-700 mt-1">
+                            (Lembar {pIdx + 1} dari {anggotaPages.length} — Nomor Urut {startNum} s/d {endNum})
+                          </div>
+                        )}
+                      </div>
 
-                  {/* Subheader: Bulan & Nama Ekstrakurikuler */}
-                  <div className="flex items-center justify-between text-xs font-bold mb-3">
-                    <div>Bulan : {filterBulan}</div>
-                    <div>Nama Ekstrakurikuler : {namaEkskul}</div>
-                  </div>
+                      {/* Subheader: Bulan & Nama Ekstrakurikuler */}
+                      <div className="flex items-center justify-between text-xs font-bold mb-3">
+                        <div>Bulan : {filterBulan}</div>
+                        <div>Nama Ekstrakurikuler : {namaEkskul}</div>
+                      </div>
 
-                  {/* Table: No., Nama Anggota, Kelas, Tanggal/Tanda Tangan (1-5) */}
-                  <table className="w-full border-collapse border border-black text-[9.5px] text-center">
-                    <thead>
-                      <tr className="font-bold border-b border-black">
-                        <th rowSpan={2} className="border border-black p-1 w-8 align-middle">No.</th>
-                        <th rowSpan={2} className="border border-black p-1 text-center align-middle">Nama Anggota</th>
-                        <th rowSpan={2} className="border border-black p-1 w-16 align-middle">Kelas</th>
-                        <th colSpan={5} className="border border-black p-1">Tanggal/Tanda Tangan</th>
-                      </tr>
-                      <tr className="font-bold border-b border-black">
-                        <th className="border border-black p-0.5 w-10">1</th>
-                        <th className="border border-black p-0.5 w-10">2</th>
-                        <th className="border border-black p-0.5 w-10">3</th>
-                        <th className="border border-black p-0.5 w-10">4</th>
-                        <th className="border border-black p-0.5 w-10">5</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paddedPage1to30Rows.map((student, idx) => {
-                        const no = idx + 1;
-                        return (
-                          <tr key={idx} className="h-5 border-b border-black">
-                            <td className="border border-black p-0.5 font-bold align-middle">{no}</td>
-                            <td className="border border-black p-0.5 text-center align-middle font-medium truncate max-w-[170px]">
-                              {student?.nama || ''}
-                            </td>
-                            <td className="border border-black p-0.5 align-middle">{student?.kelas || ''}</td>
-
-                            {/* 5 Attendance signature/check marks */}
-                            {[1, 2, 3, 4, 5].map((col) => {
-                              const status = student ? getStudentAttendanceStatus(student, col) : null;
-                              return (
-                                <td key={col} className="border border-black p-0.5 align-middle">
-                                  {status?.isPresent && student ? (
-                                    <StudentWetSignature
-                                      studentName={student.nama}
-                                      columnIndex={col}
-                                      customSignatureUrl={status.customSig || student.signatureUrl}
-                                      height="13px"
-                                      maxWidth="32px"
-                                    />
-                                  ) : (
-                                    <span className="font-bold text-black text-[9px]">{status?.label || ''}</span>
-                                  )}
-                                </td>
-                              );
-                            })}
+                      {/* Table: No., Nama Anggota (Centered), Kelas, Tanggal/Tanda Tangan (1-5) */}
+                      <table className="w-full border-collapse border border-black text-[9.5px] text-center">
+                        <thead>
+                          <tr className="font-bold border-b border-black">
+                            <th rowSpan={2} className="border border-black p-1 w-8 align-middle">No.</th>
+                            <th rowSpan={2} className="border border-black p-1 text-center align-middle">Nama Anggota</th>
+                            <th rowSpan={2} className="border border-black p-1 w-16 align-middle">Kelas</th>
+                            <th colSpan={5} className="border border-black p-1">Tanggal/Tanda Tangan</th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                          <tr className="font-bold border-b border-black">
+                            <th className="border border-black p-0.5 w-10">1</th>
+                            <th className="border border-black p-0.5 w-10">2</th>
+                            <th className="border border-black p-0.5 w-10">3</th>
+                            <th className="border border-black p-0.5 w-10">4</th>
+                            <th className="border border-black p-0.5 w-10">5</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {page.members.map((student, idx) => {
+                            const no = page.startNo + idx;
+                            return (
+                              <tr key={idx} className="h-5 border-b border-black">
+                                <td className="border border-black p-0.5 font-bold align-middle">{no}</td>
+                                <td className="border border-black p-0.5 text-center align-middle font-medium truncate max-w-[170px]">
+                                  {formatNamaKapital(student?.nama) || ''}
+                                </td>
+                                <td className="border border-black p-0.5 align-middle">{student?.kelas || ''}</td>
 
-                {/* Footer Signature */}
-                <div className="flex justify-end mt-6 mb-2 text-xs">
-                  <div className="text-center">
-                    <div className="text-right mb-2 font-normal">Cigombong, ......................................</div>
-                    <div className="font-bold mb-1">
-                      {includeAsistenPelatih ? 'TIM PELATIH EKSTRAKURIKULER' : 'Pelatih Ekstrakurikuler'}
+                                {/* 5 Attendance signature/check marks */}
+                                {[1, 2, 3, 4, 5].map((col) => {
+                                  const status = student ? getStudentAttendanceStatus(student, col) : null;
+                                  return (
+                                    <td key={col} className="border border-black p-0.5 align-middle">
+                                      {status?.isPresent && student ? (
+                                        <StudentWetSignature
+                                          studentName={formatNamaKapital(student.nama)}
+                                          columnIndex={col}
+                                          customSignatureUrl={status.customSig || student.signatureUrl}
+                                          height="13px"
+                                          maxWidth="32px"
+                                        />
+                                      ) : (
+                                        <span className="font-bold text-black text-[9px]">{status?.label || ''}</span>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
 
-                    {includeAsistenPelatih ? (
-                      <div className="signature-row flex items-start gap-8 mt-2">
-                        {/* Pelatih Utama */}
-                        <div className="min-w-[130px] text-center">
-                          <div className="font-bold text-[11px]">Pelatih Utama</div>
-                          <div className="h-14 flex items-center justify-center my-1">
-                            {coachSignatureUrl && (
-                              <img src={coachSignatureUrl} alt="TTD Pelatih Utama" className="h-12 max-w-[120px] object-contain" />
-                            )}
+                    {/* Footer Signature: Pelatih Utama & Asisten Pelatih disatukan */}
+                    <div className="flex justify-end mt-6 mb-2 text-xs">
+                      <div className="text-center">
+                        <div className="text-right mb-2 font-normal">Cigombong, ......................................</div>
+                        <div className="font-bold mb-1">
+                          {includeAsistenPelatih ? 'TIM PELATIH EKSTRAKURIKULER' : 'Pelatih Ekstrakurikuler'}
+                        </div>
+
+                        {includeAsistenPelatih ? (
+                          <div className="signature-row flex items-start gap-8 mt-2">
+                            {/* Pelatih Utama */}
+                            <div className="min-w-[130px] text-center">
+                              <div className="font-bold text-[11px]">Pelatih Utama</div>
+                              <div className="h-14 flex items-center justify-center my-1">
+                                {coachSignatureUrl && (
+                                  <img src={coachSignatureUrl} alt="TTD Pelatih Utama" className="h-12 max-w-[120px] object-contain" />
+                                )}
+                              </div>
+                              <div className="border-b border-dotted border-black w-36 mx-auto"></div>
+                              <div className="font-bold mt-1">({pelatihName})</div>
+                              {pelatihNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {pelatihNip}</div>}
+                            </div>
+
+                            {/* Asisten Pelatih */}
+                            <div className="min-w-[130px] text-center">
+                              <div className="font-bold text-[11px]">Asisten Pelatih</div>
+                              <div className="h-14 flex items-center justify-center my-1">
+                                {asistenSignatureUrl && (
+                                  <img src={asistenSignatureUrl} alt="TTD Asisten" className="h-12 max-w-[120px] object-contain" />
+                                )}
+                              </div>
+                              <div className="border-b border-dotted border-black w-36 mx-auto"></div>
+                              <div className="font-bold mt-1">({asistenName})</div>
+                              {asistenNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {asistenNip}</div>}
+                            </div>
                           </div>
-                          <div className="border-b border-dotted border-black w-36 mx-auto"></div>
-                          <div className="font-bold mt-1">({pelatihName})</div>
-                          {pelatihNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {pelatihNip}</div>}
-                        </div>
-
-                        {/* Asisten Pelatih */}
-                        <div className="min-w-[130px] text-center">
-                          <div className="font-bold text-[11px]">Asisten Pelatih</div>
-                          <div className="h-14 flex items-center justify-center my-1">
-                            {asistenSignatureUrl && (
-                              <img src={asistenSignatureUrl} alt="TTD Asisten" className="h-12 max-w-[120px] object-contain" />
-                            )}
-                          </div>
-                          <div className="border-b border-dotted border-black w-36 mx-auto"></div>
-                          <div className="font-bold mt-1">({asistenName})</div>
-                          {asistenNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {asistenNip}</div>}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="w-56 text-center">
-                        <div className="h-14 flex items-center justify-center my-1">
-                          {coachSignatureUrl && (
-                            <img src={coachSignatureUrl} alt="TTD Pelatih" className="h-12 max-w-[120px] object-contain" />
-                          )}
-                        </div>
-                        <div className="border-b border-dotted border-black w-48 mx-auto"></div>
-                        <div className="font-bold mt-1">({pelatihName})</div>
-                        {pelatihNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {pelatihNip}</div>}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* PAGE 3 (Optional if > 30 students): DAFTAR HADIR PESERTA EKSTRAKURIKULER (NO 31 - 60) */}
-              {schoolAnggota.length > 30 && (
-                <div
-                  style={timesNewRomanFont}
-                  className="pdf-page bg-white w-[210mm] min-h-[297mm] p-[16mm] shadow-lg text-black box-border flex flex-col justify-between mx-auto relative"
-                >
-                  <div>
-                    {/* Header Title */}
-                    <div className="text-center font-bold leading-tight mb-6">
-                      <h1 className="text-base tracking-wide uppercase">DAFTAR HADIR PESERTA EKSTRAKURIKULER</h1>
-                      <h2 className="text-base tracking-wide uppercase">SMP NEGERI 2 CIGOMBONG KABUPATEN BOGOR</h2>
-                      <h3 className="text-base tracking-wide uppercase">TAHUN PELAJARAN {filterTahunAjaran}</h3>
-                    </div>
-
-                    {/* Subheader */}
-                    <div className="flex items-center justify-between text-xs font-bold mb-3">
-                      <div>Bulan : {filterBulan}</div>
-                      <div>Nama Ekstrakurikuler : {namaEkskul}</div>
-                    </div>
-
-                    {/* Table: No 31-60 */}
-                    <table className="w-full border-collapse border border-black text-[9.5px] text-center">
-                      <thead>
-                        <tr className="font-bold border-b border-black">
-                          <th rowSpan={2} className="border border-black p-1 w-8 align-middle">No.</th>
-                          <th rowSpan={2} className="border border-black p-1 text-center align-middle">Nama Anggota</th>
-                          <th rowSpan={2} className="border border-black p-1 w-16 align-middle">Kelas</th>
-                          <th colSpan={5} className="border border-black p-1">Tanggal/Tanda Tangan</th>
-                        </tr>
-                        <tr className="font-bold border-b border-black">
-                          <th className="border border-black p-0.5 w-10">1</th>
-                          <th className="border border-black p-0.5 w-10">2</th>
-                          <th className="border border-black p-0.5 w-10">3</th>
-                          <th className="border border-black p-0.5 w-10">4</th>
-                          <th className="border border-black p-0.5 w-10">5</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {paddedPage31to60Rows.map((student, idx) => {
-                          const no = idx + 31;
-                          return (
-                            <tr key={idx} className="h-5 border-b border-black">
-                              <td className="border border-black p-0.5 font-bold align-middle">{no}</td>
-                              <td className="border border-black p-0.5 text-center align-middle font-medium truncate max-w-[170px]">
-                                {student?.nama || ''}
-                              </td>
-                              <td className="border border-black p-0.5 align-middle">{student?.kelas || ''}</td>
-
-                              {[1, 2, 3, 4, 5].map((col) => {
-                                const status = student ? getStudentAttendanceStatus(student, col) : null;
-                                return (
-                                  <td key={col} className="border border-black p-0.5 align-middle">
-                                    {status?.isPresent && student ? (
-                                      <StudentWetSignature
-                                        studentName={student.nama}
-                                        columnIndex={col}
-                                        customSignatureUrl={status.customSig || student.signatureUrl}
-                                        height="13px"
-                                        maxWidth="32px"
-                                      />
-                                    ) : (
-                                      <span className="font-bold text-black text-[9px]">{status?.label || ''}</span>
-                                    )}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="flex justify-end mt-6 mb-2 text-xs">
-                    <div className="text-center">
-                      <div className="text-right mb-2 font-normal">Cigombong, ......................................</div>
-                      <div className="font-bold mb-1">
-                        {includeAsistenPelatih ? 'TIM PELATIH EKSTRAKURIKULER' : 'Pelatih Ekstrakurikuler'}
-                      </div>
-
-                      {includeAsistenPelatih ? (
-                        <div className="signature-row flex items-start gap-8 mt-2">
-                          {/* Pelatih Utama */}
-                          <div className="min-w-[130px] text-center">
-                            <div className="font-bold text-[11px]">Pelatih Utama</div>
+                        ) : (
+                          <div className="w-56 text-center">
                             <div className="h-14 flex items-center justify-center my-1">
                               {coachSignatureUrl && (
-                                <img src={coachSignatureUrl} alt="TTD Pelatih Utama" className="h-12 max-w-[120px] object-contain" />
+                                <img src={coachSignatureUrl} alt="TTD Pelatih" className="h-12 max-w-[120px] object-contain" />
                               )}
                             </div>
-                            <div className="border-b border-dotted border-black w-36 mx-auto"></div>
+                            <div className="border-b border-dotted border-black w-48 mx-auto"></div>
                             <div className="font-bold mt-1">({pelatihName})</div>
                             {pelatihNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {pelatihNip}</div>}
                           </div>
-
-                          {/* Asisten Pelatih */}
-                          <div className="min-w-[130px] text-center">
-                            <div className="font-bold text-[11px]">Asisten Pelatih</div>
-                            <div className="h-14 flex items-center justify-center my-1">
-                              {asistenSignatureUrl && (
-                                <img src={asistenSignatureUrl} alt="TTD Asisten" className="h-12 max-w-[120px] object-contain" />
-                              )}
-                            </div>
-                            <div className="border-b border-dotted border-black w-36 mx-auto"></div>
-                            <div className="font-bold mt-1">({asistenName})</div>
-                            {asistenNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {asistenNip}</div>}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="w-56 text-center">
-                          <div className="h-14 flex items-center justify-center my-1">
-                            {coachSignatureUrl && (
-                              <img src={coachSignatureUrl} alt="TTD Pelatih" className="h-12 max-w-[120px] object-contain" />
-                            )}
-                          </div>
-                          <div className="border-b border-dotted border-black w-48 mx-auto"></div>
-                          <div className="font-bold mt-1">({pelatihName})</div>
-                          {pelatihNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {pelatihNip}</div>}
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })}
 
               {/* PAGE 3: LAMPIRAN FOTO DOKUMENTASI KEGIATAN & EVENT (SMPN 2 CIGOMBONG) */}
               {(activeEventPhotos.length > 0 || documentationItems.length > 0) && (
@@ -1668,147 +1701,153 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
               {sukaharjaMeetings.map((meeting, mIdx) => {
                 const schoolTitle = resolvedTemplate === 'SDN_SUKAHARJA_01' ? 'SDN SUKAHARJA 01' : 'SDN SUKAHARJA 03';
 
-                return (
-                  <div
-                    key={meeting.id || mIdx}
-                    style={timesNewRomanFont}
-                    className="pdf-page bg-white w-[210mm] min-h-[297mm] p-[14mm] shadow-lg text-black box-border flex flex-col justify-between mx-auto relative"
-                  >
-                    <div>
-                      {/* Header Title */}
-                      <div className="text-center font-bold leading-tight mb-4">
-                        <h1 className="text-sm sm:text-base tracking-wide uppercase font-bold">
-                          DAFTAR HADIR KEGIATAN EKSTRAKURIKULER DRUMBAND
-                        </h1>
-                        <h2 className="text-sm sm:text-base tracking-wide uppercase font-bold mt-0.5">
-                          {schoolTitle}
-                        </h2>
-                        <h3 className="text-sm sm:text-base tracking-wide uppercase font-bold mt-0.5">
-                          TAHUN PELAJARAN {filterTahunAjaran}
-                        </h3>
-                      </div>
-
-                      {/* Top Right Meta info with clean alignment */}
-                      <div className="flex justify-end text-[11px] font-normal mb-3">
-                        <table className="border-collapse text-left">
-                          <tbody>
-                            <tr>
-                              <td className="pr-3 py-0.5 font-normal">HARI / TANGGAL</td>
-                              <td className="pr-1.5">:</td>
-                              <td>{meeting.hariTanggalFormat || '......... / ......... / ................'}</td>
-                            </tr>
-                            <tr>
-                              <td className="pr-3 py-0.5 font-normal">WAKTU</td>
-                              <td className="pr-1.5">:</td>
-                              <td>{meeting.jamMulai ? `${meeting.jamMulai} S/D ${meeting.jamSelesai}` : '................ S/D .................'}</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* MATERI Box */}
-                      <div className="border border-black p-3 rounded-none mb-3.5 min-h-[110px]">
-                        <div className="font-normal text-xs mb-1">MATERI:</div>
-                        <div className="text-xs leading-relaxed min-h-[70px]">
-                          {meeting.materiPokok || ''}
+                return sukaharjaAnggotaPages.map((sheet, sheetIdx) => {
+                  return (
+                    <div
+                      key={`${meeting.id || mIdx}-sheet-${sheetIdx}`}
+                      style={timesNewRomanFont}
+                      className="pdf-page bg-white w-[210mm] min-h-[297mm] p-[14mm] shadow-lg text-black box-border flex flex-col justify-between mx-auto relative"
+                    >
+                      <div>
+                        {/* Header Title */}
+                        <div className="text-center font-bold leading-tight mb-4">
+                          <h1 className="text-sm sm:text-base tracking-wide uppercase font-bold">
+                            DAFTAR HADIR KEGIATAN EKSTRAKURIKULER DRUMBAND
+                          </h1>
+                          <h2 className="text-sm sm:text-base tracking-wide uppercase font-bold mt-0.5">
+                            {schoolTitle}
+                          </h2>
+                          <h3 className="text-sm sm:text-base tracking-wide uppercase font-bold mt-0.5">
+                            TAHUN PELAJARAN {filterTahunAjaran}
+                          </h3>
+                          {sukaharjaAnggotaPages.length > 1 && (
+                            <div className="text-xs font-normal text-slate-700 mt-1">
+                              (Lembar Presensi {sheetIdx + 1} dari {sukaharjaAnggotaPages.length} — Nomor Urut {sheet.startNo} s/d {sheet.startNo + 59})
+                            </div>
+                          )}
                         </div>
-                      </div>
 
-                      {/* Two Column Parallel Attendance Table (1-30 and 31-60) */}
-                      <div className="grid grid-cols-2 gap-3.5">
-                        {/* Left Column Table: No 1 to 30 with Top & Bottom Header */}
-                        <div>
-                          <table className="w-full border-collapse border border-black text-[9px] text-center">
-                            <thead>
-                              <tr className="font-bold border-b border-black h-4.5">
-                                <th className="border border-black p-0.5 w-8 font-bold">NO</th>
-                                <th className="border border-black p-0.5 text-center font-bold">NAMA</th>
-                                <th className="border border-black p-0.5 w-16 font-bold">TTD</th>
-                              </tr>
-                            </thead>
+                        {/* Top Right Meta info with clean alignment */}
+                        <div className="flex justify-end text-[11px] font-normal mb-3">
+                          <table className="border-collapse text-left">
                             <tbody>
-                              {paddedPage1to30Rows.map((student, idx) => {
-                                const no = idx + 1;
-                                const meetingCol = (meeting.index !== undefined ? meeting.index : mIdx) + 1;
-                                const status = student ? getStudentAttendanceStatus(student, meetingCol) : null;
-                                return (
-                                  <tr key={idx} className="h-4 border-b border-black">
-                                    <td className="border border-black p-0.5 font-normal align-middle text-[8.5px]">{no}</td>
-                                    <td className="border border-black p-0.5 text-center align-middle truncate max-w-[130px] font-normal text-[8.5px]">
-                                      {student?.nama || ''}
-                                    </td>
-                                    <td className="border border-black p-0.5 align-middle">
-                                      {status?.isPresent && student ? (
-                                        <StudentWetSignature
-                                          studentName={student.nama}
-                                          columnIndex={meetingCol}
-                                          customSignatureUrl={status.customSig || student.signatureUrl}
-                                          height="13px"
-                                          maxWidth="36px"
-                                        />
-                                      ) : (
-                                        <span className="font-normal text-[8.5px]">{status?.label || ''}</span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                              {/* Bottom header row matching original form */}
-                              <tr className="font-bold border-t border-black h-4.5">
-                                <td className="border border-black p-0.5 font-bold text-[8.5px]">NO</td>
-                                <td className="border border-black p-0.5 text-center font-bold text-[8.5px]">NAMA</td>
-                                <td className="border border-black p-0.5 font-bold text-[8.5px]">TTD</td>
+                              <tr>
+                                <td className="pr-3 py-0.5 font-normal">HARI / TANGGAL</td>
+                                <td className="pr-1.5">:</td>
+                                <td>{meeting.hariTanggalFormat || '......... / ......... / ................'}</td>
+                              </tr>
+                              <tr>
+                                <td className="pr-3 py-0.5 font-normal">WAKTU</td>
+                                <td className="pr-1.5">:</td>
+                                <td>{meeting.jamMulai ? `${meeting.jamMulai} S/D ${meeting.jamSelesai}` : '................ S/D .................'}</td>
                               </tr>
                             </tbody>
                           </table>
                         </div>
 
-                        {/* Right Column Table: No 31 to 60 (Starts directly at 31, no top header) */}
-                        <div>
-                          <table className="w-full border-collapse border border-black text-[9px] text-center">
-                            <tbody>
-                              {paddedPage31to60Rows.map((student, idx) => {
-                                const no = idx + 31;
-                                const meetingCol = (meeting.index !== undefined ? meeting.index : mIdx) + 1;
-                                const status = student ? getStudentAttendanceStatus(student, meetingCol) : null;
-                                return (
-                                  <tr key={idx} className="h-4 border-b border-black">
-                                    <td className="border border-black p-0.5 w-8 font-normal align-middle text-[8.5px]">{no}</td>
-                                    <td className="border border-black p-0.5 text-center align-middle truncate max-w-[130px] font-normal text-[8.5px]">
-                                      {student?.nama || ''}
-                                    </td>
-                                    <td className="border border-black p-0.5 w-16 align-middle">
-                                      {status?.isPresent && student ? (
-                                        <StudentWetSignature
-                                          studentName={student.nama}
-                                          columnIndex={meetingCol}
-                                          customSignatureUrl={status.customSig || student.signatureUrl}
-                                          height="13px"
-                                          maxWidth="36px"
-                                        />
-                                      ) : (
-                                        <span className="font-normal text-[8.5px]">{status?.label || ''}</span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                              {/* Empty spacer rows on right side to balance bottom left row */}
-                              <tr className="border-t border-black h-4">
-                                <td className="border border-black p-0.5 w-8"></td>
-                                <td className="border border-black p-0.5"></td>
-                                <td className="border border-black p-0.5 w-16"></td>
-                              </tr>
-                              <tr className="border-t border-black h-4.5">
-                                <td className="border border-black p-0.5 w-8"></td>
-                                <td className="border border-black p-0.5"></td>
-                                <td className="border border-black p-0.5 w-16"></td>
-                              </tr>
-                            </tbody>
-                          </table>
+                        {/* MATERI Box */}
+                        <div className="border border-black p-3 rounded-none mb-3.5 min-h-[110px]">
+                          <div className="font-normal text-xs mb-1">MATERI:</div>
+                          <div className="text-xs leading-relaxed min-h-[70px]">
+                            {meeting.materiPokok || ''}
+                          </div>
+                        </div>
+
+                        {/* Two Column Parallel Attendance Table (Left: 30, Right: 30) */}
+                        <div className="grid grid-cols-2 gap-3.5">
+                          {/* Left Column Table with Top & Bottom Header */}
+                          <div>
+                            <table className="w-full border-collapse border border-black text-[9px] text-center">
+                              <thead>
+                                <tr className="font-bold border-b border-black h-4.5">
+                                  <th className="border border-black p-0.5 w-8 font-bold">NO</th>
+                                  <th className="border border-black p-0.5 text-center font-bold">NAMA</th>
+                                  <th className="border border-black p-0.5 w-16 font-bold">TTD</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {sheet.left.map((student, idx) => {
+                                  const no = sheet.startNo + idx;
+                                  const meetingCol = (meeting.index !== undefined ? meeting.index : mIdx) + 1;
+                                  const status = student ? getStudentAttendanceStatus(student, meetingCol) : null;
+                                  return (
+                                    <tr key={idx} className="h-4 border-b border-black">
+                                      <td className="border border-black p-0.5 font-normal align-middle text-[8.5px]">{no}</td>
+                                      <td className="border border-black p-0.5 text-center align-middle truncate max-w-[130px] font-normal text-[8.5px]">
+                                        {formatNamaKapital(student?.nama) || ''}
+                                      </td>
+                                      <td className="border border-black p-0.5 align-middle">
+                                        {status?.isPresent && student ? (
+                                          <StudentWetSignature
+                                            studentName={formatNamaKapital(student.nama)}
+                                            columnIndex={meetingCol}
+                                            customSignatureUrl={status.customSig || student.signatureUrl}
+                                            height="13px"
+                                            maxWidth="36px"
+                                          />
+                                        ) : (
+                                          <span className="font-normal text-[8.5px]">{status?.label || ''}</span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                                {/* Bottom header row matching original form */}
+                                <tr className="font-bold border-t border-black h-4.5">
+                                  <td className="border border-black p-0.5 font-bold text-[8.5px]">NO</td>
+                                  <td className="border border-black p-0.5 text-center font-bold text-[8.5px]">NAMA</td>
+                                  <td className="border border-black p-0.5 font-bold text-[8.5px]">TTD</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Right Column Table (Starts directly at startNo + 30, no top header) */}
+                          <div>
+                            <table className="w-full border-collapse border border-black text-[9px] text-center">
+                              <tbody>
+                                {sheet.right.map((student, idx) => {
+                                  const no = sheet.startNo + 30 + idx;
+                                  const meetingCol = (meeting.index !== undefined ? meeting.index : mIdx) + 1;
+                                  const status = student ? getStudentAttendanceStatus(student, meetingCol) : null;
+                                  return (
+                                    <tr key={idx} className="h-4 border-b border-black">
+                                      <td className="border border-black p-0.5 w-8 font-normal align-middle text-[8.5px]">{no}</td>
+                                      <td className="border border-black p-0.5 text-center align-middle truncate max-w-[130px] font-normal text-[8.5px]">
+                                        {formatNamaKapital(student?.nama) || ''}
+                                      </td>
+                                      <td className="border border-black p-0.5 w-16 align-middle">
+                                        {status?.isPresent && student ? (
+                                          <StudentWetSignature
+                                            studentName={formatNamaKapital(student.nama)}
+                                            columnIndex={meetingCol}
+                                            customSignatureUrl={status.customSig || student.signatureUrl}
+                                            height="13px"
+                                            maxWidth="36px"
+                                          />
+                                        ) : (
+                                          <span className="font-normal text-[8.5px]">{status?.label || ''}</span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                                {/* Empty spacer rows on right side to balance bottom left row */}
+                                <tr className="border-t border-black h-4">
+                                  <td className="border border-black p-0.5 w-8"></td>
+                                  <td className="border border-black p-0.5"></td>
+                                  <td className="border border-black p-0.5 w-16"></td>
+                                </tr>
+                                <tr className="border-t border-black h-4.5">
+                                  <td className="border border-black p-0.5 w-8"></td>
+                                  <td className="border border-black p-0.5"></td>
+                                  <td className="border border-black p-0.5 w-16"></td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
                     {/* Footer: Mengetahui Kepala Sekolah & Tim Pelatih (Pelatih Utama & Asisten Pelatih Bersatu) */}
                     <div className="signature-row flex justify-between items-start mt-6 text-xs text-left">
@@ -1885,7 +1924,8 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                     </div>
                   </div>
                 );
-              })}
+              });
+            })}
 
               {/* LAMPIRAN DOKUMENTASI FOTO KEGIATAN & EVENT (SDN SUKAHARJA 01 / 03) */}
               {(activeEventPhotos.length > 0 || documentationItems.length > 0) && (
@@ -2123,161 +2163,93 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                 </div>
               </div>
 
-              {/* PAGE 2: Presensi Anggota (1-30) */}
-              <div
-                style={timesNewRomanFont}
-                className="pdf-page bg-white w-[210mm] min-h-[297mm] p-[12mm] shadow-lg text-black box-border flex flex-col justify-between mx-auto"
-              >
-                <div>
-                  <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-3">
-                    <div className="w-16 h-16 flex items-center justify-center">
-                      <TutWuriLogo className="w-14 h-14" />
+              {/* PAGES 2+: Presensi Anggota (Dynamic Chunks of 30 Members) */}
+              {anggotaPages.map((page, pIdx) => {
+                const startNo = page.startNo;
+                const endNo = page.startNo + 29;
+                const totalPages = 1 + anggotaPages.length + (activeEventPhotos.length > 0 || documentationItems.length > 0 ? 1 : 0);
+                return (
+                  <div
+                    key={`standard-presensi-page-${pIdx}`}
+                    style={timesNewRomanFont}
+                    className="pdf-page bg-white w-[210mm] min-h-[297mm] p-[12mm] shadow-lg text-black box-border flex flex-col justify-between mx-auto"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-3">
+                        <div className="w-16 h-16 flex items-center justify-center">
+                          <TutWuriLogo className="w-14 h-14" />
+                        </div>
+                        <div className="text-center font-bold leading-tight">
+                          <h1 className="text-xs sm:text-sm tracking-wide uppercase">AGENDA KEGIATAN PROGRAM LATIHAN REGULER</h1>
+                          <h2 className="text-xs tracking-wide uppercase">
+                            EKSTRAKURIKULER MARCHING BAND — PRESENSI ANGGOTA (NO {startNo} - {endNo})
+                          </h2>
+                          <h3 className="text-xs tracking-wide uppercase">({namaSekolahFormatted})</h3>
+                          <h4 className="text-xs tracking-wide font-normal">({filterTahunAjaran})</h4>
+                        </div>
+                        <div className="w-16 h-16 flex items-center justify-center">
+                          <MarchingBandLogo className="w-14 h-14" />
+                        </div>
+                      </div>
+
+                      <table className="w-full border-collapse border border-black text-[8.5px] text-center">
+                        <thead>
+                          <tr className="bg-slate-100 font-bold border-b border-black">
+                            <th className="border border-black p-1 w-6">NO</th>
+                            <th className="border border-black p-1 text-center">NAMA ANGGOTA</th>
+                            <th className="border border-black p-1 w-16">KELAS</th>
+                            <th className="border border-black p-1 w-24">DIVISI</th>
+                            <th className="border border-black p-1 w-8">1</th>
+                            <th className="border border-black p-1 w-8">2</th>
+                            <th className="border border-black p-1 w-8">3</th>
+                            <th className="border border-black p-1 w-8">4</th>
+                            <th className="border border-black p-1 w-8">5</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {page.members.map((student, idx) => {
+                            const no = page.startNo + idx;
+                            return (
+                              <tr key={idx} className="h-6 border-b border-black">
+                                <td className="border border-black p-0.5 font-bold align-middle">{no}</td>
+                                <td className="border border-black p-0.5 text-center align-middle font-medium truncate max-w-[140px]">
+                                  {formatNamaKapital(student?.nama) || ''}
+                                </td>
+                                <td className="border border-black p-0.5 align-middle">{student?.kelas || ''}</td>
+                                <td className="border border-black p-0.5 text-left align-middle truncate max-w-[100px]">
+                                  {student?.divisiNama || ''}
+                                </td>
+                                {[1, 2, 3, 4, 5].map((col) => {
+                                  const status = student ? getStudentAttendanceStatus(student, col) : null;
+                                  return (
+                                    <td key={col} className="border border-black p-0.5 align-middle bg-slate-50/20">
+                                      {status?.isPresent && student ? (
+                                        <StudentWetSignature
+                                          studentName={formatNamaKapital(student.nama)}
+                                          columnIndex={col}
+                                          customSignatureUrl={status.customSig || student.signatureUrl}
+                                          height="13px"
+                                          maxWidth="32px"
+                                        />
+                                      ) : (
+                                        <span className="font-bold text-slate-700 text-[9px]">{status?.label || ''}</span>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
-                    <div className="text-center font-bold leading-tight">
-                      <h1 className="text-xs sm:text-sm tracking-wide uppercase">AGENDA KEGIATAN PROGRAM LATIHAN REGULER</h1>
-                      <h2 className="text-xs tracking-wide uppercase">EKSTRAKURIKULER MARCHING BAND — PRESENSI ANGGOTA (NO 1 - 30)</h2>
-                      <h3 className="text-xs tracking-wide uppercase">({namaSekolahFormatted})</h3>
-                      <h4 className="text-xs tracking-wide font-normal">({filterTahunAjaran})</h4>
-                    </div>
-                    <div className="w-16 h-16 flex items-center justify-center">
-                      <MarchingBandLogo className="w-14 h-14" />
+
+                    <div className="text-[8.5px] text-slate-500 text-right mt-4 pt-2 border-t border-slate-200">
+                      Halaman {pIdx + 2} / {totalPages} — Presensi Anggota (No {startNo}-{endNo}) — {namaSekolahFormatted}
                     </div>
                   </div>
-
-                  <table className="w-full border-collapse border border-black text-[8.5px] text-center">
-                    <thead>
-                      <tr className="bg-slate-100 font-bold border-b border-black">
-                        <th className="border border-black p-1 w-6">NO</th>
-                        <th className="border border-black p-1 text-center">NAMA ANGGOTA</th>
-                        <th className="border border-black p-1 w-16">KELAS</th>
-                        <th className="border border-black p-1 w-24">DIVISI</th>
-                        <th className="border border-black p-1 w-8">1</th>
-                        <th className="border border-black p-1 w-8">2</th>
-                        <th className="border border-black p-1 w-8">3</th>
-                        <th className="border border-black p-1 w-8">4</th>
-                        <th className="border border-black p-1 w-8">5</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paddedPage1to30Rows.map((student, idx) => {
-                        const no = idx + 1;
-                        return (
-                          <tr key={idx} className="h-6 border-b border-black">
-                            <td className="border border-black p-0.5 font-bold align-middle">{no}</td>
-                            <td className="border border-black p-0.5 text-center align-middle font-medium truncate max-w-[140px]">
-                              {student?.nama || ''}
-                            </td>
-                            <td className="border border-black p-0.5 align-middle">{student?.kelas || ''}</td>
-                            <td className="border border-black p-0.5 text-left align-middle truncate max-w-[100px]">
-                              {student?.divisiNama || ''}
-                            </td>
-                            {[1, 2, 3, 4, 5].map((col) => {
-                              const status = student ? getStudentAttendanceStatus(student, col) : null;
-                              return (
-                                <td key={col} className="border border-black p-0.5 align-middle bg-slate-50/20">
-                                  {status?.isPresent && student ? (
-                                    <StudentWetSignature
-                                      studentName={student.nama}
-                                      columnIndex={col}
-                                      customSignatureUrl={status.customSig || student.signatureUrl}
-                                      height="13px"
-                                      maxWidth="32px"
-                                    />
-                                  ) : (
-                                    <span className="font-bold text-slate-700 text-[9px]">{status?.label || ''}</span>
-                                  )}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="text-[8.5px] text-slate-500 text-right mt-4 pt-2 border-t border-slate-200">
-                  Halaman 2 / 4 — Presensi Anggota (No 1-30) — {namaSekolahFormatted}
-                </div>
-              </div>
-
-              {/* PAGE 3: Presensi Anggota (31-60) */}
-              <div
-                style={timesNewRomanFont}
-                className="pdf-page bg-white w-[210mm] min-h-[297mm] p-[12mm] shadow-lg text-black box-border flex flex-col justify-between mx-auto"
-              >
-                <div>
-                  <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-3">
-                    <div className="w-16 h-16 flex items-center justify-center">
-                      <TutWuriLogo className="w-14 h-14" />
-                    </div>
-                    <div className="text-center font-bold leading-tight">
-                      <h1 className="text-xs sm:text-sm tracking-wide uppercase">AGENDA KEGIATAN PROGRAM LATIHAN REGULER</h1>
-                      <h2 className="text-xs tracking-wide uppercase">EKSTRAKURIKULER MARCHING BAND — PRESENSI ANGGOTA (NO 31 - 60)</h2>
-                      <h3 className="text-xs tracking-wide uppercase">({namaSekolahFormatted})</h3>
-                      <h4 className="text-xs tracking-wide font-normal">({filterTahunAjaran})</h4>
-                    </div>
-                    <div className="w-16 h-16 flex items-center justify-center">
-                      <MarchingBandLogo className="w-14 h-14" />
-                    </div>
-                  </div>
-
-                  <table className="w-full border-collapse border border-black text-[8.5px] text-center">
-                    <thead>
-                      <tr className="bg-slate-100 font-bold border-b border-black">
-                        <th className="border border-black p-1 w-6">NO</th>
-                        <th className="border border-black p-1 text-center">NAMA ANGGOTA</th>
-                        <th className="border border-black p-1 w-16">KELAS</th>
-                        <th className="border border-black p-1 w-24">DIVISI</th>
-                        <th className="border border-black p-1 w-8">1</th>
-                        <th className="border border-black p-1 w-8">2</th>
-                        <th className="border border-black p-1 w-8">3</th>
-                        <th className="border border-black p-1 w-8">4</th>
-                        <th className="border border-black p-1 w-8">5</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paddedPage31to60Rows.map((student, idx) => {
-                        const no = idx + 31;
-                        return (
-                          <tr key={idx} className="h-6 border-b border-black">
-                            <td className="border border-black p-0.5 font-bold align-middle">{no}</td>
-                            <td className="border border-black p-0.5 text-center align-middle font-medium truncate max-w-[140px]">
-                              {student?.nama || ''}
-                            </td>
-                            <td className="border border-black p-0.5 align-middle">{student?.kelas || ''}</td>
-                            <td className="border border-black p-0.5 text-left align-middle truncate max-w-[100px]">
-                              {student?.divisiNama || ''}
-                            </td>
-                            {[1, 2, 3, 4, 5].map((col) => {
-                              const status = student ? getStudentAttendanceStatus(student, col) : null;
-                              return (
-                                <td key={col} className="border border-black p-0.5 align-middle bg-slate-50/20">
-                                  {status?.isPresent && student ? (
-                                    <StudentWetSignature
-                                      studentName={student.nama}
-                                      columnIndex={col}
-                                      customSignatureUrl={status.customSig || student.signatureUrl}
-                                      height="13px"
-                                      maxWidth="32px"
-                                    />
-                                  ) : (
-                                    <span className="font-bold text-slate-700 text-[9px]">{status?.label || ''}</span>
-                                  )}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="text-[8.5px] text-slate-500 text-right mt-4 pt-2 border-t border-slate-200">
-                  Halaman 3 / 4 — Presensi Anggota (No 31-60) — {namaSekolahFormatted}
-                </div>
-              </div>
+                );
+              })}
 
               {/* PAGE 4: Lampiran Foto Dokumentasi Kegiatan & Event */}
               <div

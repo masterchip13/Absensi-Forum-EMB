@@ -3,6 +3,8 @@ import QRCode from 'qrcode';
 import { Anggota, Sekolah } from '../types';
 import { MemberIdCard } from './MemberIdCard';
 import { formatCardMemberName } from '../utils/nameFormatter';
+import { renderMemberCardToCanvas, preloadImage, CARD_TEMPLATE_SRC } from '../utils/cardCanvasRenderer';
+import jsPDF from 'jspdf';
 import {
   Printer,
   QrCode as QrIcon,
@@ -14,7 +16,8 @@ import {
   CreditCard,
   Grid,
   Download,
-  Info
+  Info,
+  Loader2
 } from 'lucide-react';
 
 interface BatchQrPrintModalProps {
@@ -130,8 +133,147 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
     );
   };
 
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [pdfProgressText, setPdfProgressText] = useState('');
+
   const handlePrint = () => {
     window.print();
+  };
+
+  /**
+   * One-Click Batch PDF Downloader
+   * User requirement: "Perbaiki cetak banyak qr nya agar bisa di download dalam satu kali klik dalam format pdf"
+   * Renders all selected member cards cleanly into an A4 PDF document (8 cards per page with cut guidelines)
+   */
+  const handleDownloadBatchPdf = async () => {
+    if (membersWithQr.length === 0) {
+      alert('Tidak ada anggota yang dipilih untuk diunduh.');
+      return;
+    }
+
+    setIsDownloadingPdf(true);
+    setPdfProgressText('Menyiapkan template kartu...');
+
+    try {
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const bgImg = await preloadImage(CARD_TEMPLATE_SRC);
+
+      if (printLayout === 'idcard') {
+        // Layout: 2 columns x 4 rows = 8 physical cards per A4 page
+        // Card dimensions: 90mm x 60.38mm
+        const cardW = 90;
+        const cardH = 60.38;
+        const startX = 10;
+        const startY = 14;
+        const gapX = 10;
+        const gapY = 6;
+        const cardsPerPage = 8;
+
+        for (let i = 0; i < membersWithQr.length; i++) {
+          const student = membersWithQr[i];
+          setPdfProgressText(`Membuat Kartu ${i + 1}/${membersWithQr.length} (${student.nama})...`);
+
+          const slotIndex = i % cardsPerPage;
+
+          if (i > 0 && slotIndex === 0) {
+            pdf.addPage();
+          }
+
+          const col = slotIndex % 2;
+          const row = Math.floor(slotIndex / 2);
+          const x = startX + col * (cardW + gapX);
+          const y = startY + row * (cardH + gapY);
+
+          const studentSchool = sekolahList.find(s => s.id === student.sekolahId)?.namaSekolah || activeSchoolName;
+          const cardCanvas = await renderMemberCardToCanvas(student, studentSchool, student.qrDataUrl, bgImg);
+          const cardDataUrl = cardCanvas.toDataURL('image/jpeg', 0.92);
+
+          // Place card on PDF
+          pdf.addImage(cardDataUrl, 'JPEG', x, y, cardW, cardH);
+
+          // Subtle dashed cutting guide line
+          pdf.setDrawColor(200, 200, 200);
+          pdf.setLineDashPattern([2, 2], 0);
+          pdf.rect(x - 0.3, y - 0.3, cardW + 0.6, cardH + 0.6);
+        }
+      } else {
+        // Compact Stiker QR Layout: 3 columns x 5 rows = 15 stickers per page
+        const cardW = 58;
+        const cardH = 50;
+        const startX = 10;
+        const startY = 12;
+        const gapX = 7;
+        const gapY = 5;
+        const cardsPerPage = 15;
+
+        for (let i = 0; i < membersWithQr.length; i++) {
+          const student = membersWithQr[i];
+          setPdfProgressText(`Membuat Stiker ${i + 1}/${membersWithQr.length} (${student.nama})...`);
+
+          const slotIndex = i % cardsPerPage;
+          if (i > 0 && slotIndex === 0) {
+            pdf.addPage();
+          }
+
+          const col = slotIndex % 3;
+          const row = Math.floor(slotIndex / 3);
+          const x = startX + col * (cardW + gapX);
+          const y = startY + row * (cardH + gapY);
+
+          const studentSchool = sekolahList.find(s => s.id === student.sekolahId)?.namaSekolah || activeSchoolName;
+
+          // Draw sticker box
+          pdf.setDrawColor(30, 41, 59);
+          pdf.setFillColor(255, 255, 255);
+          pdf.roundedRect(x, y, cardW, cardH, 2, 2, 'FD');
+
+          // Header banner
+          pdf.setFillColor(15, 23, 42);
+          pdf.rect(x, y, cardW, 6, 'F');
+          pdf.setTextColor(245, 158, 11);
+          pdf.setFontSize(6);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('MARCHING BAND', x + cardW / 2, y + 4, { align: 'center' });
+
+          // QR Image
+          if (student.qrDataUrl) {
+            pdf.addImage(student.qrDataUrl, 'PNG', x + (cardW - 25) / 2, y + 8, 25, 25);
+          }
+
+          // Student Details
+          pdf.setTextColor(15, 23, 42);
+          pdf.setFontSize(7.5);
+          pdf.setFont('helvetica', 'bold');
+          const shortName = formatCardMemberName(student.nama, 18);
+          pdf.text(shortName.toUpperCase(), x + cardW / 2, y + 37, { align: 'center' });
+
+          pdf.setFontSize(6.5);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setTextColor(71, 85, 105);
+          pdf.text(`${student.kelas || '-'} • ${student.divisiNama || 'Umum'}`, x + cardW / 2, y + 42, { align: 'center' });
+          pdf.text(studentSchool, x + cardW / 2, y + 46, { align: 'center' });
+        }
+      }
+
+      // Safe Blob download in one click
+      const pdfBlob = pdf.output('blob');
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      const downloadLink = document.createElement('a');
+      downloadLink.href = blobUrl;
+      const cleanSchool = activeSchoolName.replace(/[^a-zA-Z0-9]/g, '_');
+      downloadLink.download = `Kumpulan_Kartu_Anggota_${cleanSchool}_${membersWithQr.length}_Kartu.pdf`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
+
+    } catch (err) {
+      console.error('Batch PDF generation failed:', err);
+      alert('Gagal membuat file PDF. Silakan gunakan tombol Cetak Langsung Browser.');
+    } finally {
+      setIsDownloadingPdf(false);
+      setPdfProgressText('');
+    }
   };
 
   const activeSchoolName = sekolahList.find(s => s.id === filterSekolahId)?.namaSekolah || 'Semua Sekolah';
@@ -205,17 +347,32 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
 
           <div className="flex items-center gap-2">
             <button
-              onClick={handlePrint}
-              disabled={membersWithQr.length === 0 || loadingQr}
-              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow transition cursor-pointer"
+              onClick={handleDownloadBatchPdf}
+              disabled={membersWithQr.length === 0 || loadingQr || isDownloadingPdf}
+              className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md transition cursor-pointer"
+              title="Unduh semua kartu anggota yang dicentang dalam format PDF siap cetak dalam sekali klik"
             >
-              <Printer className="w-4 h-4" />
-              <span>Cetak / Cetak PDF ({membersWithQr.length})</span>
+              {isDownloadingPdf ? (
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+              ) : (
+                <Download className="w-4 h-4 text-white" />
+              )}
+              <span>{isDownloadingPdf ? (pdfProgressText || 'Membuat PDF...') : `Unduh PDF Sekali Klik (${membersWithQr.length})`}</span>
+            </button>
+
+            <button
+              onClick={handlePrint}
+              disabled={membersWithQr.length === 0 || loadingQr || isDownloadingPdf}
+              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 disabled:bg-slate-800 text-slate-200 font-bold text-xs px-3.5 py-2.5 rounded-xl shadow transition cursor-pointer"
+              title="Buka dialog cetak printer bawaan browser"
+            >
+              <Printer className="w-4 h-4 text-slate-300" />
+              <span>Cetak Printer</span>
             </button>
 
             <button
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-white rounded-xl transition"
+              className="p-2 text-slate-400 hover:text-white rounded-xl transition cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -445,20 +602,37 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
             </span>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 rounded-xl transition cursor-pointer"
+              disabled={isDownloadingPdf}
+              className="px-4 py-2.5 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 rounded-xl transition cursor-pointer"
             >
               Tutup
             </button>
+
             <button
               onClick={handlePrint}
-              disabled={membersWithQr.length === 0 || loadingQr}
-              className="px-5 py-2.5 text-xs font-black text-slate-950 bg-amber-400 hover:bg-amber-300 disabled:bg-slate-700 disabled:text-slate-400 rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer"
+              disabled={membersWithQr.length === 0 || loadingQr || isDownloadingPdf}
+              className="px-4 py-2.5 text-xs font-bold text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 disabled:bg-slate-800 disabled:text-slate-500 rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer"
+              title="Cetak langsung menggunakan printer fisik"
             >
               <Printer className="w-4 h-4" />
-              <span>Cetak Sekarang ({membersWithQr.length})</span>
+              <span>Cetak Printer</span>
+            </button>
+
+            <button
+              onClick={handleDownloadBatchPdf}
+              disabled={membersWithQr.length === 0 || loadingQr || isDownloadingPdf}
+              className="px-5 py-2.5 text-xs font-black text-white bg-rose-600 hover:bg-rose-500 disabled:bg-slate-700 disabled:text-slate-400 rounded-xl shadow-lg transition flex items-center gap-1.5 cursor-pointer"
+              title="Unduh seluruh kartu anggota dalam satu berkas PDF siap cetak"
+            >
+              {isDownloadingPdf ? (
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+              ) : (
+                <Download className="w-4 h-4 text-white" />
+              )}
+              <span>{isDownloadingPdf ? (pdfProgressText || 'Membuat PDF...') : `Unduh PDF Sekali Klik (${membersWithQr.length})`}</span>
             </button>
           </div>
         </div>

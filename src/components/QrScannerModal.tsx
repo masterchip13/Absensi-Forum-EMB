@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { QrCode, Camera, Upload, CheckCircle2, X, AlertCircle, Sparkles, Volume2, History, RefreshCw } from 'lucide-react';
+import { QrCode, Camera, Upload, CheckCircle2, XCircle, X, AlertCircle, Sparkles, Volume2, History, RefreshCw } from 'lucide-react';
 import { Anggota } from '../types';
 import { StorageService } from '../data/storage';
 import { StudentWetSignature } from '../utils/studentSignature';
@@ -36,6 +36,8 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
   const [selectedColumn, setSelectedColumn] = useState<number>(1);
   const [selectedMonth, setSelectedMonth] = useState<string>('Agustus');
   const [lastConfirmedStudent, setLastConfirmedStudent] = useState<Anggota | null>(null);
+  const [duplicateWarningStudent, setDuplicateWarningStudent] = useState<Anggota | null>(null);
+  const [scanStatus, setScanStatus] = useState<'idle' | 'success' | 'already_confirmed'>('idle');
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [scannedHistory, setScannedHistory] = useState<ScannedHistoryItem[]>([]);
   const [isScanningCamera, setIsScanningCamera] = useState(false);
@@ -49,7 +51,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
   const schoolAnggota = allAnggota.filter(a => a.sekolahId === selectedSekolahId);
   const selectedSekolah = StorageService.getSekolah().find(s => s.id === selectedSekolahId);
 
-  // Play pleasant double chime when student is automatically confirmed
+  // Play pleasant double chime when student is newly confirmed present (Green Indicator)
   const playConfirmationChime = () => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -80,6 +82,41 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
       osc2.stop(now + 0.35);
     } catch (e) {
       // Audio context might be restricted before interaction
+    }
+  };
+
+  // Play low frequency warning buzzer when student is already confirmed (Red Indicator)
+  const playWarningBuzzer = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+
+      // Two rapid low-pitched buzzes to clearly warn against duplicate scanning
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sawtooth';
+      osc1.frequency.setValueAtTime(150, now);
+      gain1.gain.setValueAtTime(0.25, now);
+      gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.14);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.14);
+
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sawtooth';
+      osc2.frequency.setValueAtTime(130, now + 0.16);
+      gain2.gain.setValueAtTime(0.25, now + 0.16);
+      gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.16);
+      osc2.stop(now + 0.35);
+    } catch (e) {
+      // Audio context might be restricted
     }
   };
 
@@ -138,11 +175,11 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
     setIsScanningCamera(false);
   };
 
-  // Direct, instant auto-confirmation upon QR decode
+  // Direct, instant auto-confirmation upon QR decode with duplicate prevention
   const handleAutoConfirmQr = (qrText: string) => {
     const now = Date.now();
-    // Debounce duplicate scans of the exact same code within 2 seconds
-    if (lastScannedCodeRef.current === qrText && now - lastScanTimestampRef.current < 2000) {
+    // Debounce duplicate scans of the exact same code within 1.5 seconds
+    if (lastScannedCodeRef.current === qrText && now - lastScanTimestampRef.current < 1500) {
       return;
     }
     lastScannedCodeRef.current = qrText;
@@ -157,23 +194,52 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
     );
 
     if (found) {
+      // Check if student is ALREADY confirmed present for this column and month
+      const activeYear = StorageService.getActiveTahunAjaran();
+      const allAbsen = StorageService.getAbsenSiswa();
+      const alreadyPresent = allAbsen.some(
+        a => a.anggotaId === found.id &&
+             a.kolomIndex === selectedColumn &&
+             a.bulan?.toLowerCase() === selectedMonth.toLowerCase() &&
+             (!a.tahunAjaran || a.tahunAjaran === activeYear) &&
+             a.status === 'Hadir'
+      ) || scannedHistory.some(
+        h => h.student.id === found.id &&
+             h.column === selectedColumn &&
+             h.month.toLowerCase() === selectedMonth.toLowerCase()
+      );
+
+      if (alreadyPresent) {
+        // RED INDICATOR: Do NOT count or add attendance again! Only confirm once.
+        setScanStatus('already_confirmed');
+        setDuplicateWarningStudent(found);
+        setLastConfirmedStudent(null);
+        setSuccessToast(null);
+        setCameraError(null);
+        playWarningBuzzer();
+        return;
+      }
+
+      // If NOT yet present: Proceed with green single confirmation
+      setScanStatus('success');
+      setDuplicateWarningStudent(null);
+      setLastConfirmedStudent(found);
+      setSuccessToast(`✅ TERKONFIRMASI HADIR (1x): ${found.nama} berhasil hadir di Pertemuan Kolom ${selectedColumn} (${selectedMonth})`);
+
       // 1. Immediately fire onScanSuccess to save attendance & signature
       onScanSuccess(found, selectedColumn, selectedMonth);
 
       // 2. Play audible confirmation tone
       playConfirmationChime();
 
-      // 3. Update active confirmation feedback
-      setLastConfirmedStudent(found);
-      setSuccessToast(`✅ TERKONFIRMASI: ${found.nama} hadir di Pertemuan Kolom ${selectedColumn} (${selectedMonth})`);
-
-      // 4. Record to session history
+      // 3. Record to session history
       const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setScannedHistory(prev => [
         { student: found, time: timeStr, column: selectedColumn, month: selectedMonth },
         ...prev.filter(item => !(item.student.id === found.id && item.column === selectedColumn && item.month === selectedMonth))
       ]);
     } else {
+      setScanStatus('idle');
       setCameraError(`QR Code "${trimmed}" tidak cocok dengan data anggota yang terdaftar.`);
     }
   };
@@ -291,8 +357,39 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
 
         {/* Scrollable Content Body */}
         <div className="p-4 overflow-y-auto space-y-3 flex-1">
-          {/* Instant Auto-Confirmation Banner */}
-          {successToast && (
+          {/* Duplicate Attendance Warning - RED INDICATOR */}
+          {scanStatus === 'already_confirmed' && duplicateWarningStudent && (
+            <div className="p-3.5 bg-rose-50 border-2 border-rose-600 rounded-2xl text-rose-950 shadow-lg animate-pulse">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 bg-rose-600 text-white rounded-xl shadow-xs shrink-0 mt-0.5">
+                  <XCircle className="w-6 h-6 animate-spin" style={{ animationDuration: '3s' }} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black uppercase text-rose-700 tracking-wider flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-ping" />
+                      ⛔ INDIKATOR MERAH: SUDAH HADIR!
+                    </span>
+                    <span className="text-[10px] font-black bg-rose-200 text-rose-900 px-2.5 py-0.5 rounded-full border border-rose-300">
+                      Kolom {selectedColumn}
+                    </span>
+                  </div>
+                  <div className="mt-1">
+                    <h4 className="font-black text-rose-950 text-base">{duplicateWarningStudent.nama}</h4>
+                    <p className="text-xs text-rose-800 font-semibold">
+                      Kelas: {duplicateWarningStudent.kelas} • Divisi: {duplicateWarningStudent.divisiNama}
+                    </p>
+                    <div className="mt-2 p-2.5 bg-white rounded-xl border border-rose-300 text-xs text-rose-900 font-medium leading-snug">
+                      ⚠️ <b>Kehadiran Tidak Dijumlahkan Lagi:</b> Anggota ini sudah berhasil dikonfirmasi hadir untuk pertemuan kolom ke-{selectedColumn} bulan {selectedMonth}. Sistem hanya mengizinkan 1 kali konfirmasi dan tidak menjumlahkannya berulang.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Instant Auto-Confirmation Banner (Green Indicator) */}
+          {scanStatus === 'success' && successToast && (
             <div className="p-3 bg-emerald-50 border-2 border-emerald-500 rounded-2xl text-emerald-900 shadow-sm animate-scale-up">
               <div className="flex items-start gap-3">
                 <div className="p-2 bg-emerald-600 text-white rounded-xl shadow-xs shrink-0 mt-0.5">
@@ -301,7 +398,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-black uppercase text-emerald-700 tracking-wider flex items-center gap-1">
-                      <Volume2 className="w-3.5 h-3.5" /> Langsung Terkonfirmasi
+                      <Volume2 className="w-3.5 h-3.5" /> Langsung Terkonfirmasi (1x)
                     </span>
                     <span className="text-[10px] font-bold bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full">
                       Kolom {selectedColumn}
@@ -345,8 +442,14 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
           {activeTab === 'camera' && (
             <div className="flex flex-col items-center justify-center space-y-2.5">
               <div className="flex items-center justify-between w-full max-w-[280px] px-1">
-                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                  scanStatus === 'already_confirmed'
+                    ? 'text-rose-700 bg-rose-100'
+                    : 'text-emerald-700 bg-emerald-100'
+                }`}>
+                  <span className={`w-2 h-2 rounded-full animate-ping ${
+                    scanStatus === 'already_confirmed' ? 'bg-rose-600' : 'bg-emerald-500'
+                  }`} />
                   {cameraFacingMode === 'user' ? '📷 Kamera Depan Aktif' : '📷 Kamera Belakang Aktif'}
                 </span>
                 <button
@@ -360,18 +463,34 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
                 </button>
               </div>
 
-              <div className="w-full max-w-[280px] h-[250px] bg-slate-950 rounded-2xl overflow-hidden relative shadow-inner flex items-center justify-center border-2 border-emerald-400">
+              <div className={`w-full max-w-[280px] h-[250px] bg-slate-950 rounded-2xl overflow-hidden relative shadow-inner flex items-center justify-center transition-all duration-300 ${
+                scanStatus === 'already_confirmed'
+                  ? 'border-4 border-rose-600 shadow-[0_0_30px_rgba(225,29,72,0.9)] ring-4 ring-rose-400/40'
+                  : scanStatus === 'success'
+                  ? 'border-4 border-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.7)] ring-4 ring-emerald-400/40'
+                  : 'border-2 border-emerald-400'
+              }`}>
                 <div id={qrRegionId} className="w-full h-full" />
                 {isScanningCamera && (
                   <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                    <div className="w-48 h-48 border-2 border-emerald-400 rounded-2xl animate-pulse flex items-center justify-center">
-                      <div className="w-full h-0.5 bg-emerald-400/70 animate-bounce" />
+                    <div className={`w-48 h-48 border-2 rounded-2xl animate-pulse flex items-center justify-center ${
+                      scanStatus === 'already_confirmed'
+                        ? 'border-rose-500 bg-rose-500/15'
+                        : 'border-emerald-400'
+                    }`}>
+                      <div className={`w-full h-0.5 animate-bounce ${
+                        scanStatus === 'already_confirmed' ? 'bg-rose-500 shadow-[0_0_10px_#f43f5e]' : 'bg-emerald-400/70'
+                      }`} />
                     </div>
                   </div>
                 )}
               </div>
-              <p className="text-xs text-slate-600 text-center font-medium">
-                Arahkan barcode/QR ID Card anggota ke kamera depan. Presensi langsung terkonfirmasi!
+              <p className={`text-xs text-center font-medium ${
+                scanStatus === 'already_confirmed' ? 'text-rose-700 font-bold' : 'text-slate-600'
+              }`}>
+                {scanStatus === 'already_confirmed'
+                  ? '⛔ Anggota terdeteksi sudah hadir sebelumnya. Barcode tidak akan dijumlahkan ganda.'
+                  : 'Arahkan barcode/QR ID Card anggota ke kamera. Presensi terkonfirmasi 1 kali!'}
               </p>
             </div>
           )}
@@ -410,8 +529,11 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
                   <p className="text-xs text-slate-400 italic p-3 text-center">Belum ada anggota terdaftar untuk sekolah ini.</p>
                 ) : (
                   schoolAnggota.map((student) => {
+                    const allAbsen = StorageService.getAbsenSiswa();
                     const isAlreadyScanned = scannedHistory.some(
                       h => h.student.id === student.id && h.column === selectedColumn && h.month === selectedMonth
+                    ) || allAbsen.some(
+                      a => a.anggotaId === student.id && a.kolomIndex === selectedColumn && a.bulan?.toLowerCase() === selectedMonth.toLowerCase() && a.status === 'Hadir'
                     );
                     return (
                       <button
@@ -419,13 +541,13 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
                         onClick={() => handleAutoConfirmQr(student.qrCodeData)}
                         className={`w-full text-left p-2.5 rounded-xl transition flex items-center justify-between border ${
                           isAlreadyScanned
-                            ? 'bg-emerald-50/80 border-emerald-300 hover:bg-emerald-100'
+                            ? 'bg-rose-50/70 border-rose-300 hover:bg-rose-100'
                             : 'bg-slate-50 hover:bg-blue-50 border-slate-200 hover:border-blue-300'
                         }`}
                       >
                         <div className="flex items-center gap-2.5">
                           <div className={`w-8 h-8 rounded-full font-black flex items-center justify-center text-xs ${
-                            isAlreadyScanned ? 'bg-emerald-600 text-white' : 'bg-blue-100 text-blue-700'
+                            isAlreadyScanned ? 'bg-rose-600 text-white' : 'bg-blue-100 text-blue-700'
                           }`}>
                             {student.nama.substring(0, 2).toUpperCase()}
                           </div>
@@ -436,13 +558,13 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
                         </div>
                         <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1 ${
                           isAlreadyScanned
-                            ? 'bg-emerald-200 text-emerald-900'
+                            ? 'bg-rose-600 text-white shadow-xs'
                             : 'bg-blue-600 text-white'
                         }`}>
                           {isAlreadyScanned ? (
                             <>
-                              <CheckCircle2 className="w-3 h-3 text-emerald-700" />
-                              <span>Hadir (Kol {selectedColumn})</span>
+                              <XCircle className="w-3.5 h-3.5 text-white" />
+                              <span>Sudah Hadir (1x)</span>
                             </>
                           ) : (
                             <span>+ Absen Kol {selectedColumn}</span>

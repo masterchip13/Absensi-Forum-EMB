@@ -18,7 +18,7 @@ import {
   X,
   Stamp
 } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
 import { SignaturePad } from './SignaturePad';
 
@@ -370,6 +370,48 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
     }
   };
 
+  const [isExportingImage, setIsExportingImage] = useState(false);
+
+  // Export Nilai as High-Resolution JPG / PNG Image
+  const handleExportImage = async (format: 'jpeg' | 'png') => {
+    if (!printAreaRef.current) return;
+    setIsExportingImage(true);
+    const formatLabel = format === 'jpeg' ? 'JPG' : 'PNG';
+    const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+    const ext = format === 'jpeg' ? 'jpg' : 'png';
+    const quality = format === 'jpeg' ? 0.95 : undefined;
+
+    try {
+      const element = printAreaRef.current;
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const blobUrl = URL.createObjectURL(blob);
+        const cleanSchoolName = (selectedSekolah?.namaSekolah || 'Sekolah').replace(/\s+/g, '_');
+        const fileName = `Rekap_Nilai_${cleanSchoolName}_Semester_${filterSemester}_${filterTahunAjaran.replace('/', '-')}.${ext}`;
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
+      }, mimeType, quality);
+    } catch (err) {
+      console.error(`Export ${formatLabel} error:`, err);
+      alert(`Gagal mengekspor ${formatLabel}. Silakan gunakan tombol Cetak.`);
+    } finally {
+      setIsExportingImage(false);
+    }
+  };
+
   // Native Excel (.xlsx) Export with multi-column grades and rubrics
   const handleExportExcel = () => {
     try {
@@ -689,12 +731,30 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
             </button>
             <button
               onClick={handleExportPdf}
-              disabled={isExporting}
+              disabled={isExporting || isExportingImage}
               className="flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition shadow-md cursor-pointer disabled:opacity-50"
               title="Unduh rekap nilai ke format PDF resmi"
             >
               <Download className="w-4 h-4 text-white" />
               <span>{isExporting ? 'Memproses PDF...' : 'Unduh PDF'}</span>
+            </button>
+            <button
+              onClick={() => handleExportImage('jpeg')}
+              disabled={isExporting || isExportingImage}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition shadow-md cursor-pointer disabled:opacity-50"
+              title="Unduh rekap nilai sebagai gambar JPG berkualitas tinggi"
+            >
+              <ImageIcon className="w-4 h-4 text-amber-200" />
+              <span>{isExportingImage ? 'Memproses JPG...' : 'Unduh JPG'}</span>
+            </button>
+            <button
+              onClick={() => handleExportImage('png')}
+              disabled={isExporting || isExportingImage}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition shadow-md cursor-pointer disabled:opacity-50"
+              title="Unduh rekap nilai sebagai gambar PNG resolusi tinggi"
+            >
+              <ImageIcon className="w-4 h-4 text-indigo-200" />
+              <span>{isExportingImage ? 'Memproses PNG...' : 'Unduh PNG'}</span>
             </button>
           </div>
         </div>
