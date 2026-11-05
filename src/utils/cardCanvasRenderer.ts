@@ -67,9 +67,11 @@ export async function renderMemberCardToCanvas(
     }
   }
 
-  // 3. Render Member Details on the Right Frame
-  const maxAvailableWidth = 1150;
-  const rightX = 2270;
+  // 3. Render Member Details on the Right Frame (Center-Aligned & Leveled with Left QR Box)
+  // Left QR box center is at Y=840 (Y=512..1168).
+  // Right frame bounds: X=1120..2320 -> Horizontal center is X=1720.
+  const maxAvailableWidth = 1160;
+  const centerX = 1720;
 
   // Format member name: If too long (> 20 chars), ONLY abbreviate the end of the name
   const formattedName = formatCardMemberName(member.nama, 20);
@@ -85,65 +87,65 @@ export async function renderMemberCardToCanvas(
     return size;
   };
 
-  ctx.textAlign = 'right';
+  ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
   // Drop shadow for luxury contrast
   ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
-  ctx.shadowBlur = 14;
-  ctx.shadowOffsetX = 3;
+  ctx.shadowBlur = 16;
+  ctx.shadowOffsetX = 0;
   ctx.shadowOffsetY = 4;
 
   const hasNis = !!member.nis;
-  const nameY = hasNis ? 560 : 600;
-  const schoolY = 760;
-  const divisiY = 920;
+  const nameY = hasNis ? 660 : 700;
+  const schoolY = hasNis ? 860 : 850;
+  const divisiY = 980;
 
-  // NAMA ANGGOTA (Bold White Sans-Serif)
+  // NAMA ANGGOTA (Bold White Sans-Serif - Rata Tengah)
   const nameText = formattedName.toUpperCase();
   fitFontSize(
     nameText,
     maxAvailableWidth,
-    nameLength > 20 ? 84 : 108,
-    48,
+    nameLength > 18 ? 88 : 108,
+    46,
     '"Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
     '900'
   );
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillText(nameText, rightX, nameY);
+  ctx.fillText(nameText, centerX, nameY);
 
   // Optional NIS
   if (hasNis) {
     ctx.fillStyle = '#FCD34D';
-    ctx.font = '700 46px monospace';
-    ctx.fillText(`NIS: ${member.nis}`, rightX, 645);
+    ctx.font = '700 44px monospace';
+    ctx.fillText(`NIS: ${member.nis}`, centerX, 745);
   }
 
-  // ASAL SEKOLAH (Gold Display Serif)
+  // ASAL SEKOLAH (Gold Display Serif - Rata Tengah)
   const schoolText = (schoolName || 'MARCHING BAND').toUpperCase();
   fitFontSize(
     schoolText,
     maxAvailableWidth,
-    schoolText.length > 22 ? 68 : 84,
-    42,
+    schoolText.length > 22 ? 68 : 82,
+    40,
     '"Times New Roman", Georgia, serif',
     '900'
   );
   ctx.fillStyle = '#F6D787';
-  ctx.fillText(schoolText, rightX, schoolY);
+  ctx.fillText(schoolText, centerX, schoolY);
 
-  // DIVISI (Gold Display Serif) - User requirement: "Hilangkan kelas di kartu anggota"
+  // DIVISI (Gold Display Serif - Rata Tengah)
   const divisiText = `DIVISI ${(member.divisiNama || 'UMUM').toUpperCase()}`;
   fitFontSize(
     divisiText,
     maxAvailableWidth,
-    divisiText.length > 24 ? 58 : 72,
-    38,
+    divisiText.length > 24 ? 58 : 70,
+    36,
     '"Times New Roman", Georgia, serif',
     '700'
   );
   ctx.fillStyle = '#E5BE64';
-  ctx.fillText(divisiText, rightX, divisiY);
+  ctx.fillText(divisiText, centerX, divisiY);
 
   // Reset shadow
   ctx.shadowColor = 'transparent';

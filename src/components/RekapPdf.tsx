@@ -7,7 +7,7 @@ import { TutWuriLogo, MarchingBandLogo } from './Logos';
 import { FileText, Download, Printer, Filter, Sparkles, School, Calendar, CheckCircle2, UserCheck, Users, PenTool, X, RotateCcw, Image as ImageIcon, FileSpreadsheet } from 'lucide-react';
 import { StorageService } from '../data/storage';
 import { StudentWetSignature, getStudentSignatureDataUrl } from '../utils/studentSignature';
-import { formatNamaKapital } from '../utils/nameFormatter';
+import { formatNamaKapital, formatKelasAngka } from '../utils/nameFormatter';
 import { SignaturePad } from './SignaturePad';
 
 interface RekapPdfProps {
@@ -47,6 +47,8 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
   const [selectedMeetingIndex, setSelectedMeetingIndex] = useState<number | 'ALL'>('ALL');
   const [namaEkskul, setNamaEkskul] = useState('MARCHING BAND');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [sortAnggotaBy, setSortAnggotaBy] = useState<'nama_asc' | 'nama_desc' | 'kelas_asc' | 'kelas_desc' | 'divisi'>('nama_asc');
+  const [orientasiKertas, setOrientasiKertas] = useState<'portrait' | 'landscape'>('portrait');
 
   useEffect(() => {
     if (selectedSekolahId) {
@@ -115,12 +117,32 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
     };
   }, [resolvedTemplate, selectedSekolah]);
 
-  // Sort school members alphabetically so names are clean and structured
+  // Sort school members based on selected sorting criteria (Nama, Kelas, Divisi)
   const schoolAnggota = useMemo(() => {
-    return anggotaList
-      .filter(a => a.sekolahId === filterSekolahId)
-      .sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
-  }, [anggotaList, filterSekolahId]);
+    const list = anggotaList.filter(a => a.sekolahId === filterSekolahId);
+    return [...list].sort((a, b) => {
+      if (sortAnggotaBy === 'nama_asc') {
+        return (a.nama || '').localeCompare(b.nama || '', 'id-ID');
+      }
+      if (sortAnggotaBy === 'nama_desc') {
+        return (b.nama || '').localeCompare(a.nama || '', 'id-ID');
+      }
+      if (sortAnggotaBy === 'kelas_asc') {
+        const kA = formatKelasAngka(a.kelas || '');
+        const kB = formatKelasAngka(b.kelas || '');
+        return kA.localeCompare(kB, undefined, { numeric: true }) || (a.nama || '').localeCompare(b.nama || '', 'id-ID');
+      }
+      if (sortAnggotaBy === 'kelas_desc') {
+        const kA = formatKelasAngka(a.kelas || '');
+        const kB = formatKelasAngka(b.kelas || '');
+        return kB.localeCompare(kA, undefined, { numeric: true }) || (a.nama || '').localeCompare(b.nama || '', 'id-ID');
+      }
+      if (sortAnggotaBy === 'divisi') {
+        return (a.divisiNama || '').localeCompare(b.divisiNama || '', 'id-ID') || (a.nama || '').localeCompare(b.nama || '', 'id-ID');
+      }
+      return 0;
+    });
+  }, [anggotaList, filterSekolahId, sortAnggotaBy]);
 
   // Filter Absen Pelatih by selected school, year, and month
   const selectedMonthShort = MONTH_SHORT_MAP[filterBulan] || filterBulan.substring(0, 3);
@@ -313,13 +335,20 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
     fontFamily: '"Times New Roman", Times, "Liberation Serif", serif'
   };
 
+  const getPdfPageClass = (extraPadding = 'p-[14mm]') => {
+    const isLandscape = orientasiKertas === 'landscape';
+    const dims = isLandscape ? 'w-[297mm] min-h-[210mm]' : 'w-[210mm] min-h-[297mm]';
+    return `pdf-page bg-white ${dims} ${extraPadding} shadow-lg text-black box-border flex flex-col justify-between mx-auto relative transition-all`;
+  };
+
   const exportPdf = async () => {
     if (!pdfContainerRef.current) return;
     setIsGeneratingPdf(true);
 
     try {
       const container = pdfContainerRef.current;
-      const pdf = new jsPDF('p', 'mm', 'a4');
+      const isLandscape = orientasiKertas === 'landscape';
+      const pdf = new jsPDF(isLandscape ? 'l' : 'p', 'mm', 'a4');
       const pages = container.querySelectorAll<HTMLElement>('.pdf-page');
 
       for (let i = 0; i < pages.length; i++) {
@@ -334,11 +363,11 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
 
         // Use JPEG 0.92 to reduce memory footprint by 85% and prevent corrupted large files on mobile/desktop
         const imgData = canvas.toDataURL('image/jpeg', 0.92);
-        const imgWidth = 210; // A4 width in mm
-        const pageHeight = 297; // A4 height in mm
+        const imgWidth = isLandscape ? 297 : 210; // A4 width in mm
+        const pageHeight = isLandscape ? 210 : 297; // A4 height in mm
         const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-        if (i > 0) pdf.addPage();
+        if (i > 0) pdf.addPage('a4', isLandscape ? 'l' : 'p');
         pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, Math.min(imgHeight, pageHeight));
       }
 
@@ -347,7 +376,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
       const blobUrl = URL.createObjectURL(pdfBlob);
       const downloadLink = document.createElement('a');
       downloadLink.href = blobUrl;
-      downloadLink.download = `Laporan-Ekstrakurikuler-${namaSekolahFormatted.replace(/[^a-zA-Z0-9]/g, '_')}-${filterBulan}-${filterTahunAjaran.replace('/', '-')}.pdf`;
+      downloadLink.download = `Laporan-Ekstrakurikuler-${namaSekolahFormatted.replace(/[^a-zA-Z0-9]/g, '_')}-${filterBulan}-${filterTahunAjaran.replace('/', '-')}-${isLandscape ? 'Landscape' : 'Portrait'}.pdf`;
       document.body.appendChild(downloadLink);
       downloadLink.click();
       document.body.removeChild(downloadLink);
@@ -493,7 +522,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
           attendanceData.push([
             idx + 1,
             formatNamaKapital(student.nama),
-            student.kelas || '-',
+            formatKelasAngka(student.kelas) || '-',
             student.divisiNama || '-',
             cols[0],
             cols[1],
@@ -673,7 +702,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
           <tr style="height: 22px;">
             <td>${idx + 1}</td>
             <td style="text-align: center;">${capitalizedName || ''}</td>
-            <td>${student?.kelas || ''}</td>
+            <td>${student?.kelas ? formatKelasAngka(student.kelas) : ''}</td>
             <td>${sigCols[0]}</td>
             <td>${sigCols[1]}</td>
             <td>${sigCols[2]}</td>
@@ -1165,6 +1194,80 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
           </div>
         </div>
 
+        {/* Orientasi Cetak & Urutan Anggota Bar */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100">
+          {/* Opsi Orientasi Cetak (Portrait / Landscape) */}
+          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-blue-600" />
+                  Orientasi Cetak Laporan PDF:
+                </label>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                  {orientasiKertas === 'landscape' ? 'Mendatar (Landscape)' : 'Tegak (Portrait)'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOrientasiKertas('portrait')}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                    orientasiKertas === 'portrait'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>📄 Portrait (Tegak A4)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOrientasiKertas('landscape')}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                    orientasiKertas === 'landscape'
+                      ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-300'
+                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>📑 Landscape (Mendatar A4)</span>
+                </button>
+              </div>
+            </div>
+            <p className="text-[10.5px] text-slate-500 mt-2">
+              ✨ <strong className="text-slate-700">Rekomendasi Landscape:</strong> Bidang halaman melebar (297 mm), membuat tanda tangan pelatih utama & asisten pelatih lebih rapi berdampingan dan tidak berdesakan.
+            </p>
+          </div>
+
+          {/* Opsi Urutkan Anggota dalam Laporan */}
+          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+                  <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                  Urutkan Anggota dalam Laporan:
+                </label>
+                <span className="text-[10px] font-semibold text-slate-500">
+                  Total {schoolAnggota.length} Siswa
+                </span>
+              </div>
+              <select
+                value={sortAnggotaBy}
+                onChange={(e) => setSortAnggotaBy(e.target.value as any)}
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              >
+                <option value="nama_asc">🔤 Nama Anggota (A - Z)</option>
+                <option value="nama_desc">🔤 Nama Anggota (Z - A)</option>
+                <option value="kelas_asc">🔢 Kelas (7-1, 7-2, 8-1... Terkecil)</option>
+                <option value="kelas_desc">🔢 Kelas (9-3, 9-2, 8-1... Terbesar)</option>
+                <option value="divisi">🎺 Divisi Musik (Brass, Percussion, CG...)</option>
+              </select>
+            </div>
+            <p className="text-[10.5px] text-slate-500 mt-2">
+              📋 Urutan ini diterapkan otomatis pada tabel presensi halaman PDF, berkas Word, Excel, dan ekspor JPG/PNG.
+            </p>
+          </div>
+        </div>
+
         {/* Assistant Coach Toggle & Customization Bar */}
         <div className="pt-3 border-t border-slate-100">
           <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
@@ -1313,7 +1416,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
               {/* PAGE 1: LAPORAN KEGIATAN EKSTRAKURIKULER */}
               <div
                 style={timesNewRomanFont}
-                className="pdf-page bg-white w-[210mm] min-h-[297mm] p-[16mm] shadow-lg text-black box-border flex flex-col justify-between mx-auto relative"
+                className={getPdfPageClass('p-[16mm]')}
               >
                 <div>
                   {/* Header Title */}
@@ -1437,7 +1540,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                   <div
                     key={`cigombong-page-${pIdx}`}
                     style={timesNewRomanFont}
-                    className="pdf-page bg-white w-[210mm] min-h-[297mm] p-[16mm] shadow-lg text-black box-border flex flex-col justify-between mx-auto relative"
+                    className={getPdfPageClass('p-[16mm]')}
                   >
                     <div>
                       {/* Header Title */}
@@ -1484,7 +1587,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                                 <td className="border border-black p-0.5 text-center align-middle font-medium truncate max-w-[170px]">
                                   {formatNamaKapital(student?.nama) || ''}
                                 </td>
-                                <td className="border border-black p-0.5 align-middle">{student?.kelas || ''}</td>
+                                <td className="border border-black p-0.5 align-middle">{student?.kelas ? formatKelasAngka(student.kelas) : ''}</td>
 
                                 {/* 5 Attendance signature/check marks */}
                                 {[1, 2, 3, 4, 5].map((col) => {
@@ -1570,7 +1673,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
               {(activeEventPhotos.length > 0 || documentationItems.length > 0) && (
                 <div
                   style={timesNewRomanFont}
-                  className="pdf-page bg-white w-[210mm] min-h-[297mm] p-[14mm] shadow-lg text-black box-border flex flex-col justify-between mx-auto"
+                  className={getPdfPageClass('p-[14mm]')}
                 >
                   <div>
                     <div className="text-center font-bold leading-tight mb-4">
@@ -1706,7 +1809,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                     <div
                       key={`${meeting.id || mIdx}-sheet-${sheetIdx}`}
                       style={timesNewRomanFont}
-                      className="pdf-page bg-white w-[210mm] min-h-[297mm] p-[14mm] shadow-lg text-black box-border flex flex-col justify-between mx-auto relative"
+                      className={getPdfPageClass('p-[14mm]')}
                     >
                       <div>
                         {/* Header Title */}
@@ -1931,7 +2034,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
               {(activeEventPhotos.length > 0 || documentationItems.length > 0) && (
                 <div
                   style={timesNewRomanFont}
-                  className="pdf-page bg-white w-[210mm] min-h-[297mm] p-[14mm] shadow-lg text-black box-border flex flex-col justify-between mx-auto relative"
+                  className={getPdfPageClass('p-[14mm]')}
                 >
                   <div>
                     <div className="text-center font-bold leading-tight mb-4">
@@ -2062,7 +2165,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
               {/* PAGE 1: Agenda Kegiatan Regular */}
               <div
                 style={timesNewRomanFont}
-                className="pdf-page bg-white w-[210mm] min-h-[297mm] p-[12mm] shadow-lg text-black box-border flex flex-col justify-between mx-auto"
+                className={getPdfPageClass('p-[12mm]')}
               >
                 <div>
                   <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-4">
@@ -2172,7 +2275,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                   <div
                     key={`standard-presensi-page-${pIdx}`}
                     style={timesNewRomanFont}
-                    className="pdf-page bg-white w-[210mm] min-h-[297mm] p-[12mm] shadow-lg text-black box-border flex flex-col justify-between mx-auto"
+                    className={getPdfPageClass('p-[12mm]')}
                   >
                     <div>
                       <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-3">
@@ -2215,7 +2318,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                                 <td className="border border-black p-0.5 text-center align-middle font-medium truncate max-w-[140px]">
                                   {formatNamaKapital(student?.nama) || ''}
                                 </td>
-                                <td className="border border-black p-0.5 align-middle">{student?.kelas || ''}</td>
+                                <td className="border border-black p-0.5 align-middle">{student?.kelas ? formatKelasAngka(student.kelas) : ''}</td>
                                 <td className="border border-black p-0.5 text-left align-middle truncate max-w-[100px]">
                                   {student?.divisiNama || ''}
                                 </td>
@@ -2254,7 +2357,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
               {/* PAGE 4: Lampiran Foto Dokumentasi Kegiatan & Event */}
               <div
                 style={timesNewRomanFont}
-                className="pdf-page bg-white w-[210mm] min-h-[297mm] p-[12mm] shadow-lg text-black box-border flex flex-col justify-between mx-auto"
+                className={getPdfPageClass('p-[12mm]')}
               >
                 <div>
                   <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-3">

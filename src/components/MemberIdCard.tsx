@@ -35,26 +35,26 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
   const nameLength = formattedName.length;
 
   const getNameFontSizeClass = () => {
-    if (nameLength <= 14) return 'text-[19px] sm:text-[23px]';
-    if (nameLength <= 20) return 'text-[16px] sm:text-[19px]';
-    if (nameLength <= 26) return 'text-[14px] sm:text-[16px]';
-    return 'text-[12px] sm:text-[14px]';
+    if (nameLength <= 12) return 'text-[17px] sm:text-[21px]';
+    if (nameLength <= 18) return 'text-[15px] sm:text-[18px]';
+    if (nameLength <= 24) return 'text-[13px] sm:text-[15.5px]';
+    return 'text-[11.5px] sm:text-[13.5px]';
   };
 
   const schoolLength = (schoolName || '').length;
   const getSchoolFontSizeClass = () => {
-    if (schoolLength <= 16) return 'text-[15px] sm:text-[18px]';
-    if (schoolLength <= 24) return 'text-[13px] sm:text-[15.5px]';
-    return 'text-[11.5px] sm:text-[13.5px]';
+    if (schoolLength <= 18) return 'text-[13px] sm:text-[15.5px]';
+    if (schoolLength <= 26) return 'text-[11.5px] sm:text-[13.5px]';
+    return 'text-[10px] sm:text-[12px]';
   };
 
   // User requirement: "Hilangkan kelas di kartu anggota"
   const divisiText = `DIVISI ${(member.divisiNama || 'UMUM').toUpperCase()}`;
   const divisiLength = divisiText.length;
   const getDivisiFontSizeClass = () => {
-    if (divisiLength <= 18) return 'text-[13px] sm:text-[15.5px]';
-    if (divisiLength <= 26) return 'text-[11.5px] sm:text-[13.5px]';
-    return 'text-[10px] sm:text-[12px]';
+    if (divisiLength <= 18) return 'text-[12px] sm:text-[14px]';
+    if (divisiLength <= 26) return 'text-[10.5px] sm:text-[12.5px]';
+    return 'text-[9.5px] sm:text-[11px]';
   };
 
   /**
@@ -174,28 +174,27 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
 
         {/* ================= RIGHT DETAILS: NAMA, ASAL SEKOLAH, DIVISI ================= */}
         {/*
-          Clean, perfectly fitted text container on top of the emblem watermark.
-          Carefully scaled typography to ensure everything sits harmoniously within the frame.
+          Clean, centered text container directly aligned horizontally and vertically with the QR box.
         */}
-        <div className="absolute left-[38%] right-[4.5%] top-[18%] bottom-[27%] flex flex-col justify-center items-end text-right pr-2 sm:pr-3 z-10 pointer-events-none">
+        <div className="absolute left-[41%] right-[5%] top-[26%] bottom-[28%] flex flex-col justify-center items-center text-center px-1 z-10 pointer-events-none">
           
-          {/* NAMA ANGGOTA (Bold White Display Font - Scaled to fit frame) */}
-          <div className="w-full text-right mb-1">
+          {/* NAMA ANGGOTA (Bold White Display Font - Rata Tengah & Sejajar Kotak) */}
+          <div className="w-full text-center mb-1">
             <span
-              className={`font-sans font-black text-white ${getNameFontSizeClass()} uppercase tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] line-clamp-1 block leading-tight`}
+              className={`font-sans font-black text-white ${getNameFontSizeClass()} uppercase tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] line-clamp-1 block leading-tight`}
               title={member.nama}
             >
               {formattedName}
             </span>
             {member.nis && (
-              <span className="text-[9px] sm:text-[10px] text-amber-300 font-mono tracking-widest font-bold opacity-90 block mt-0.5">
+              <span className="text-[9px] sm:text-[10px] text-amber-300 font-mono tracking-widest font-bold opacity-90 block mt-0.5 text-center">
                 NIS: {member.nis}
               </span>
             )}
           </div>
 
-          {/* ASAL SEKOLAH (Gold Display Serif Font - Scaled to fit frame) */}
-          <div className="w-full text-right mb-1">
+          {/* ASAL SEKOLAH (Gold Display Serif Font - Rata Tengah) */}
+          <div className="w-full text-center mb-1">
             <p
               className={`font-serif font-black text-[#f6d787] ${getSchoolFontSizeClass()} uppercase tracking-widest drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] truncate leading-tight`}
               title={schoolName}
@@ -204,9 +203,9 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
             </p>
           </div>
 
-          {/* DIVISI (Gold Display Serif Font - Scaled to fit frame) */}
-          <div className="w-full text-right">
-            <p className={`font-serif font-bold text-[#e5be64] ${getDivisiFontSizeClass()} uppercase tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] truncate leading-tight`}>
+          {/* DIVISI (Gold Display Serif Font - Rata Tengah) */}
+          <div className="w-full text-center">
+            <p className={`font-serif font-bold text-[#e5be64] ${getDivisiFontSizeClass()} uppercase tracking-widest drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] truncate leading-tight`}>
               {divisiText}
             </p>
           </div>

@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Anggota, Divisi, Sekolah } from '../types';
 import { StorageService } from '../data/storage';
+import { formatNamaKapital, formatKelasAngka } from '../utils/nameFormatter';
 import { FileSpreadsheet, Upload, Download, CheckCircle2, AlertTriangle, X, Plus, HelpCircle, FileText } from 'lucide-react';
 
 interface ImportExcelModalProps {
@@ -116,9 +117,12 @@ export const ImportExcelModal: React.FC<ImportExcelModalProps> = ({
             return matchedKey ? String(row[matchedKey]).trim() : '';
           };
 
-          const nama = findValue(['nama siswa', 'nama lengkap', 'nama', 'student', 'name']);
-          const kelas = findValue(['kelas', 'class', 'grade', 'tingkat']);
+          const rawNama = findValue(['nama siswa', 'nama lengkap', 'nama', 'student', 'name']);
+          const rawKelas = findValue(['kelas', 'class', 'grade', 'tingkat']);
           let divisiNama = findValue(['divisi', 'division', 'seksi', 'bagian']);
+
+          const cleanNama = rawNama ? formatNamaKapital(rawNama) : '';
+          const cleanKelas = rawKelas ? formatKelasAngka(rawKelas) : '';
 
           // If division is empty, default to Brass or first division
           if (!divisiNama && divisiList.length > 0) {
@@ -129,17 +133,17 @@ export const ImportExcelModal: React.FC<ImportExcelModalProps> = ({
           let isValid = true;
           let error = '';
 
-          if (!nama) {
+          if (!cleanNama) {
             isValid = false;
             error = 'Nama siswa kosong';
-          } else if (!kelas) {
+          } else if (!cleanKelas) {
             isValid = false;
             error = 'Kelas kosong';
           }
 
           return {
-            nama,
-            kelas,
+            nama: cleanNama,
+            kelas: cleanKelas,
             divisiNama: divisiNama || 'Brass',
             isValid,
             error

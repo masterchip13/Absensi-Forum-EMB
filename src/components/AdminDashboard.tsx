@@ -8,6 +8,7 @@ import { EventManager } from './EventManager';
 import { PenilaianAnggota } from './PenilaianAnggota';
 import { SekolahManager } from './SekolahManager';
 import { RekapPdf } from './RekapPdf';
+import { AuditPresensi } from './AuditPresensi';
 import { 
   Shield, 
   UserPlus, 
@@ -39,7 +40,9 @@ import {
   FileText,
   Filter,
   CheckCircle,
-  ClipboardList
+  ClipboardList,
+  AlertTriangle,
+  TrendingDown
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -69,7 +72,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onOpenManageTahunAjaran,
   onDataChanged
 }) => {
-  const [activeTab, setActiveTab] = useState<'pelatih' | 'sekolah' | 'absensi' | 'penilaian' | 'laporan' | 'statistik' | 'progres' | 'dokumentasi' | 'event'>('pelatih');
+  const [activeTab, setActiveTab] = useState<'pelatih' | 'sekolah' | 'absensi' | 'penilaian' | 'laporan' | 'audit' | 'statistik' | 'progres' | 'dokumentasi' | 'event'>('pelatih');
   const [absensiSubTab, setAbsensiSubTab] = useState<'siswa' | 'pelatih' | 'asisten'>('siswa');
   const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'pelatih' | 'asisten_pelatih'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -379,6 +382,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <option value="pelatih">👥 Kelola Akun Pelatih</option>
                 <option value="sekolah">🏫 Kelola Data Sekolah & Penugasan</option>
                 <option value="absensi">📋 Semua Rekap Absensi</option>
+                <option value="audit">🚨 Audit Presensi (Evaluasi Siswa Terendah)</option>
                 <option value="penilaian">🎖️ Rekap Nilai Siswa</option>
                 <option value="laporan">📄 Cetak Laporan Kegiatan</option>
                 <option value="statistik">📊 Statistik Kehadiran</option>
@@ -427,6 +431,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             >
               <ClipboardList className="w-4 h-4" />
               <span>Semua Rekap Absensi ({absenSiswaList.length})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('audit')}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                activeTab === 'audit'
+                  ? 'bg-white text-rose-700 shadow-sm border border-rose-300 ring-1 ring-rose-200'
+                  : 'text-rose-700 hover:text-rose-900 hover:bg-rose-50/70 font-black'
+              }`}
+            >
+              <AlertTriangle className="w-4 h-4 text-rose-600" />
+              <span>Audit Presensi</span>
+              <span className="px-1.5 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-extrabold rounded-md border border-rose-200">
+                Evaluasi
+              </span>
             </button>
 
             <button
@@ -998,6 +1017,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* TAB AUDIT PRESENSI (EVALUASI KEHADIRAN TERENDAH TIAP SEKOLAH) */}
+        {activeTab === 'audit' && (
+          <div className="space-y-4">
+            <AuditPresensi
+              sekolahList={sekolahList}
+              anggotaList={anggotaList}
+              absenSiswaList={absenSiswaList}
+              usersList={usersList}
+            />
           </div>
         )}
 
