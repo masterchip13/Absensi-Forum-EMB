@@ -127,6 +127,7 @@ export function getStudentSignatureStyle(studentName: string, columnOrMeetingInd
 
 /**
  * React Component that renders authentic wet-ink cursive student signature
+ * Configured to fill attendance table cells fully and naturally ("pas dengan tabel agar terlihat penuh")
  */
 export const StudentWetSignature: React.FC<{
   studentName: string;
@@ -140,18 +141,18 @@ export const StudentWetSignature: React.FC<{
   columnIndex = 1,
   customSignatureUrl,
   className = '',
-  maxWidth = '38px',
-  height = '14px'
+  maxWidth = '100%',
+  height = '24px'
 }) => {
   // If student has explicit custom drawn signature, use it
   if (customSignatureUrl && customSignatureUrl.startsWith('data:image')) {
     return (
-      <div className={`w-full h-full flex items-center justify-center overflow-hidden ${className}`}>
+      <div className={`w-full h-full flex items-center justify-center p-0.5 overflow-hidden ${className}`}>
         <img
           src={customSignatureUrl}
           alt={`TTD ${studentName}`}
-          className="object-contain mx-auto"
-          style={{ maxHeight: height, maxWidth: maxWidth || '95%' }}
+          className="w-full h-full object-contain mx-auto"
+          style={{ maxHeight: height, maxWidth: maxWidth || '100%' }}
         />
       </div>
     );
@@ -161,24 +162,24 @@ export const StudentWetSignature: React.FC<{
 
   return (
     <div
-      className={`w-full h-full flex items-center justify-center pointer-events-none select-none overflow-hidden ${className}`}
+      className={`w-full h-full flex items-center justify-center pointer-events-none select-none px-0.5 overflow-hidden ${className}`}
       style={{
         transform: `rotate(${rotation}deg)`,
-        filter: 'drop-shadow(0.2px 0.2px 0px rgba(0,25,100,0.3))'
+        filter: 'drop-shadow(0.2px 0.2px 0px rgba(0,25,100,0.35))'
       }}
       title={`Tanda Tangan Basah ${studentName}`}
     >
       <svg
         viewBox={preset.viewBox}
         preserveAspectRatio="xMidYMid meet"
-        className="w-full h-auto object-contain mx-auto block"
-        style={{ maxHeight: height, maxWidth: maxWidth || '95%' }}
+        className="w-full h-full object-contain mx-auto block"
+        style={{ maxHeight: height, maxWidth: maxWidth || '100%' }}
       >
         <path
           d={preset.path1}
           fill="none"
           stroke={color}
-          strokeWidth="2.8"
+          strokeWidth="3.2"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -187,7 +188,7 @@ export const StudentWetSignature: React.FC<{
             d={preset.path2}
             fill="none"
             stroke={color}
-            strokeWidth="2.0"
+            strokeWidth="2.4"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
@@ -196,7 +197,7 @@ export const StudentWetSignature: React.FC<{
           <circle
             cx={preset.dot.cx}
             cy={preset.dot.cy}
-            r={preset.dot.r}
+            r={preset.dot.r * 1.3}
             fill={color}
           />
         )}
@@ -210,13 +211,13 @@ export const StudentWetSignature: React.FC<{
  */
 export function getStudentSignatureDataUrl(studentName: string, columnIndex = 1): string {
   const { preset, color, rotation } = getStudentSignatureStyle(studentName, columnIndex);
-  const dotSvg = preset.dot ? `<circle cx="${preset.dot.cx}" cy="${preset.dot.cy}" r="${preset.dot.r}" fill="${color}" />` : '';
-  const path2Svg = preset.path2 ? `<path d="${preset.path2}" fill="none" stroke="${color}" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" />` : '';
+  const dotSvg = preset.dot ? `<circle cx="${preset.dot.cx}" cy="${preset.dot.cy}" r="${preset.dot.r * 1.3}" fill="${color}" />` : '';
+  const path2Svg = preset.path2 ? `<path d="${preset.path2}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />` : '';
 
   const svgString = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="${preset.viewBox}" width="90" height="32">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="${preset.viewBox}" width="130" height="44">
       <g transform="rotate(${rotation} 80 27)">
-        <path d="${preset.path1}" fill="none" stroke="${color}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="${preset.path1}" fill="none" stroke="${color}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" />
         ${path2Svg}
         ${dotSvg}
       </g>

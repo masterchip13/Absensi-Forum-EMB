@@ -49,6 +49,8 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [sortAnggotaBy, setSortAnggotaBy] = useState<'nama_asc' | 'nama_desc' | 'kelas_asc' | 'kelas_desc' | 'divisi'>('nama_asc');
   const [orientasiKertas, setOrientasiKertas] = useState<'portrait' | 'landscape'>('portrait');
+  // User requirement: "Masukan absen sesuai dengan nama anggota yang hadir kedalam laporan, jika tidak hadir tidak perlu dimasukan"
+  const [filterHanyaHadir, setFilterHanyaHadir] = useState<boolean>(true);
 
   useEffect(() => {
     if (selectedSekolahId) {
@@ -117,9 +119,26 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
     };
   }, [resolvedTemplate, selectedSekolah]);
 
-  // Sort school members based on selected sorting criteria (Nama, Kelas, Divisi)
+  // Helper: Cek apakah anggota tercatat HADIR pada bulan dan sekolah yang dipilih
+  const isStudentPresentInMonth = (studentId: string): boolean => {
+    return absenSiswaList.some(
+      a => a.anggotaId === studentId &&
+           a.sekolahId === filterSekolahId &&
+           (!a.bulan || a.bulan.toLowerCase() === filterBulan.toLowerCase()) &&
+           a.status === 'Hadir'
+    );
+  };
+
+  // Filter & sort school members based on attendance and selected sorting criteria
+  // User requirement: "Masukan absen sesuai dengan nama anggota yang hadir kedalam laporan, jika tidak hadir tidak perlu dimasukan"
   const schoolAnggota = useMemo(() => {
-    const list = anggotaList.filter(a => a.sekolahId === filterSekolahId);
+    let list = anggotaList.filter(a => a.sekolahId === filterSekolahId);
+
+    // Jika filterHanyaHadir aktif (default): Hanya sertakan anggota yang hadir di bulan aktif
+    if (filterHanyaHadir) {
+      list = list.filter(student => isStudentPresentInMonth(student.id));
+    }
+
     return [...list].sort((a, b) => {
       if (sortAnggotaBy === 'nama_asc') {
         return (a.nama || '').localeCompare(b.nama || '', 'id-ID');
@@ -142,7 +161,16 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
       }
       return 0;
     });
-  }, [anggotaList, filterSekolahId, sortAnggotaBy]);
+  }, [anggotaList, filterSekolahId, sortAnggotaBy, filterHanyaHadir, filterBulan, absenSiswaList]);
+
+  // Total terdaftar vs total hadir untuk indikator visual
+  const totalRegisteredInSchool = useMemo(() => {
+    return anggotaList.filter(a => a.sekolahId === filterSekolahId).length;
+  }, [anggotaList, filterSekolahId]);
+
+  const totalHadirInSchoolMonth = useMemo(() => {
+    return anggotaList.filter(a => a.sekolahId === filterSekolahId && isStudentPresentInMonth(a.id)).length;
+  }, [anggotaList, filterSekolahId, filterBulan, absenSiswaList]);
 
   // Filter Absen Pelatih by selected school, year, and month
   const selectedMonthShort = MONTH_SHORT_MAP[filterBulan] || filterBulan.substring(0, 3);
@@ -693,14 +721,14 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
           const status = getStudentAttendanceStatus(student, col);
           if (status.isPresent) {
             const sigUrl = status.customSig || getStudentSignatureDataUrl(student.nama, col);
-            return `<img src="${sigUrl}" height="16" style="max-height: 16px; object-contain: contain;" />`;
+            return `<img src="${sigUrl}" height="24" style="max-height: 24px; object-contain: contain;" />`;
           }
           return status.label || '';
         });
         const capitalizedName = formatNamaKapital(student?.nama);
         return `
-          <tr style="height: 22px;">
-            <td>${idx + 1}</td>
+          <tr style="height: 28px;">
+            <td>${student ? idx + 1 : ''}</td>
             <td style="text-align: center;">${capitalizedName || ''}</td>
             <td>${student?.kelas ? formatKelasAngka(student.kelas) : ''}</td>
             <td>${sigCols[0]}</td>
@@ -806,20 +834,20 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
           const status = getStudentAttendanceStatus(student, 1);
           if (status.isPresent) {
             const sigUrl = status.customSig || getStudentSignatureDataUrl(student.nama, 1);
-            ttdHtml = `<img src="${sigUrl}" height="16" style="max-height: 16px; object-contain: contain;" />`;
+            ttdHtml = `<img src="${sigUrl}" height="22" style="max-height: 22px; object-contain: contain;" />`;
           } else {
             ttdHtml = status.label || '';
           }
         }
         return `
-          <tr style="height: 18px;">
-            <td style="text-align: center; font-size: 8.5pt;">${idx + 1}</td>
-            <td style="text-align: center; font-size: 8.5pt;">${formatNamaKapital(student?.nama) || ''}</td>
+          <tr style="height: 24px;">
+            <td style="text-align: center; font-size: 8.5pt;">${student ? idx + 1 : ''}</td>
+            <td style="text-align: center; font-size: 8.5pt;">${student ? (formatNamaKapital(student.nama) || '') : ''}</td>
             <td style="text-align: center; font-size: 8.5pt;">${ttdHtml}</td>
           </tr>
         `;
       }).join('') + `
-        <tr style="height: 18px; font-weight: bold;">
+        <tr style="height: 20px; font-weight: bold;">
           <td style="text-align: center; font-size: 8.5pt;">NO</td>
           <td style="text-align: center; font-size: 8.5pt;">NAMA</td>
           <td style="text-align: center; font-size: 8.5pt;">TTD</td>
@@ -832,15 +860,15 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
           const status = getStudentAttendanceStatus(student, 1);
           if (status.isPresent) {
             const sigUrl = status.customSig || getStudentSignatureDataUrl(student.nama, 1);
-            ttdHtml = `<img src="${sigUrl}" height="16" style="max-height: 16px; object-contain: contain;" />`;
+            ttdHtml = `<img src="${sigUrl}" height="22" style="max-height: 22px; object-contain: contain;" />`;
           } else {
             ttdHtml = status.label || '';
           }
         }
         return `
-          <tr style="height: 18px;">
-            <td style="text-align: center; font-size: 8.5pt;">${idx + 31}</td>
-            <td style="text-align: center; font-size: 8.5pt;">${formatNamaKapital(student?.nama) || ''}</td>
+          <tr style="height: 24px;">
+            <td style="text-align: center; font-size: 8.5pt;">${student ? idx + 31 : ''}</td>
+            <td style="text-align: center; font-size: 8.5pt;">${student ? (formatNamaKapital(student.nama) || '') : ''}</td>
             <td style="text-align: center; font-size: 8.5pt;">${ttdHtml}</td>
           </tr>
         `;
@@ -1194,47 +1222,91 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
           </div>
         </div>
 
-        {/* Orientasi Cetak & Urutan Anggota Bar */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100">
+        {/* Orientasi Cetak, Filter Kehadiran, & Urutan Anggota Bar */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-slate-100">
           {/* Opsi Orientasi Cetak (Portrait / Landscape) */}
           <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
                   <FileText className="w-3.5 h-3.5 text-blue-600" />
-                  Orientasi Cetak Laporan PDF:
+                  Orientasi Cetak PDF:
                 </label>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
-                  {orientasiKertas === 'landscape' ? 'Mendatar (Landscape)' : 'Tegak (Portrait)'}
+                  {orientasiKertas === 'landscape' ? 'Landscape' : 'Portrait'}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setOrientasiKertas('portrait')}
-                  className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
                     orientasiKertas === 'portrait'
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
                   }`}
                 >
-                  <span>📄 Portrait (Tegak A4)</span>
+                  <span>📄 Portrait (Tegak)</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setOrientasiKertas('landscape')}
-                  className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
                     orientasiKertas === 'landscape'
                       ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-300'
                       : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
                   }`}
                 >
-                  <span>📑 Landscape (Mendatar A4)</span>
+                  <span>📑 Landscape</span>
                 </button>
               </div>
             </div>
-            <p className="text-[10.5px] text-slate-500 mt-2">
-              ✨ <strong className="text-slate-700">Rekomendasi Landscape:</strong> Bidang halaman melebar (297 mm), membuat tanda tangan pelatih utama & asisten pelatih lebih rapi berdampingan dan tidak berdesakan.
+            <p className="text-[10px] text-slate-500 mt-2">
+              ✨ <strong className="text-slate-700">Rekomendasi Landscape:</strong> Bidang melebar membuat ttd pelatih & asisten berdampingan rapi.
+            </p>
+          </div>
+
+          {/* Opsi Filter Kehadiran Anggota (Hanya Hadir vs Semua) */}
+          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  Filter Kehadiran di Laporan:
+                </label>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  {totalHadirInSchoolMonth} Hadir ({totalRegisteredInSchool} Total)
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFilterHanyaHadir(true)}
+                  className={`py-2 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
+                    filterHanyaHadir
+                      ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-300'
+                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                  }`}
+                  title="Hanya masukkan anggota yang tercatat hadir (scan QR / absensi) pada bulan ini"
+                >
+                  <span>✓ Hanya Yang Hadir</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterHanyaHadir(false)}
+                  className={`py-2 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
+                    !filterHanyaHadir
+                      ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-300'
+                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                  }`}
+                  title="Tampilkan semua anggota yang terdaftar di sekolah ini"
+                >
+                  <span>👥 Tampilkan Semua</span>
+                </button>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-500 mt-2">
+              📌 <strong className="text-slate-700">Sesuai Peraturan:</strong> Anggota yang tidak hadir di bulan {filterBulan} tidak dimasukkan ke dalam tabel laporan.
             </p>
           </div>
 
@@ -1244,26 +1316,26 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
               <div className="flex items-center justify-between mb-2">
                 <label className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
                   <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-                  Urutkan Anggota dalam Laporan:
+                  Urutkan Anggota di Laporan:
                 </label>
                 <span className="text-[10px] font-semibold text-slate-500">
-                  Total {schoolAnggota.length} Siswa
+                  {schoolAnggota.length} Siswa di Berkas
                 </span>
               </div>
               <select
                 value={sortAnggotaBy}
                 onChange={(e) => setSortAnggotaBy(e.target.value as any)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 cursor-pointer"
               >
                 <option value="nama_asc">🔤 Nama Anggota (A - Z)</option>
                 <option value="nama_desc">🔤 Nama Anggota (Z - A)</option>
-                <option value="kelas_asc">🔢 Kelas (7-1, 7-2, 8-1... Terkecil)</option>
-                <option value="kelas_desc">🔢 Kelas (9-3, 9-2, 8-1... Terbesar)</option>
-                <option value="divisi">🎺 Divisi Musik (Brass, Percussion, CG...)</option>
+                <option value="kelas_asc">🔢 Kelas (7-1, 7-2... Terkecil)</option>
+                <option value="kelas_desc">🔢 Kelas (9-3, 9-2... Terbesar)</option>
+                <option value="divisi">🎺 Divisi Musik (Brass, Perc...)</option>
               </select>
             </div>
-            <p className="text-[10.5px] text-slate-500 mt-2">
-              📋 Urutan ini diterapkan otomatis pada tabel presensi halaman PDF, berkas Word, Excel, dan ekspor JPG/PNG.
+            <p className="text-[10px] text-slate-500 mt-2">
+              📋 Diterapkan pada PDF, Word, Excel, dan ekspor gambar.
             </p>
           </div>
         </div>
@@ -1406,7 +1478,23 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
 
       {/* PDF Document Live Preview Canvas Container */}
       <div className="overflow-x-auto p-2 sm:p-4 bg-slate-200/80 rounded-2xl border border-slate-300 flex flex-col items-center gap-6">
-        <div id="printable-pdf-area" ref={pdfContainerRef} className="space-y-8 w-full max-w-[210mm]">
+        {filterHanyaHadir && totalHadirInSchoolMonth === 0 && (
+          <div className="w-full max-w-3xl bg-amber-50 border border-amber-300 rounded-2xl p-4 text-center text-amber-900 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="text-left text-xs">
+              <span className="font-bold block text-sm">ℹ️ Belum Ada Anggota Tercatat HADIR di Bulan {filterBulan}</span>
+              <span className="text-amber-800">Sesuai peraturan, hanya anggota yang hadir yang dimasukkan ke berkas laporan. Anda dapat melakukan scan presensi QR atau klik tombol untuk melihat seluruh anggota terdaftar.</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFilterHanyaHadir(false)}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shrink-0 transition cursor-pointer"
+            >
+              Tampilkan Semua Anggota ({totalRegisteredInSchool})
+            </button>
+          </div>
+        )}
+
+        <div id="printable-pdf-area" ref={pdfContainerRef} className={`space-y-8 w-full ${orientasiKertas === 'landscape' ? 'max-w-[297mm]' : 'max-w-[210mm]'}`}>
 
           {/* =========================================================================
               TEMPLATE 1: SMP NEGERI 2 CIGOMBONG KABUPATEN BOGOR
@@ -1582,10 +1670,10 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                           {page.members.map((student, idx) => {
                             const no = page.startNo + idx;
                             return (
-                              <tr key={idx} className="h-5 border-b border-black">
-                                <td className="border border-black p-0.5 font-bold align-middle">{no}</td>
+                              <tr key={idx} className="h-7 border-b border-black">
+                                <td className="border border-black p-0.5 font-bold align-middle">{student ? no : ''}</td>
                                 <td className="border border-black p-0.5 text-center align-middle font-medium truncate max-w-[170px]">
-                                  {formatNamaKapital(student?.nama) || ''}
+                                  {student ? (formatNamaKapital(student.nama) || '') : ''}
                                 </td>
                                 <td className="border border-black p-0.5 align-middle">{student?.kelas ? formatKelasAngka(student.kelas) : ''}</td>
 
@@ -1593,14 +1681,14 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                                 {[1, 2, 3, 4, 5].map((col) => {
                                   const status = student ? getStudentAttendanceStatus(student, col) : null;
                                   return (
-                                    <td key={col} className="border border-black p-0.5 align-middle">
+                                    <td key={col} className="border border-black px-0.5 py-0 align-middle h-7">
                                       {status?.isPresent && student ? (
                                         <StudentWetSignature
                                           studentName={formatNamaKapital(student.nama)}
                                           columnIndex={col}
                                           customSignatureUrl={status.customSig || student.signatureUrl}
-                                          height="13px"
-                                          maxWidth="32px"
+                                          height="24px"
+                                          maxWidth="100%"
                                         />
                                       ) : (
                                         <span className="font-bold text-black text-[9px]">{status?.label || ''}</span>
@@ -1874,19 +1962,19 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                                   const meetingCol = (meeting.index !== undefined ? meeting.index : mIdx) + 1;
                                   const status = student ? getStudentAttendanceStatus(student, meetingCol) : null;
                                   return (
-                                    <tr key={idx} className="h-4 border-b border-black">
-                                      <td className="border border-black p-0.5 font-normal align-middle text-[8.5px]">{no}</td>
+                                    <tr key={idx} className="h-6 border-b border-black">
+                                      <td className="border border-black p-0.5 font-normal align-middle text-[8.5px]">{student ? no : ''}</td>
                                       <td className="border border-black p-0.5 text-center align-middle truncate max-w-[130px] font-normal text-[8.5px]">
-                                        {formatNamaKapital(student?.nama) || ''}
+                                        {student ? (formatNamaKapital(student.nama) || '') : ''}
                                       </td>
-                                      <td className="border border-black p-0.5 align-middle">
+                                      <td className="border border-black px-0.5 py-0 align-middle h-6">
                                         {status?.isPresent && student ? (
                                           <StudentWetSignature
                                             studentName={formatNamaKapital(student.nama)}
                                             columnIndex={meetingCol}
                                             customSignatureUrl={status.customSig || student.signatureUrl}
-                                            height="13px"
-                                            maxWidth="36px"
+                                            height="22px"
+                                            maxWidth="100%"
                                           />
                                         ) : (
                                           <span className="font-normal text-[8.5px]">{status?.label || ''}</span>
@@ -1914,19 +2002,19 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                                   const meetingCol = (meeting.index !== undefined ? meeting.index : mIdx) + 1;
                                   const status = student ? getStudentAttendanceStatus(student, meetingCol) : null;
                                   return (
-                                    <tr key={idx} className="h-4 border-b border-black">
-                                      <td className="border border-black p-0.5 w-8 font-normal align-middle text-[8.5px]">{no}</td>
+                                    <tr key={idx} className="h-6 border-b border-black">
+                                      <td className="border border-black p-0.5 w-8 font-normal align-middle text-[8.5px]">{student ? no : ''}</td>
                                       <td className="border border-black p-0.5 text-center align-middle truncate max-w-[130px] font-normal text-[8.5px]">
-                                        {formatNamaKapital(student?.nama) || ''}
+                                        {student ? (formatNamaKapital(student.nama) || '') : ''}
                                       </td>
-                                      <td className="border border-black p-0.5 w-16 align-middle">
+                                      <td className="border border-black px-0.5 py-0 w-16 align-middle h-6">
                                         {status?.isPresent && student ? (
                                           <StudentWetSignature
                                             studentName={formatNamaKapital(student.nama)}
                                             columnIndex={meetingCol}
                                             customSignatureUrl={status.customSig || student.signatureUrl}
-                                            height="13px"
-                                            maxWidth="36px"
+                                            height="22px"
+                                            maxWidth="100%"
                                           />
                                         ) : (
                                           <span className="font-normal text-[8.5px]">{status?.label || ''}</span>
@@ -2313,10 +2401,10 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                           {page.members.map((student, idx) => {
                             const no = page.startNo + idx;
                             return (
-                              <tr key={idx} className="h-6 border-b border-black">
-                                <td className="border border-black p-0.5 font-bold align-middle">{no}</td>
+                              <tr key={idx} className="h-7 border-b border-black">
+                                <td className="border border-black p-0.5 font-bold align-middle">{student ? no : ''}</td>
                                 <td className="border border-black p-0.5 text-center align-middle font-medium truncate max-w-[140px]">
-                                  {formatNamaKapital(student?.nama) || ''}
+                                  {student ? (formatNamaKapital(student.nama) || '') : ''}
                                 </td>
                                 <td className="border border-black p-0.5 align-middle">{student?.kelas ? formatKelasAngka(student.kelas) : ''}</td>
                                 <td className="border border-black p-0.5 text-left align-middle truncate max-w-[100px]">
@@ -2325,14 +2413,14 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                                 {[1, 2, 3, 4, 5].map((col) => {
                                   const status = student ? getStudentAttendanceStatus(student, col) : null;
                                   return (
-                                    <td key={col} className="border border-black p-0.5 align-middle bg-slate-50/20">
+                                    <td key={col} className="border border-black px-0.5 py-0 align-middle h-7 bg-slate-50/20">
                                       {status?.isPresent && student ? (
                                         <StudentWetSignature
                                           studentName={formatNamaKapital(student.nama)}
                                           columnIndex={col}
                                           customSignatureUrl={status.customSig || student.signatureUrl}
-                                          height="13px"
-                                          maxWidth="32px"
+                                          height="24px"
+                                          maxWidth="100%"
                                         />
                                       ) : (
                                         <span className="font-bold text-slate-700 text-[9px]">{status?.label || ''}</span>

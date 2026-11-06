@@ -853,7 +853,7 @@ export const AsistenPelatihDashboard: React.FC<AsistenPelatihDashboardProps> = (
                             <img
                               src={row.parafAsistenUrl}
                               alt="Paraf"
-                              className="h-8 max-w-[80px] object-contain mx-auto"
+                              className="h-10 max-w-[95px] object-contain mx-auto"
                             />
                           ) : (
                             <span className="text-[10px] text-slate-400 italic">V</span>
