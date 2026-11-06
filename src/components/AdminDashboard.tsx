@@ -9,6 +9,8 @@ import { PenilaianAnggota } from './PenilaianAnggota';
 import { SekolahManager } from './SekolahManager';
 import { RekapPdf } from './RekapPdf';
 import { AuditPresensi } from './AuditPresensi';
+import { formatNamaKapital } from '../utils/nameFormatter';
+import { BULAN_OPTIONS, getCurrentMonthName } from '../utils/dateUtils';
 import { 
   Shield, 
   UserPlus, 
@@ -42,7 +44,13 @@ import {
   CheckCircle,
   ClipboardList,
   AlertTriangle,
-  TrendingDown
+  TrendingDown,
+  RotateCcw,
+  CheckSquare,
+  Square,
+  PlusCircle,
+  X,
+  Save
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -93,16 +101,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [filterAbsenStatus, setFilterAbsenStatus] = useState<string>('all');
   const [searchAnggotaText, setSearchAnggotaText] = useState<string>('');
 
+  // Attendance Management States (Edit, Delete, Reset, Manual Add, Bulk Selection)
+  const [selectedAbsenIds, setSelectedAbsenIds] = useState<string[]>([]);
+  const [editingAbsenEntry, setEditingAbsenEntry] = useState<AbsenSiswaEntry | null>(null);
+  const [isEditAbsenModalOpen, setIsEditAbsenModalOpen] = useState<boolean>(false);
+  const [isResetAbsenModalOpen, setIsResetAbsenModalOpen] = useState<boolean>(false);
+  const [isAddAbsenModalOpen, setIsAddAbsenModalOpen] = useState<boolean>(false);
+  const [resetScope, setResetScope] = useState<'filtered' | 'all'>('filtered');
+  const [resetConfirmText, setResetConfirmText] = useState<string>('');
+
+  // Form states for Editing Absen
+  const [editStatus, setEditStatus] = useState<'Hadir' | 'Sakit' | 'Izin' | 'Alfa'>('Hadir');
+  const [editTanggal, setEditTanggal] = useState<string>('');
+  const [editBulan, setEditBulan] = useState<string>('');
+  const [editKolomIndex, setEditKolomIndex] = useState<number>(1);
+
+  // Form states for Adding Absen Manual
+  const [addSekolahId, setAddSekolahId] = useState<string>('');
+  const [addAnggotaId, setAddAnggotaId] = useState<string>('');
+  const [addBulan, setAddBulan] = useState<string>(getCurrentMonthName());
+  const [addKolomIndex, setAddKolomIndex] = useState<number>(1);
+  const [addTanggal, setAddTanggal] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [addStatus, setAddStatus] = useState<'Hadir' | 'Sakit' | 'Izin' | 'Alfa'>('Hadir');
+
   // Assistant Recap Filter States
   const [filterAsistenId, setFilterAsistenId] = useState<string>('all');
   const [filterAsistenSekolah, setFilterAsistenSekolah] = useState<string>('all');
   const [filterAsistenBulan, setFilterAsistenBulan] = useState<string>('all');
   const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
 
-  const bulanList = [
-    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-  ];
+  const bulanList = BULAN_OPTIONS;
 
   const pelatihUsers = usersList.filter(u => u.role === 'pelatih');
   const asistenUsers = usersList.filter(u => u.role === 'asisten_pelatih');
@@ -256,6 +284,153 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       console.error('Export failed:', err);
       alert('Terjadi kesalahan saat mengekspor Excel.');
     }
+  };
+
+  // --- Attendance (Absen Siswa) Management Handlers ---
+
+  const handleOpenEditAbsen = (entry: AbsenSiswaEntry) => {
+    setEditingAbsenEntry(entry);
+    setEditStatus(entry.status);
+    setEditTanggal(entry.tanggal || new Date().toISOString().split('T')[0]);
+    setEditBulan(entry.bulan || getCurrentMonthName());
+    setEditKolomIndex(entry.kolomIndex || 1);
+    setIsEditAbsenModalOpen(true);
+  };
+
+  const handleSaveEditedAbsen = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAbsenEntry) return;
+
+    const updatedEntry: AbsenSiswaEntry = {
+      ...editingAbsenEntry,
+      status: editStatus,
+      tanggal: editTanggal,
+      bulan: editBulan,
+      kolomIndex: Number(editKolomIndex)
+    };
+
+    StorageService.saveAbsenSiswa(updatedEntry);
+    setIsEditAbsenModalOpen(false);
+    setEditingAbsenEntry(null);
+    onDataChanged();
+  };
+
+  const handleDeleteSingleAbsen = (entry: AbsenSiswaEntry) => {
+    const student = anggotaList.find(a => a.id === entry.anggotaId);
+    const studentName = student?.nama ? formatNamaKapital(student.nama) : 'Anggota';
+    if (window.confirm(`Apakah Anda yakin ingin menghapus data presensi:\n\nNama: ${studentName}\nBulan: ${entry.bulan} (Minggu ke-${entry.kolomIndex})\nStatus: ${entry.status}\n\nData yang dihapus tidak dapat dipulihkan.`)) {
+      StorageService.deleteAbsenSiswa(entry.id);
+      setSelectedAbsenIds(prev => prev.filter(id => id !== entry.id));
+      onDataChanged();
+    }
+  };
+
+  const handleDeleteMultipleAbsen = () => {
+    if (selectedAbsenIds.length === 0) return;
+    if (window.confirm(`Apakah Anda yakin ingin menghapus ${selectedAbsenIds.length} data presensi yang telah dicentang?\n\nTindakan ini permanen dan tidak dapat dibatalkan.`)) {
+      StorageService.deleteMultipleAbsenSiswa(selectedAbsenIds);
+      setSelectedAbsenIds([]);
+      onDataChanged();
+    }
+  };
+
+  const handleBatchChangeStatus = (newStatus: 'Hadir' | 'Sakit' | 'Izin' | 'Alfa') => {
+    if (selectedAbsenIds.length === 0) return;
+    if (window.confirm(`Ubah status ${selectedAbsenIds.length} data presensi yang dipilih menjadi "${newStatus}"?`)) {
+      selectedAbsenIds.forEach(id => {
+        const item = absenSiswaList.find(a => a.id === id);
+        if (item) {
+          StorageService.saveAbsenSiswa({ ...item, status: newStatus });
+        }
+      });
+      setSelectedAbsenIds([]);
+      onDataChanged();
+    }
+  };
+
+  const handleToggleSelectAll = () => {
+    if (filteredAbsenSiswa.length === 0) return;
+    if (selectedAbsenIds.length === filteredAbsenSiswa.length) {
+      setSelectedAbsenIds([]);
+    } else {
+      setSelectedAbsenIds(filteredAbsenSiswa.map(item => item.id));
+    }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedAbsenIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleOpenResetModal = () => {
+    setResetScope('filtered');
+    setResetConfirmText('');
+    setIsResetAbsenModalOpen(true);
+  };
+
+  const handleExecuteReset = () => {
+    if (resetScope === 'all') {
+      if (resetConfirmText.trim().toUpperCase() !== 'RESET') {
+        alert('Ketik kata "RESET" dengan huruf kapital untuk mengonfirmasi penghapusan seluruh data presensi!');
+        return;
+      }
+      StorageService.resetAbsenSiswa();
+    } else {
+      StorageService.resetAbsenSiswa({
+        sekolahId: filterAbsenSekolah,
+        bulan: filterAbsenBulan,
+        tahunAjaran: activeTahunAjaran
+      });
+    }
+
+    setSelectedAbsenIds([]);
+    setIsResetAbsenModalOpen(false);
+    onDataChanged();
+    alert('Data presensi berhasil direset!');
+  };
+
+  const handleOpenAddAbsenModal = () => {
+    const defaultSch = filterAbsenSekolah !== 'all' ? filterAbsenSekolah : (sekolahList[0]?.id || '');
+    setAddSekolahId(defaultSch);
+    const schoolMembers = anggotaList.filter(a => a.sekolahId === defaultSch);
+    setAddAnggotaId(schoolMembers[0]?.id || '');
+    setAddBulan(filterAbsenBulan !== 'all' ? filterAbsenBulan : getCurrentMonthName());
+    setAddKolomIndex(1);
+    setAddTanggal(new Date().toISOString().split('T')[0]);
+    setAddStatus('Hadir');
+    setIsAddAbsenModalOpen(true);
+  };
+
+  const handleAddSekolahChange = (schId: string) => {
+    setAddSekolahId(schId);
+    const schoolMembers = anggotaList.filter(a => a.sekolahId === schId);
+    setAddAnggotaId(schoolMembers[0]?.id || '');
+  };
+
+  const handleSaveNewAbsen = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addAnggotaId || !addSekolahId) {
+      alert('Pilih sekolah dan anggota terlebih dahulu!');
+      return;
+    }
+
+    const member = anggotaList.find(a => a.id === addAnggotaId);
+    const newEntry: AbsenSiswaEntry = {
+      id: `abs-${addAnggotaId}-${addBulan}-${addKolomIndex}-${Date.now()}`,
+      sekolahId: addSekolahId,
+      anggotaId: addAnggotaId,
+      bulan: addBulan,
+      tahunAjaran: activeTahunAjaran,
+      kolomIndex: Number(addKolomIndex),
+      tanggal: addTanggal,
+      status: addStatus,
+      signatureUrl: member?.signatureUrl
+    };
+
+    StorageService.saveAbsenSiswa(newEntry);
+    setIsAddAbsenModalOpen(false);
+    onDataChanged();
   };
 
   return (
@@ -728,14 +903,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               {absensiSubTab === 'siswa' && (
-                <button
-                  onClick={handleExportAllAttendanceExcel}
-                  className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer"
-                  title="Unduh seluruh rekaman presensi ke format Excel (.xlsx)"
-                >
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-100" />
-                  <span>Unduh Rekap Presensi (.xlsx)</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={handleOpenAddAbsenModal}
+                    className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer"
+                    title="Catat kehadiran anggota baru secara manual"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    <span>Catat Presensi</span>
+                  </button>
+
+                  <button
+                    onClick={handleOpenResetModal}
+                    className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer"
+                    title="Menu reset atau kosongkan data presensi kehadiran"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Reset Absensi</span>
+                  </button>
+
+                  <button
+                    onClick={handleExportAllAttendanceExcel}
+                    className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer"
+                    title="Unduh seluruh rekaman presensi ke format Excel (.xlsx)"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-100" />
+                    <span>Unduh Excel</span>
+                  </button>
+                </div>
               )}
             </div>
 
@@ -805,71 +1000,177 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             {/* Sub-view 1: Student Attendance Table */}
             {absensiSubTab === 'siswa' && (
-              <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
-                {filteredAbsenSiswa.length === 0 ? (
-                  <div className="p-8 text-center text-slate-500 bg-white">
-                    <Users className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                    <p className="text-xs font-bold text-slate-700">Tidak ada data presensi anggota yang sesuai filter.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto max-h-[550px]">
-                    <table className="w-full text-left text-xs bg-white">
-                      <thead className="bg-slate-100 text-slate-700 font-extrabold uppercase text-[10px] tracking-wider sticky top-0 border-b border-slate-200">
-                        <tr>
-                          <th className="p-3 text-center w-12">No</th>
-                          <th className="p-3 text-center">Nama Anggota</th>
-                          <th className="p-3">Sekolah</th>
-                          <th className="p-3 text-center">Kelas</th>
-                          <th className="p-3">Divisi</th>
-                          <th className="p-3 text-center">Bulan & Sesi</th>
-                          <th className="p-3 text-center">Tanggal</th>
-                          <th className="p-3 text-center">Status</th>
-                          <th className="p-3 text-center">Tanda Tangan</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200">
-                        {filteredAbsenSiswa.map((entry, idx) => {
-                          const student = anggotaList.find(a => a.id === entry.anggotaId);
-                          const school = sekolahList.find(s => s.id === entry.sekolahId);
-                          return (
-                            <tr key={entry.id} className="hover:bg-slate-50/80 transition">
-                              <td className="p-3 text-center font-medium text-slate-500">{idx + 1}</td>
-                              <td className="p-3 font-bold text-slate-900 text-center">{student?.nama || 'Anggota Dihapus'}</td>
-                              <td className="p-3 font-medium text-slate-700 truncate max-w-[200px]">{school?.namaSekolah || '-'}</td>
-                              <td className="p-3 text-center text-slate-600 font-semibold">{student?.kelas || '-'}</td>
-                              <td className="p-3 text-slate-700">{student?.divisiNama || '-'}</td>
-                              <td className="p-3 text-center">
-                                <span className="font-semibold text-slate-800">{entry.bulan}</span>
-                                <span className="text-[10px] text-slate-500 block">Minggu {entry.kolomIndex}</span>
-                              </td>
-                              <td className="p-3 text-center font-mono text-[11px] text-slate-600">{entry.tanggal}</td>
-                              <td className="p-3 text-center">
-                                <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black ${
-                                  entry.status === 'Hadir' 
-                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
-                                    : entry.status === 'Izin'
-                                    ? 'bg-blue-100 text-blue-800 border border-blue-300'
-                                    : entry.status === 'Sakit'
-                                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                                    : 'bg-rose-100 text-rose-800 border border-rose-300'
-                                }`}>
-                                  {entry.status}
-                                </span>
-                              </td>
-                              <td className="p-3 text-center">
-                                {entry.signatureUrl ? (
-                                  <img src={entry.signatureUrl} alt="TTD" className="h-6 max-w-[60px] object-contain mx-auto" />
-                                ) : (
-                                  <span className="text-[10px] text-slate-400 italic">Otomatis</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+              <div className="space-y-3">
+                {/* Bulk Selection Action Bar */}
+                {selectedAbsenIds.length > 0 && (
+                  <div className="bg-amber-400 text-slate-950 p-3 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-md animate-fade-in border border-amber-500">
+                    <div className="flex items-center gap-2">
+                      <CheckSquare className="w-5 h-5 font-black text-slate-950" />
+                      <span className="font-extrabold text-xs">
+                        {selectedAbsenIds.length} Data Presensi Dipilih
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] font-bold text-slate-900">Ubah Status Massal:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleBatchChangeStatus('Hadir')}
+                        className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow-xs"
+                      >
+                        Hadir
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleBatchChangeStatus('Izin')}
+                        className="px-2.5 py-1 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow-xs"
+                      >
+                        Izin
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleBatchChangeStatus('Sakit')}
+                        className="px-2.5 py-1 bg-amber-700 hover:bg-amber-800 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow-xs"
+                      >
+                        Sakit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleBatchChangeStatus('Alfa')}
+                        className="px-2.5 py-1 bg-rose-700 hover:bg-rose-800 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow-xs"
+                      >
+                        Alfa
+                      </button>
+
+                      <div className="h-4 w-px bg-slate-950/20 mx-1" />
+
+                      <button
+                        type="button"
+                        onClick={handleDeleteMultipleAbsen}
+                        className="flex items-center gap-1 px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-extrabold transition cursor-pointer shadow-xs"
+                        title="Hapus semua presensi terpilih"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Hapus Terpilih ({selectedAbsenIds.length})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedAbsenIds([])}
+                        className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                    </div>
                   </div>
                 )}
+
+                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+                  {filteredAbsenSiswa.length === 0 ? (
+                    <div className="p-8 text-center text-slate-500 bg-white">
+                      <Users className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                      <p className="text-xs font-bold text-slate-700">Tidak ada data presensi anggota yang sesuai filter.</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Gunakan tombol "+ Catat Presensi" di atas untuk menambahkan catatan kehadiran baru.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto max-h-[550px]">
+                      <table className="w-full text-left text-xs bg-white">
+                        <thead className="bg-slate-100 text-slate-700 font-extrabold uppercase text-[10px] tracking-wider sticky top-0 border-b border-slate-200">
+                          <tr>
+                            <th className="p-3 text-center w-10">
+                              <input
+                                type="checkbox"
+                                checked={filteredAbsenSiswa.length > 0 && selectedAbsenIds.length === filteredAbsenSiswa.length}
+                                onChange={handleToggleSelectAll}
+                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                title="Pilih semua yang tampil"
+                              />
+                            </th>
+                            <th className="p-3 text-center w-12">No</th>
+                            <th className="p-3 text-center">Nama Anggota</th>
+                            <th className="p-3">Sekolah</th>
+                            <th className="p-3 text-center">Kelas</th>
+                            <th className="p-3">Divisi</th>
+                            <th className="p-3 text-center">Bulan & Sesi</th>
+                            <th className="p-3 text-center">Tanggal</th>
+                            <th className="p-3 text-center">Status</th>
+                            <th className="p-3 text-center">Tanda Tangan</th>
+                            <th className="p-3 text-center w-24">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {filteredAbsenSiswa.map((entry, idx) => {
+                            const student = anggotaList.find(a => a.id === entry.anggotaId);
+                            const school = sekolahList.find(s => s.id === entry.sekolahId);
+                            const isSelected = selectedAbsenIds.includes(entry.id);
+                            return (
+                              <tr key={entry.id} className={`hover:bg-slate-50/80 transition ${isSelected ? 'bg-amber-50/40' : ''}`}>
+                                <td className="p-3 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => handleToggleSelect(entry.id)}
+                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                  />
+                                </td>
+                                <td className="p-3 text-center font-medium text-slate-500">{idx + 1}</td>
+                                <td className="p-3 font-bold text-slate-900 text-center">{student?.nama ? formatNamaKapital(student.nama) : 'Anggota Dihapus'}</td>
+                                <td className="p-3 font-medium text-slate-700 truncate max-w-[200px]">{school?.namaSekolah || '-'}</td>
+                                <td className="p-3 text-center text-slate-600 font-semibold">{student?.kelas || '-'}</td>
+                                <td className="p-3 text-slate-700">{student?.divisiNama || '-'}</td>
+                                <td className="p-3 text-center">
+                                  <span className="font-semibold text-slate-800">{entry.bulan}</span>
+                                  <span className="text-[10px] text-slate-500 block">Minggu {entry.kolomIndex}</span>
+                                </td>
+                                <td className="p-3 text-center font-mono text-[11px] text-slate-600">{entry.tanggal}</td>
+                                <td className="p-3 text-center">
+                                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+                                    entry.status === 'Hadir' 
+                                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                                      : entry.status === 'Izin'
+                                      ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                                      : entry.status === 'Sakit'
+                                      ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                      : 'bg-rose-100 text-rose-800 border border-rose-300'
+                                  }`}>
+                                    {entry.status}
+                                  </span>
+                                </td>
+                                <td className="p-3 text-center">
+                                  {entry.signatureUrl ? (
+                                    <img src={entry.signatureUrl} alt="TTD" className="h-6 max-w-[60px] object-contain mx-auto" />
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400 italic">Otomatis</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-center">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEditAbsen(entry)}
+                                      className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition cursor-pointer"
+                                      title="Edit presensi kehadiran anggota"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteSingleAbsen(entry)}
+                                      className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg transition cursor-pointer"
+                                      title="Hapus rekaman presensi ini"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -1229,6 +1530,397 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="p-2">
               <img src={previewPhotoUrl} alt="Bukti Foto" className="w-full max-h-[70vh] object-contain rounded-2xl" />
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Edit Presensi Anggota */}
+      {isEditAbsenModalOpen && editingAbsenEntry && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-200 animate-scale-up">
+            <div className="bg-gradient-to-r from-blue-700 to-indigo-800 text-white p-4 sm:p-5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/20 rounded-xl">
+                  <Edit2 className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base">Edit Presensi Anggota</h3>
+                  <p className="text-xs text-blue-100">Koreksi status dan rincian kehadiran</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setIsEditAbsenModalOpen(false); setEditingAbsenEntry(null); }}
+                className="text-white/80 hover:text-white p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditedAbsen} className="p-5 space-y-4">
+              {/* Info Anggota */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Identitas Anggota</span>
+                <p className="text-sm font-extrabold text-slate-900">
+                  {formatNamaKapital(anggotaList.find(a => a.id === editingAbsenEntry.anggotaId)?.nama || 'Anggota')}
+                </p>
+                <p className="text-xs text-slate-600 font-medium">
+                  {sekolahList.find(s => s.id === editingAbsenEntry.sekolahId)?.namaSekolah || '-'} • Divisi {anggotaList.find(a => a.id === editingAbsenEntry.anggotaId)?.divisiNama || 'Umum'}
+                </p>
+              </div>
+
+              {/* Status Kehadiran Selector */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Status Kehadiran:</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {(['Hadir', 'Izin', 'Sakit', 'Alfa'] as const).map(status => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => setEditStatus(status)}
+                      className={`py-2 px-3 rounded-xl text-xs font-black transition cursor-pointer border ${
+                        editStatus === status
+                          ? status === 'Hadir'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                            : status === 'Izin'
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                            : status === 'Sakit'
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                            : 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {status}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bulan Laporan */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Bulan Presensi:</label>
+                <select
+                  value={editBulan}
+                  onChange={(e) => setEditBulan(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
+                >
+                  {BULAN_OPTIONS.map(m => (
+                    <option key={m} value={m}>{m} {m === getCurrentMonthName() ? '★ (Bulan Berjalan)' : ''}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Kolom / Sesi Pertemuan */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Pertemuan / Sesi:</label>
+                  <select
+                    value={editKolomIndex}
+                    onChange={(e) => setEditKolomIndex(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value={1}>Minggu 1 (Kolom 1)</option>
+                    <option value={2}>Minggu 2 (Kolom 2)</option>
+                    <option value={3}>Minggu 3 (Kolom 3)</option>
+                    <option value={4}>Minggu 4 (Kolom 4)</option>
+                    <option value={5}>Minggu 5 (Kolom 5)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Tanggal Kegiatan:</label>
+                  <input
+                    type="date"
+                    value={editTanggal}
+                    onChange={(e) => setEditTanggal(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => { setIsEditAbsenModalOpen(false); setEditingAbsenEntry(null); }}
+                  className="flex-1 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Simpan Perubahan</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Reset Absensi Anggota */}
+      {isResetAbsenModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-200 animate-scale-up">
+            <div className="bg-rose-700 text-white p-4 sm:p-5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/20 rounded-xl">
+                  <RotateCcw className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base">Reset Data Absensi</h3>
+                  <p className="text-xs text-rose-100">Hapus atau kosongkan rekaman kehadiran anggota</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsResetAbsenModalOpen(false)}
+                className="text-white/80 hover:text-white p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2.5">
+                <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <p className="text-xs text-rose-800 leading-relaxed font-medium">
+                  <b>Peringatan:</b> Tindakan reset ini akan menghapus data presensi secara permanen dari penyimpanan lokal dan sinkronisasi cloud.
+                </p>
+              </div>
+
+              {/* Radio Scope */}
+              <div className="space-y-2.5">
+                <label className="block text-xs font-bold text-slate-800">Pilih Cakupan Reset:</label>
+                
+                <label className={`block p-3 rounded-2xl border cursor-pointer transition ${
+                  resetScope === 'filtered' ? 'border-rose-500 bg-rose-50/50' : 'border-slate-200 bg-white hover:bg-slate-50'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="resetScope"
+                      checked={resetScope === 'filtered'}
+                      onChange={() => setResetScope('filtered')}
+                      className="text-rose-600 focus:ring-rose-500"
+                    />
+                    <span className="text-xs font-extrabold text-slate-900">Reset Sesuai Filter Saat Ini</span>
+                  </div>
+                  <div className="mt-1.5 ml-5 text-[11px] text-slate-600 space-y-0.5">
+                    <p>• Sekolah: <b>{filterAbsenSekolah === 'all' ? 'Semua Sekolah' : (sekolahList.find(s => s.id === filterAbsenSekolah)?.namaSekolah || '-')}</b></p>
+                    <p>• Bulan: <b>{filterAbsenBulan === 'all' ? 'Semua Bulan' : filterAbsenBulan}</b></p>
+                    <p className="text-rose-600 font-bold mt-1">
+                      Data yang akan dihapus: {filteredAbsenSiswa.length} presensi
+                    </p>
+                  </div>
+                </label>
+
+                <label className={`block p-3 rounded-2xl border cursor-pointer transition ${
+                  resetScope === 'all' ? 'border-rose-500 bg-rose-50/50' : 'border-slate-200 bg-white hover:bg-slate-50'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="resetScope"
+                      checked={resetScope === 'all'}
+                      onChange={() => setResetScope('all')}
+                      className="text-rose-600 focus:ring-rose-500"
+                    />
+                    <span className="text-xs font-extrabold text-slate-900">Reset Seluruh Presensi Anggota</span>
+                  </div>
+                  <p className="mt-1 ml-5 text-[11px] text-rose-600 font-bold">
+                    Akan menghapus seluruh {absenSiswaList.length} data presensi siswa di semua sekolah!
+                  </p>
+                </label>
+              </div>
+
+              {/* Confirmation text if all */}
+              {resetScope === 'all' && (
+                <div className="p-3 bg-slate-100 rounded-xl space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-700">
+                    Ketik kata <span className="text-rose-600 font-mono font-black">RESET</span> untuk konfirmasi:
+                  </label>
+                  <input
+                    type="text"
+                    value={resetConfirmText}
+                    onChange={(e) => setResetConfirmText(e.target.value)}
+                    placeholder="Ketik RESET disini..."
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900 focus:ring-2 focus:ring-rose-500"
+                  />
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setIsResetAbsenModalOpen(false)}
+                  className="flex-1 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteReset}
+                  disabled={resetScope === 'all' && resetConfirmText.trim().toUpperCase() !== 'RESET'}
+                  className="flex-1 py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 disabled:text-slate-500 rounded-xl shadow-md transition cursor-pointer"
+                >
+                  Konfirmasi Reset
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Catat Presensi Manual */}
+      {isAddAbsenModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-200 animate-scale-up">
+            <div className="bg-gradient-to-r from-blue-700 to-indigo-800 text-white p-4 sm:p-5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/20 rounded-xl">
+                  <PlusCircle className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base">Catat Presensi Anggota</h3>
+                  <p className="text-xs text-blue-100">Tambah kehadiran manual siswa</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddAbsenModalOpen(false)}
+                className="text-white/80 hover:text-white p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveNewAbsen} className="p-5 space-y-4">
+              {/* Pilih Sekolah */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Pilih Sekolah:</label>
+                <select
+                  value={addSekolahId}
+                  onChange={(e) => handleAddSekolahChange(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  {sekolahList.map(s => (
+                    <option key={s.id} value={s.id}>{s.namaSekolah}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Pilih Anggota */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Pilih Anggota Siswa:</label>
+                <select
+                  value={addAnggotaId}
+                  onChange={(e) => setAddAnggotaId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">-- Pilih Nama Siswa --</option>
+                  {anggotaList
+                    .filter(a => a.sekolahId === addSekolahId)
+                    .map(a => (
+                      <option key={a.id} value={a.id}>
+                        {formatNamaKapital(a.nama)} ({a.divisiNama || 'Umum'} - {a.kelas || '-'})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Status Kehadiran Selector */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Status Kehadiran:</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {(['Hadir', 'Izin', 'Sakit', 'Alfa'] as const).map(status => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => setAddStatus(status)}
+                      className={`py-2 px-3 rounded-xl text-xs font-black transition cursor-pointer border ${
+                        addStatus === status
+                          ? status === 'Hadir'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                            : status === 'Izin'
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                            : status === 'Sakit'
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                            : 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {status}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bulan Laporan */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Bulan Presensi:</label>
+                <select
+                  value={addBulan}
+                  onChange={(e) => setAddBulan(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
+                >
+                  {BULAN_OPTIONS.map(m => (
+                    <option key={m} value={m}>{m} {m === getCurrentMonthName() ? '★ (Bulan Berjalan)' : ''}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Kolom / Sesi Pertemuan */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Pertemuan / Sesi:</label>
+                  <select
+                    value={addKolomIndex}
+                    onChange={(e) => setAddKolomIndex(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value={1}>Minggu 1 (Kolom 1)</option>
+                    <option value={2}>Minggu 2 (Kolom 2)</option>
+                    <option value={3}>Minggu 3 (Kolom 3)</option>
+                    <option value={4}>Minggu 4 (Kolom 4)</option>
+                    <option value={5}>Minggu 5 (Kolom 5)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Tanggal Kegiatan:</label>
+                  <input
+                    type="date"
+                    value={addTanggal}
+                    onChange={(e) => setAddTanggal(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setIsAddAbsenModalOpen(false)}
+                  className="flex-1 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Simpan Presensi</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

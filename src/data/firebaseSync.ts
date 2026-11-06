@@ -348,6 +348,27 @@ export const FirebaseSync = {
     }
   },
 
+  deleteAbsenSiswa: async (id: string) => {
+    try {
+      await deleteDoc(doc(db, COLLECTIONS.ABSEN_SISWA, id));
+    } catch (e) {
+      console.warn('Failed to delete absenSiswa from Firebase:', e);
+    }
+  },
+
+  deleteMultipleAbsenSiswa: async (ids: string[]) => {
+    try {
+      if (ids.length === 0) return;
+      const batch = writeBatch(db);
+      ids.forEach(id => {
+        batch.delete(doc(db, COLLECTIONS.ABSEN_SISWA, id));
+      });
+      await batch.commit();
+    } catch (e) {
+      console.warn('Failed to delete multiple absenSiswa from Firebase:', e);
+    }
+  },
+
   saveSettings: async (settings: { activeTahunAjaran?: string; tahunAjaranList?: string[] }) => {
     try {
       await setDoc(doc(db, COLLECTIONS.SETTINGS, 'app_config'), settings, { merge: true });

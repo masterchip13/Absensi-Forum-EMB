@@ -334,6 +334,43 @@ export const StorageService = {
     setStoredItem(STORAGE_KEYS.ABSEN_SISWA, list);
     FirebaseSync.saveAbsenSiswa(entry);
   },
+  deleteAbsenSiswa: (id: string) => {
+    const list = StorageService.getAbsenSiswa().filter(a => a.id !== id);
+    setStoredItem(STORAGE_KEYS.ABSEN_SISWA, list);
+    FirebaseSync.deleteAbsenSiswa(id);
+  },
+  deleteMultipleAbsenSiswa: (ids: string[]) => {
+    const set = new Set(ids);
+    const list = StorageService.getAbsenSiswa().filter(a => !set.has(a.id));
+    setStoredItem(STORAGE_KEYS.ABSEN_SISWA, list);
+    FirebaseSync.deleteMultipleAbsenSiswa(ids);
+  },
+  resetAbsenSiswa: (filter?: { sekolahId?: string; bulan?: string; tahunAjaran?: string }) => {
+    let list = StorageService.getAbsenSiswa();
+    const toDeleteIds: string[] = [];
+
+    if (!filter || (filter.sekolahId === 'all' && filter.bulan === 'all')) {
+      // Reset all
+      toDeleteIds.push(...list.map(a => a.id));
+      list = [];
+    } else {
+      list = list.filter(item => {
+        const matchSekolah = !filter.sekolahId || filter.sekolahId === 'all' || item.sekolahId === filter.sekolahId;
+        const matchBulan = !filter.bulan || filter.bulan === 'all' || item.bulan === filter.bulan;
+        const matchTahun = !filter.tahunAjaran || item.tahunAjaran === filter.tahunAjaran;
+        if (matchSekolah && matchBulan && matchTahun) {
+          toDeleteIds.push(item.id);
+          return false;
+        }
+        return true;
+      });
+    }
+
+    setStoredItem(STORAGE_KEYS.ABSEN_SISWA, list);
+    if (toDeleteIds.length > 0) {
+      FirebaseSync.deleteMultipleAbsenSiswa(toDeleteIds);
+    }
+  },
 
   // Tahun Ajaran Management
   getTahunAjaranList: (): string[] => {
