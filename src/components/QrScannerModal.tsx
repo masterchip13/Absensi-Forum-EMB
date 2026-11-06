@@ -19,10 +19,7 @@ interface ScannedHistoryItem {
   month: string;
 }
 
-const BULAN_OPTIONS = [
-  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-];
+import { BULAN_OPTIONS, getCurrentMonthName } from '../utils/dateUtils';
 
 export const QrScannerModal: React.FC<QrScannerModalProps> = ({
   isOpen,
@@ -34,13 +31,21 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
   const [cameraFacingMode, setCameraFacingMode] = useState<'user' | 'environment'>('user');
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [selectedColumn, setSelectedColumn] = useState<number>(1);
-  const [selectedMonth, setSelectedMonth] = useState<string>('Agustus');
+  // User requirement: "untuk scan absensi, gunakan bulan yang sedang berjalan sekarang"
+  const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonthName());
   const [lastConfirmedStudent, setLastConfirmedStudent] = useState<Anggota | null>(null);
   const [duplicateWarningStudent, setDuplicateWarningStudent] = useState<Anggota | null>(null);
   const [scanStatus, setScanStatus] = useState<'idle' | 'success' | 'already_confirmed'>('idle');
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [scannedHistory, setScannedHistory] = useState<ScannedHistoryItem[]>([]);
   const [isScanningCamera, setIsScanningCamera] = useState(false);
+
+  // Automatically sync to current ongoing month whenever modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedMonth(getCurrentMonthName());
+    }
+  }, [isOpen]);
 
   const qrRegionId = 'qr-reader-element';
   const html5QrcodeRef = useRef<Html5Qrcode | null>(null);
@@ -314,10 +319,12 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="text-xs font-bold bg-white border border-slate-300 rounded-lg px-2 py-1 text-slate-800 focus:ring-2 focus:ring-blue-500"
+                className="text-xs font-bold bg-white border border-slate-300 rounded-lg px-2 py-1 text-slate-800 focus:ring-2 focus:ring-blue-500 cursor-pointer"
               >
                 {BULAN_OPTIONS.map((m) => (
-                  <option key={m} value={m}>{m}</option>
+                  <option key={m} value={m}>
+                    {m} {m === getCurrentMonthName() ? '★ (Bulan Berjalan)' : ''}
+                  </option>
                 ))}
               </select>
             </div>

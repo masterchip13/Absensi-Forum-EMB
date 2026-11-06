@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Sekolah, Anggota, AbsenSiswaEntry, User } from '../types';
 import { formatNamaKapital, formatKelasAngka } from '../utils/nameFormatter';
+import { BULAN_OPTIONS, getCurrentMonthName } from '../utils/dateUtils';
 import * as XLSX from 'xlsx';
 import {
   AlertTriangle,
@@ -40,10 +41,7 @@ export const AuditPresensi: React.FC<AuditPresensiProps> = ({
   const [sortOrder, setSortOrder] = useState<'lowest' | 'highest' | 'alfa' | 'nama'>('lowest');
   const [searchTerm, setSearchTerm] = useState<string>('');
 
-  const bulanOptions = [
-    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-  ];
+  const bulanOptions = BULAN_OPTIONS;
 
   // Map school ID to Pelatih info
   const schoolPelatihMap = useMemo(() => {
@@ -343,7 +341,9 @@ export const AuditPresensi: React.FC<AuditPresensiProps> = ({
             >
               <option value="all">📅 Semua Bulan (Akumulatif)</option>
               {bulanOptions.map(b => (
-                <option key={b} value={b}>{b}</option>
+                <option key={b} value={b}>
+                  {b} {b === getCurrentMonthName() ? '★ (Bulan Berjalan)' : ''}
+                </option>
               ))}
             </select>
           </div>

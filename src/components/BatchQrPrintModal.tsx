@@ -3,7 +3,13 @@ import QRCode from 'qrcode';
 import { Anggota, Sekolah } from '../types';
 import { MemberIdCard } from './MemberIdCard';
 import { formatCardMemberName } from '../utils/nameFormatter';
-import { renderMemberCardToCanvas, preloadImage, CARD_TEMPLATE_SRC } from '../utils/cardCanvasRenderer';
+import {
+  renderMemberCardToCanvas,
+  renderMemberCardBackToCanvas,
+  preloadImage,
+  CARD_TEMPLATE_SRC,
+  CARD_BACK_TEMPLATE_SRC
+} from '../utils/cardCanvasRenderer';
 import jsPDF from 'jspdf';
 import {
   Printer,
@@ -17,7 +23,9 @@ import {
   Grid,
   Download,
   Info,
-  Loader2
+  Loader2,
+  RotateCw,
+  Layers
 } from 'lucide-react';
 
 interface BatchQrPrintModalProps {
@@ -47,6 +55,9 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
   const [printLayout, setPrintLayout] = useState<'idcard' | 'compact'>('idcard');
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [pdfProgressText, setPdfProgressText] = useState('');
+  // User requirement: "Buat halaman belakang untuk cetak id card nya dalam bentuk pdf"
+  const [pdfSides, setPdfSides] = useState<'duplex' | 'front_only' | 'back_only'>('duplex');
+  const [previewSide, setPreviewSide] = useState<'front' | 'back'>('front');
 
   // Sync selected school on open
   useEffect(() => {
@@ -144,6 +155,14 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
    * User requirement: "Perbaiki cetak banyak qr nya agar bisa di download dalam satu kali klik dalam format pdf"
    * Renders all selected member cards cleanly into an A4 PDF document (8 cards per page with cut guidelines)
    */
+  /**
+   * One-Click Batch PDF Downloader
+   * User requirements:
+   * 1. "Perbaiki cetak banyak qr nya agar bisa di download dalam satu kali klik dalam format pdf"
+   * 2. "Buat halaman belakang untuk cetak id card nya dalam bentuk pdf"
+   * Renders all selected member cards into an A4 PDF document (8 cards per page with cut guidelines).
+   * Supports Duplex (Bolak-Balik), Front Only, and Back Only modes with exact registration alignment.
+   */
   const handleDownloadBatchPdf = async () => {
     if (membersWithQr.length === 0) {
       alert('Tidak ada anggota yang dipilih untuk diunduh.');
@@ -155,7 +174,6 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
 
     try {
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const bgImg = await preloadImage(CARD_TEMPLATE_SRC);
 
       if (printLayout === 'idcard') {
         // Layout: 2 columns x 4 rows = 8 physical cards per A4 page
@@ -168,32 +186,88 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
         const gapY = 6;
         const cardsPerPage = 8;
 
-        for (let i = 0; i < membersWithQr.length; i++) {
-          const student = membersWithQr[i];
-          setPdfProgressText(`Membuat Kartu ${i + 1}/${membersWithQr.length} (${student.nama})...`);
+        // Preload template backgrounds
+        const frontBgImg = (pdfSides === 'duplex' || pdfSides === 'front_only')
+          ? await preloadImage(CARD_TEMPLATE_SRC)
+          : null;
+        const backBgImg = (pdfSides === 'duplex' || pdfSides === 'back_only')
+          ? await preloadImage(CARD_BACK_TEMPLATE_SRC)
+          : null;
 
-          const slotIndex = i % cardsPerPage;
+        // Pre-generate back canvas once for performance
+        let backDataUrl = '';
+        if (backBgImg) {
+          const backCanvas = await renderMemberCardBackToCanvas(backBgImg);
+          backDataUrl = backCanvas.toDataURL('image/jpeg', 0.92);
+        }
 
-          if (i > 0 && slotIndex === 0) {
-            pdf.addPage();
+        const totalBatches = Math.ceil(membersWithQr.length / cardsPerPage);
+        let isFirstPage = true;
+
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batchStart = batchIdx * cardsPerPage;
+          const batchEnd = Math.min(batchStart + cardsPerPage, membersWithQr.length);
+          const batchMembers = membersWithQr.slice(batchStart, batchEnd);
+
+          // 1. FRONT SIDE PAGE (if duplex or front_only)
+          if (pdfSides === 'duplex' || pdfSides === 'front_only') {
+            if (!isFirstPage) {
+              pdf.addPage();
+            }
+            isFirstPage = false;
+
+            for (let k = 0; k < batchMembers.length; k++) {
+              const student = batchMembers[k];
+              const overallIdx = batchStart + k + 1;
+              setPdfProgressText(`Membuat Kartu Depan ${overallIdx}/${membersWithQr.length} (${student.nama})...`);
+
+              const col = k % 2;
+              const row = Math.floor(k / 2);
+              const x = startX + col * (cardW + gapX);
+              const y = startY + row * (cardH + gapY);
+
+              const studentSchool = sekolahList.find(s => s.id === student.sekolahId)?.namaSekolah || activeSchoolName;
+              const cardCanvas = await renderMemberCardToCanvas(student, studentSchool, student.qrDataUrl, frontBgImg || undefined);
+              const cardDataUrl = cardCanvas.toDataURL('image/jpeg', 0.92);
+
+              // Place front card on PDF
+              pdf.addImage(cardDataUrl, 'JPEG', x, y, cardW, cardH);
+
+              // Subtle dashed cutting guide line
+              pdf.setDrawColor(200, 200, 200);
+              pdf.setLineDashPattern([2, 2], 0);
+              pdf.rect(x - 0.3, y - 0.3, cardW + 0.6, cardH + 0.6);
+            }
           }
 
-          const col = slotIndex % 2;
-          const row = Math.floor(slotIndex / 2);
-          const x = startX + col * (cardW + gapX);
-          const y = startY + row * (cardH + gapY);
+          // 2. BACK SIDE PAGE (if duplex or back_only)
+          if (pdfSides === 'duplex' || pdfSides === 'back_only') {
+            if (!isFirstPage) {
+              pdf.addPage();
+            }
+            isFirstPage = false;
 
-          const studentSchool = sekolahList.find(s => s.id === student.sekolahId)?.namaSekolah || activeSchoolName;
-          const cardCanvas = await renderMemberCardToCanvas(student, studentSchool, student.qrDataUrl, bgImg);
-          const cardDataUrl = cardCanvas.toDataURL('image/jpeg', 0.92);
+            setPdfProgressText(`Membuat Halaman Belakang Lembar ke-${batchIdx + 1}/${totalBatches}...`);
 
-          // Place card on PDF
-          pdf.addImage(cardDataUrl, 'JPEG', x, y, cardW, cardH);
+            for (let k = 0; k < batchMembers.length; k++) {
+              const col = k % 2;
+              const row = Math.floor(k / 2);
+              // For duplex flip on long edge (flip horizontal):
+              // Front Column 0 aligns with Back Column 1
+              // Front Column 1 aligns with Back Column 0
+              const backCol = 1 - col;
+              const x = startX + backCol * (cardW + gapX);
+              const y = startY + row * (cardH + gapY);
 
-          // Subtle dashed cutting guide line
-          pdf.setDrawColor(200, 200, 200);
-          pdf.setLineDashPattern([2, 2], 0);
-          pdf.rect(x - 0.3, y - 0.3, cardW + 0.6, cardH + 0.6);
+              // Place back card on PDF
+              pdf.addImage(backDataUrl, 'JPEG', x, y, cardW, cardH);
+
+              // Subtle dashed cutting guide line
+              pdf.setDrawColor(200, 200, 200);
+              pdf.setLineDashPattern([2, 2], 0);
+              pdf.rect(x - 0.3, y - 0.3, cardW + 0.6, cardH + 0.6);
+            }
+          }
         }
       } else {
         // Compact Stiker QR Layout: 3 columns x 5 rows = 15 stickers per page
@@ -261,7 +335,8 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
       const downloadLink = document.createElement('a');
       downloadLink.href = blobUrl;
       const cleanSchool = activeSchoolName.replace(/[^a-zA-Z0-9]/g, '_');
-      downloadLink.download = `Kumpulan_Kartu_Anggota_${cleanSchool}_${membersWithQr.length}_Kartu.pdf`;
+      const sideSuffix = pdfSides === 'duplex' ? 'Bolak_Balik' : (pdfSides === 'back_only' ? 'Belakang' : 'Depan');
+      downloadLink.download = `Kumpulan_Kartu_Anggota_${cleanSchool}_${membersWithQr.length}_Kartu_${sideSuffix}.pdf`;
       document.body.appendChild(downloadLink);
       downloadLink.click();
       document.body.removeChild(downloadLink);
@@ -357,7 +432,7 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
               ) : (
                 <Download className="w-4 h-4 text-white" />
               )}
-              <span>{isDownloadingPdf ? (pdfProgressText || 'Membuat PDF...') : `Unduh PDF Sekali Klik (${membersWithQr.length})`}</span>
+              <span>{isDownloadingPdf ? (pdfProgressText || 'Membuat PDF...') : `Unduh PDF (${membersWithQr.length} Kartu${printLayout === 'idcard' ? (pdfSides === 'duplex' ? ' • Bolak-Balik' : (pdfSides === 'back_only' ? ' • Belakang' : ' • Depan')) : ''})`}</span>
             </button>
 
             <button
@@ -439,6 +514,56 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
                 <span>Stiker Mini QR</span>
               </button>
             </div>
+
+            {/* Sisi PDF & Preview Options (When in idcard mode) */}
+            {printLayout === 'idcard' && (
+              <>
+                {/* Preview Front/Back Toggle */}
+                <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200">
+                  <span className="text-[11px] font-bold text-slate-500 px-2 flex items-center gap-1">
+                    <Layers className="w-3.5 h-3.5 text-blue-600" />
+                    Preview:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewSide('front')}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      previewSide === 'front'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span>Depan</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewSide('back')}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      previewSide === 'back'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <RotateCw className="w-3 h-3" />
+                    <span>Belakang</span>
+                  </button>
+                </div>
+
+                {/* PDF Output Mode Selector */}
+                <div className="flex items-center gap-1.5 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200">
+                  <span className="text-[11px] font-black text-amber-900">Format PDF:</span>
+                  <select
+                    value={pdfSides}
+                    onChange={(e) => setPdfSides(e.target.value as 'duplex' | 'front_only' | 'back_only')}
+                    className="bg-white border border-amber-300 rounded-lg text-xs font-bold text-amber-950 py-1 px-2 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                  >
+                    <option value="duplex">📄 Bolak-Balik (Duplex Otomatis)</option>
+                    <option value="front_only">Halaman Depan Saja</option>
+                    <option value="back_only">Halaman Belakang Saja</option>
+                  </select>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Toggle All Selection */}
@@ -533,10 +658,12 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
                     >
                       {/* Member ID Card in exact template */}
                       <MemberIdCard
+                        key={`${student.id}-${previewSide}`}
                         member={student}
                         schoolName={studentSchool}
                         qrDataUrl={student.qrDataUrl}
                         showActions={false}
+                        initialSide={previewSide}
                       />
                     </div>
                   );
@@ -595,7 +722,7 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
           <div className="flex items-center gap-2 text-xs text-slate-300">
             <Info className="w-4 h-4 text-amber-400 shrink-0" />
             <span>
-              <b>Ukuran Kartu:</b> Sesuai standar ID Card fisik. Gunakan kertas tebal / glossy paper untuk hasil cetak terbaik.
+              <b>Ukuran Kartu:</b> Sesuai standar ID Card fisik A4 ({printLayout === 'idcard' ? (pdfSides === 'duplex' ? 'Mode Bolak-Balik Presisi Flip Horisontal' : (pdfSides === 'back_only' ? 'Halaman Belakang Saja' : 'Halaman Depan Saja')) : 'Stiker QR Mini'}).
             </span>
           </div>
 
@@ -629,7 +756,7 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
               ) : (
                 <Download className="w-4 h-4 text-white" />
               )}
-              <span>{isDownloadingPdf ? (pdfProgressText || 'Membuat PDF...') : `Unduh PDF Sekali Klik (${membersWithQr.length})`}</span>
+              <span>{isDownloadingPdf ? (pdfProgressText || 'Membuat PDF...') : `Unduh PDF (${membersWithQr.length} Kartu${printLayout === 'idcard' ? (pdfSides === 'duplex' ? ' • Bolak-Balik' : (pdfSides === 'back_only' ? ' • Belakang' : ' • Depan')) : ''})`}</span>
             </button>
           </div>
         </div>

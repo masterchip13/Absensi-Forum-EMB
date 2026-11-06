@@ -20,6 +20,7 @@ import {
   PieChart as PieChartIcon
 } from 'lucide-react';
 import { StorageService } from '../data/storage';
+import { BULAN_OPTIONS, getCurrentMonthName } from '../utils/dateUtils';
 
 interface StatistikKehadiranProps {
   sekolahList: Sekolah[];
@@ -530,17 +531,11 @@ export const StatistikKehadiran: React.FC<StatistikKehadiranProps> = ({
               className="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer"
             >
               <option value="ALL">📅 Semua Bulan</option>
-              <option value="Agustus">Agustus</option>
-              <option value="September">September</option>
-              <option value="Oktober">Oktober</option>
-              <option value="November">November</option>
-              <option value="Desember">Desember</option>
-              <option value="Januari">Januari</option>
-              <option value="Februari">Februari</option>
-              <option value="Maret">Maret</option>
-              <option value="April">April</option>
-              <option value="Mei">Mei</option>
-              <option value="Juni">Juni</option>
+              {BULAN_OPTIONS.map((m) => (
+                <option key={m} value={m}>
+                  {m} {m === getCurrentMonthName() ? '★ (Bulan Berjalan)' : ''}
+                </option>
+              ))}
             </select>
           </div>
 

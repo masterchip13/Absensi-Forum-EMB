@@ -19,16 +19,7 @@ interface RekapPdfProps {
   eventsList: EventLog[];
 }
 
-const BULAN_OPTIONS = [
-  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-];
-
-const MONTH_SHORT_MAP: { [key: string]: string } = {
-  'Januari': 'Jan', 'Februari': 'Feb', 'Maret': 'Mar', 'April': 'Apr',
-  'Mei': 'Mei', 'Juni': 'Jun', 'Juli': 'Jul', 'Agustus': 'Ags',
-  'September': 'Sep', 'Okt': 'Okt', 'November': 'Nov', 'Desember': 'Des'
-};
+import { BULAN_OPTIONS, MONTH_SHORT_MAP, getCurrentMonthName } from '../utils/dateUtils';
 
 export type TemplateType = 'AUTO' | 'SMPN2_CIGOMBONG' | 'SDN_SUKAHARJA_01' | 'SDN_SUKAHARJA_03' | 'STANDARD';
 
@@ -41,7 +32,8 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
   eventsList
 }) => {
   const [filterSekolahId, setFilterSekolahId] = useState(selectedSekolahId);
-  const [filterBulan, setFilterBulan] = useState('Agustus');
+  // Default to current ongoing month
+  const [filterBulan, setFilterBulan] = useState(getCurrentMonthName());
   const [filterTahunAjaran, setFilterTahunAjaran] = useState(StorageService.getActiveTahunAjaran());
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('AUTO');
   const [selectedMeetingIndex, setSelectedMeetingIndex] = useState<number | 'ALL'>('ALL');
@@ -1182,7 +1174,9 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
             >
               {BULAN_OPTIONS.map(b => (
-                <option key={b} value={b}>{b}</option>
+                <option key={b} value={b}>
+                  {b} {b === getCurrentMonthName() ? '★ (Bulan Berjalan)' : ''}
+                </option>
               ))}
             </select>
           </div>

@@ -2,6 +2,7 @@ import { Anggota } from '../types';
 import { formatCardMemberName } from './nameFormatter';
 
 export const CARD_TEMPLATE_SRC = '/assets/aistudio/1793747874998_a8c50b8e.jpg';
+export const CARD_BACK_TEMPLATE_SRC = '/assets/aistudio/1793781386382_16bfaa07.jpg';
 export const CARD_WIDTH = 2528;
 export const CARD_HEIGHT = 1696;
 
@@ -153,3 +154,25 @@ export async function renderMemberCardToCanvas(
 
   return canvas;
 }
+
+/**
+ * Renders the official back page (halaman belakang) of the member card at full 300 DPI resolution (2528x1696).
+ */
+export async function renderMemberCardBackToCanvas(
+  preloadedBg?: HTMLImageElement
+): Promise<HTMLCanvasElement> {
+  const canvas = document.createElement('canvas');
+  canvas.width = CARD_WIDTH;
+  canvas.height = CARD_HEIGHT;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    throw new Error('Canvas 2D context not available');
+  }
+
+  const bgImg = preloadedBg || await preloadImage(CARD_BACK_TEMPLATE_SRC);
+  ctx.drawImage(bgImg, 0, 0, CARD_WIDTH, CARD_HEIGHT);
+
+  return canvas;
+}
+

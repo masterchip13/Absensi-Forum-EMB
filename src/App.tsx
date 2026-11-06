@@ -10,6 +10,7 @@ import { AsistenPelatihDashboard } from './components/AsistenPelatihDashboard';
 import { QrScannerModal } from './components/QrScannerModal';
 import { TahunAjaranModal } from './components/TahunAjaranModal';
 import { OfflineBanner } from './components/OfflineBanner';
+import { getCurrentMonthName } from './utils/dateUtils';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -99,8 +100,8 @@ export default function App() {
   };
 
   const handleQrScanSuccess = (student: Anggota, columnNumber: number, monthName?: string) => {
-    // Record attendance entry with student's digital signature for column 1 to 5
-    const activeBulan = monthName || 'Agustus';
+    // Record attendance entry with student's digital signature for column 1 to 5 using current running month
+    const activeBulan = monthName || getCurrentMonthName();
     const newEntry: AbsenSiswaEntry = {
       id: `abs-${student.id}-${activeBulan}-${columnNumber}-${Date.now()}`,
       sekolahId: student.sekolahId,
