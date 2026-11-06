@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { Sekolah, Anggota, AbsenSiswaEntry } from '../types';
+import { Sekolah, Anggota, AbsenSiswaEntry, isSchoolCoach } from '../types';
 import { StorageService } from '../data/storage';
 import {
   Award,
@@ -304,10 +304,14 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
     };
   }, [gradedStudents]);
 
-  // Coach & Headmaster details
+  // Coach & Headmaster details (prefer logged-in coach if they train this school)
   const pelatihUser = useMemo(() => {
     const users = StorageService.getUsers();
-    return users.find(u => u.id === selectedSekolah?.pelatihId) || StorageService.getCurrentUser();
+    const currentUser = StorageService.getCurrentUser();
+    if (currentUser && selectedSekolah && isSchoolCoach(selectedSekolah, currentUser.id)) {
+      return currentUser;
+    }
+    return users.find(u => u.id === selectedSekolah?.pelatihId) || currentUser;
   }, [selectedSekolah]);
 
   // Print Window Handler

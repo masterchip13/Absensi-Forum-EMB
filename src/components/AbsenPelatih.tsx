@@ -35,6 +35,7 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
   const [catatan, setCatatan] = useState('');
   const [showSignaturePad, setShowSignaturePad] = useState(false);
 
+  const allUsers = StorageService.getUsers();
   const activeSchool = sekolahList.find(s => s.id === selectedSekolahId);
   const schoolAbsenList = absenPelatihList.filter(a => a.sekolahId === selectedSekolahId);
 
@@ -189,8 +190,26 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
                     </p>
                   )}
 
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
-                    <span>Pelatih: <strong className="text-slate-700">{currentPelatihName}</strong></span>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
+                    {(() => {
+                      const authorCoach = allUsers.find(u => u.id === item.pelatihId);
+                      const authorName = authorCoach ? authorCoach.name : (item.pelatihId === currentPelatihId ? currentPelatihName : 'Pelatih Rekan');
+                      const isAuthorMe = item.pelatihId === currentPelatihId;
+                      return (
+                        <div className="flex items-center gap-1.5">
+                          <span>Dilatih Oleh: <strong className="text-slate-800 font-bold">{authorName}</strong></span>
+                          {isAuthorMe ? (
+                            <span className="text-[10px] font-extrabold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                              Anda
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-extrabold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                              🤝 Rekan Pelatih
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                     <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded">
                       ✓ Status Laporan: {item.statusKepalaSekolah}
                     </span>

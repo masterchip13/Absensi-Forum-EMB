@@ -173,14 +173,23 @@ export const StorageService = {
     let list = getStoredItem<Sekolah[]>(STORAGE_KEYS.SEKOLAH, INITIAL_SEKOLAH);
     list = list.filter(s => s.pelatihId !== 'u-pelatih-1' && s.pelatihId !== 'u-pelatih-2' && !['sch-1', 'sch-2', 'sch-3'].includes(s.id));
     
-    // Auto-migrate any unassigned or admin-assigned schools to first available coach
+    // Auto-migrate any unassigned or admin-assigned schools to first available coach & normalize pelatihIds
     let needsSave = false;
     list = list.map(s => {
-      if (!s.pelatihId || s.pelatihId === 'u-admin') {
+      let updated = { ...s };
+      if (!updated.pelatihId || updated.pelatihId === 'u-admin') {
         needsSave = true;
-        return { ...s, pelatihId: 'u-coach-1' };
+        updated.pelatihId = 'u-coach-1';
       }
-      return s;
+      // Ensure pelatihIds array exists and contains pelatihId
+      if (!Array.isArray(updated.pelatihIds) || updated.pelatihIds.length === 0) {
+        needsSave = true;
+        updated.pelatihIds = updated.id === 'sch-smpn2-cigombong' ? ['u-coach-1', 'u-coach-2'] : [updated.pelatihId];
+      } else if (!updated.pelatihIds.includes(updated.pelatihId)) {
+        needsSave = true;
+        updated.pelatihIds = [updated.pelatihId, ...updated.pelatihIds];
+      }
+      return updated;
     });
     if (needsSave) {
       setStoredItem(STORAGE_KEYS.SEKOLAH, list);
@@ -189,11 +198,24 @@ export const StorageService = {
   },
   saveSekolah: (sekolah: Sekolah) => {
     const list = StorageService.getSekolah();
-    const index = list.findIndex(s => s.id === sekolah.id);
-    if (index >= 0) list[index] = sekolah;
-    else list.push(sekolah);
+    // Normalize pelatihIds on save
+    const coachIds = new Set<string>();
+    if (sekolah.pelatihId) coachIds.add(sekolah.pelatihId);
+    if (Array.isArray(sekolah.pelatihIds)) {
+      sekolah.pelatihIds.forEach(id => {
+        if (id) coachIds.add(id);
+      });
+    }
+    const normalizedSekolah: Sekolah = {
+      ...sekolah,
+      pelatihIds: Array.from(coachIds)
+    };
+
+    const index = list.findIndex(s => s.id === normalizedSekolah.id);
+    if (index >= 0) list[index] = normalizedSekolah;
+    else list.push(normalizedSekolah);
     setStoredItem(STORAGE_KEYS.SEKOLAH, list);
-    FirebaseSync.saveSekolah(sekolah);
+    FirebaseSync.saveSekolah(normalizedSekolah);
   },
   deleteSekolah: (id: string) => {
     const list = StorageService.getSekolah().filter(s => s.id !== id);

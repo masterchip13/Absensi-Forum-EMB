@@ -15,12 +15,34 @@ export interface User {
 
 export interface Sekolah {
   id: string;
-  pelatihId: string;
+  pelatihId: string; // Pelatih Utama / Koordinator
+  pelatihIds?: string[]; // Tim Pelatih Kolaborator (termasuk Pelatih Utama & Pelatih Mitra)
   namaSekolah: string;
   kepalaSekolah: string;
   nipKepalaSekolah?: string;
   tahunAjaran: string; // e.g. "2024/2025"
   alamat?: string;
+}
+
+// Helper: Cek apakah user adalah pelatih (utama atau kolaborator) di sekolah tersebut
+export function isSchoolCoach(school: Sekolah | undefined | null, coachId: string | undefined | null): boolean {
+  if (!school || !coachId) return false;
+  if (school.pelatihId === coachId) return true;
+  if (Array.isArray(school.pelatihIds) && school.pelatihIds.includes(coachId)) return true;
+  return false;
+}
+
+// Helper: Ambil seluruh ID pelatih di sekolah tersebut
+export function getSchoolCoachIds(school: Sekolah | undefined | null): string[] {
+  if (!school) return [];
+  const set = new Set<string>();
+  if (school.pelatihId) set.add(school.pelatihId);
+  if (Array.isArray(school.pelatihIds)) {
+    school.pelatihIds.forEach(id => {
+      if (id) set.add(id);
+    });
+  }
+  return Array.from(set);
 }
 
 export interface Divisi {

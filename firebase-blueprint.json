@@ -24,6 +24,11 @@
       "properties": {
         "id": { "type": "string" },
         "pelatihId": { "type": "string" },
+        "pelatihIds": { 
+          "type": "array", 
+          "items": { "type": "string" },
+          "description": "List of all assigned coach IDs (lead and collaborators) who can coach this school"
+        },
         "namaSekolah": { "type": "string" },
         "kepalaSekolah": { "type": "string" },
         "nipKepalaSekolah": { "type": "string" },

@@ -63,6 +63,7 @@ export const INITIAL_SEKOLAH: Sekolah[] = [
   {
     id: 'sch-smpn2-cigombong',
     pelatihId: 'u-coach-1',
+    pelatihIds: ['u-coach-1', 'u-coach-2'],
     namaSekolah: 'SMP NEGERI 2 CIGOMBONG KABUPATEN BOGOR',
     kepalaSekolah: 'Kepala SMPN 2 Cigombong',
     nipKepalaSekolah: '197103141998021001',
@@ -72,6 +73,7 @@ export const INITIAL_SEKOLAH: Sekolah[] = [
   {
     id: 'sch-sdn-sukaharja-01',
     pelatihId: 'u-coach-1',
+    pelatihIds: ['u-coach-1'],
     namaSekolah: 'SDN SUKAHARJA 01',
     kepalaSekolah: 'NITA HERNITA, S.Pd.MM',
     nipKepalaSekolah: '197310221996032002',
@@ -81,6 +83,7 @@ export const INITIAL_SEKOLAH: Sekolah[] = [
   {
     id: 'sch-sdn-sukaharja-03',
     pelatihId: 'u-coach-2',
+    pelatihIds: ['u-coach-2'],
     namaSekolah: 'SDN SUKAHARJA 03',
     kepalaSekolah: 'HJ YENI SUMARNI, S.Pd.MM',
     nipKepalaSekolah: '196612031988032005',

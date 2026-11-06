@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useMemo } from 'react';
 import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
-import { Sekolah, AbsenPelatihItem, Anggota, AbsenSiswaEntry, EventLog } from '../types';
+import { Sekolah, AbsenPelatihItem, Anggota, AbsenSiswaEntry, EventLog, isSchoolCoach } from '../types';
 import { TutWuriLogo, MarchingBandLogo } from './Logos';
 import { FileText, Download, Printer, Filter, Sparkles, School, Calendar, CheckCircle2, UserCheck, Users, PenTool, X, RotateCcw, Image as ImageIcon, FileSpreadsheet } from 'lucide-react';
 import { StorageService } from '../data/storage';
@@ -82,10 +82,14 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
     }
   }, [resolvedTemplate]);
 
-  // Get coach info
+  // Get coach info (prefer logged-in coach if they are lead or collaborator for this school)
   const pelatihUser = useMemo(() => {
     const users = StorageService.getUsers();
-    return users.find(u => u.id === selectedSekolah?.pelatihId) || StorageService.getCurrentUser();
+    const currentUser = StorageService.getCurrentUser();
+    if (currentUser && selectedSekolah && isSchoolCoach(selectedSekolah, currentUser.id)) {
+      return currentUser;
+    }
+    return users.find(u => u.id === selectedSekolah?.pelatihId) || currentUser;
   }, [selectedSekolah]);
 
   const pelatihName = pelatihUser?.name || 'Pelatih Ekstrakurikuler';

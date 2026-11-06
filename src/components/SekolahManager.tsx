@@ -30,9 +30,16 @@ export const SekolahManager: React.FC<SekolahManagerProps> = ({
   const [tahunAjaran, setTahunAjaran] = useState(activeTahun);
   const [alamat, setAlamat] = useState('');
   const [assignedPelatihId, setAssignedPelatihId] = useState(currentPelatihId);
+  const [collaboratingCoachIds, setCollaboratingCoachIds] = useState<string[]>([]);
 
   // Available coaches for assignment
   const coachOptions = usersList.filter(u => u.role === 'pelatih');
+
+  const handleToggleCollaborator = (coachId: string) => {
+    setCollaboratingCoachIds(prev =>
+      prev.includes(coachId) ? prev.filter(id => id !== coachId) : [...prev, coachId]
+    );
+  };
 
   const openAddModal = () => {
     setEditingId(null);
@@ -41,7 +48,9 @@ export const SekolahManager: React.FC<SekolahManagerProps> = ({
     setNipKepalaSekolah('');
     setTahunAjaran(StorageService.getActiveTahunAjaran());
     setAlamat('');
-    setAssignedPelatihId(coachOptions.length > 0 ? coachOptions[0].id : currentPelatihId);
+    const defaultLead = coachOptions.length > 0 ? coachOptions[0].id : currentPelatihId;
+    setAssignedPelatihId(defaultLead);
+    setCollaboratingCoachIds([]);
     setIsModalOpen(true);
   };
 
@@ -52,7 +61,10 @@ export const SekolahManager: React.FC<SekolahManagerProps> = ({
     setNipKepalaSekolah(s.nipKepalaSekolah || '');
     setTahunAjaran(s.tahunAjaran);
     setAlamat(s.alamat || '');
-    setAssignedPelatihId(s.pelatihId || (coachOptions.length > 0 ? coachOptions[0].id : currentPelatihId));
+    const lead = s.pelatihId || (coachOptions.length > 0 ? coachOptions[0].id : currentPelatihId);
+    setAssignedPelatihId(lead);
+    const allAssigned = s.pelatihIds && s.pelatihIds.length > 0 ? s.pelatihIds : [lead];
+    setCollaboratingCoachIds(allAssigned.filter(id => id !== lead));
     setIsModalOpen(true);
   };
 
@@ -60,9 +72,13 @@ export const SekolahManager: React.FC<SekolahManagerProps> = ({
     e.preventDefault();
     if (!namaSekolah || !kepalaSekolah) return;
 
+    const finalLeadId = isAdmin ? (assignedPelatihId || currentPelatihId) : currentPelatihId;
+    const finalCoachIds = Array.from(new Set([finalLeadId, ...collaboratingCoachIds]));
+
     const newSekolah: Sekolah = {
       id: editingId || `sch-${Date.now()}`,
-      pelatihId: isAdmin ? (assignedPelatihId || currentPelatihId) : currentPelatihId,
+      pelatihId: finalLeadId,
+      pelatihIds: finalCoachIds,
       namaSekolah,
       kepalaSekolah,
       nipKepalaSekolah,
@@ -138,7 +154,10 @@ export const SekolahManager: React.FC<SekolahManagerProps> = ({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
           {sekolahList.map((s) => {
-            const coachName = getCoachName(s.pelatihId);
+            const allCoachIds = s.pelatihIds && s.pelatihIds.length > 0 ? s.pelatihIds : [s.pelatihId];
+            const coaches = usersList.filter(u => allCoachIds.includes(u.id));
+            const isMultiCoach = coaches.length > 1;
+
             return (
               <div
                 key={s.id}
@@ -154,16 +173,36 @@ export const SekolahManager: React.FC<SekolahManagerProps> = ({
                     </span>
                   </div>
 
-                  {/* Coach Assignment Badge */}
-                  <div className="mb-2.5 p-2 bg-indigo-50/70 border border-indigo-100 rounded-xl flex items-center gap-2">
-                    <UserCheck className="w-4 h-4 text-indigo-600 shrink-0" />
-                    <div className="min-w-0">
-                      <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block">
-                        Pelatih / Coach:
-                      </span>
-                      <span className="text-xs font-bold text-indigo-950 truncate block">
-                        {coachName}
-                      </span>
+                  {/* Coach Assignment Badge & Team List */}
+                  <div className="mb-2.5 p-2 bg-indigo-50/70 border border-indigo-100 rounded-xl space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <UserCheck className="w-4 h-4 text-indigo-600 shrink-0" />
+                        <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">
+                          {isMultiCoach ? `Tim Pelatih (${coaches.length}):` : 'Pelatih / Coach:'}
+                        </span>
+                      </div>
+                      {isMultiCoach && (
+                        <span className="text-[9px] font-black bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full border border-purple-300">
+                          🤝 Kolaborasi
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-1 pl-5">
+                      {coaches.map(c => {
+                        const isLead = c.id === s.pelatihId;
+                        return (
+                          <div key={c.id} className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-indigo-950 truncate">{c.name}</span>
+                            <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded shrink-0 ${isLead ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                              {isLead ? 'Utama' : 'Kolaborator'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {coaches.length === 0 && (
+                        <span className="text-xs text-slate-400 italic">Pelatih Belum Ditugaskan</span>
+                      )}
                     </div>
                   </div>
 
@@ -214,12 +253,12 @@ export const SekolahManager: React.FC<SekolahManagerProps> = ({
 
       {/* Modal Add/Edit Sekolah */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-hidden border border-slate-200 my-6">
             <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
               <h3 className="font-bold text-sm flex items-center gap-2">
                 <School className="w-4 h-4 text-blue-400" />
-                {editingId ? 'Edit Data Sekolah & Penugasan Pelatih' : 'Tambah Sekolah Binaan Baru'}
+                {editingId ? 'Edit Data Sekolah & Tim Pelatih' : 'Tambah Sekolah Binaan Baru'}
               </h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white">✕</button>
             </div>
@@ -239,15 +278,19 @@ export const SekolahManager: React.FC<SekolahManagerProps> = ({
                 />
               </div>
 
-              {/* Coach Selector for Admin */}
+              {/* Lead Coach Selector for Admin */}
               {isAdmin && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Tugaskan Kepada Pelatih / Coach <span className="text-rose-500">*</span>
+                    Pelatih Utama (Penanggung Jawab) <span className="text-rose-500">*</span>
                   </label>
                   <select
                     value={assignedPelatihId}
-                    onChange={(e) => setAssignedPelatihId(e.target.value)}
+                    onChange={(e) => {
+                      const newLead = e.target.value;
+                      setAssignedPelatihId(newLead);
+                      setCollaboratingCoachIds(prev => prev.filter(id => id !== newLead));
+                    }}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
                     {coachOptions.length === 0 ? (
@@ -261,8 +304,53 @@ export const SekolahManager: React.FC<SekolahManagerProps> = ({
                     )}
                   </select>
                   <p className="text-[10px] text-slate-500 mt-0.5">
-                    Pelatih yang dipilih hanya akan dapat mengelola absensi dan siswa pada sekolah ini.
+                    Pelatih utama bertindak sebagai penanggung jawab utama sekolah ini.
                   </p>
+                </div>
+              )}
+
+              {/* Multi-Coach Collaborator Selector for Admin */}
+              {isAdmin && coachOptions.length > 1 && (
+                <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+                      <span>🤝 Pelatih Kolaborator (Tim Pelatih Tambahan)</span>
+                    </label>
+                    <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
+                      {collaboratingCoachIds.length} Rekan Dipilih
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-purple-800 leading-relaxed">
+                    Centang pelatih lain yang dapat berkolaborasi melatih sekolah ini, melihat data anggota, mengisi absensi bersama, dan mencatat jadwal.
+                  </p>
+                  <div className="space-y-1.5 pt-1 max-h-40 overflow-y-auto">
+                    {coachOptions
+                      .filter(c => c.id !== assignedPelatihId)
+                      .map(c => {
+                        const isChecked = collaboratingCoachIds.includes(c.id);
+                        return (
+                          <label
+                            key={c.id}
+                            className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition ${
+                              isChecked
+                                ? 'bg-purple-100/80 border-purple-300 text-purple-950 font-bold'
+                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => handleToggleCollaborator(c.id)}
+                                className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4 cursor-pointer"
+                              />
+                              <span>🎺 {c.name}</span>
+                            </div>
+                            <span className="text-[10px] font-mono text-slate-500">@{c.username}</span>
+                          </label>
+                        );
+                      })}
+                  </div>
                 </div>
               )}
 

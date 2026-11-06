@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, Sekolah, Divisi, Anggota, JadwalLatihan, AbsenPelatihItem, AbsenAsistenPelatihItem, AbsenSiswaEntry, EventLog } from './types';
+import { User, Sekolah, Divisi, Anggota, JadwalLatihan, AbsenPelatihItem, AbsenAsistenPelatihItem, AbsenSiswaEntry, EventLog, isSchoolCoach } from './types';
 import { StorageService } from './data/storage';
 import { FirebaseSync, SyncStatus, onSyncStatusChange } from './data/firebaseSync';
 import { Navbar } from './components/Navbar';
@@ -44,7 +44,7 @@ export default function App() {
     setSekolahList(sekolah);
 
     const visibleSekolah = user && user.role === 'pelatih'
-      ? sekolah.filter(s => s.pelatihId === user.id)
+      ? sekolah.filter(s => isSchoolCoach(s, user.id))
       : sekolah;
 
     const selectedSch = StorageService.getSelectedSekolahId();
@@ -127,9 +127,9 @@ export default function App() {
     );
   }
 
-  // Filter school list based on user role: pelatih only sees their own schools
+  // Filter school list based on user role: pelatih sees schools where they are lead or collaborator
   const displayedSekolahList = currentUser.role === 'pelatih'
-    ? sekolahList.filter(s => s.pelatihId === currentUser.id)
+    ? sekolahList.filter(s => isSchoolCoach(s, currentUser.id))
     : sekolahList;
 
   return (

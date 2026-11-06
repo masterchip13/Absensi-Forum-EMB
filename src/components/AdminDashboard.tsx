@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { User, UserRole, Sekolah, AbsenPelatihItem, AbsenAsistenPelatihItem, Anggota, Divisi, AbsenSiswaEntry, EventLog } from '../types';
+import { User, UserRole, Sekolah, AbsenPelatihItem, AbsenAsistenPelatihItem, Anggota, Divisi, AbsenSiswaEntry, EventLog, isSchoolCoach } from '../types';
 import { StorageService } from '../data/storage';
 import { DokumentasiGaleri } from './DokumentasiGaleri';
 import { StatistikKehadiran } from './StatistikKehadiran';
@@ -734,7 +734,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
               {displayedUsers.map((u) => {
                 const isAsisten = u.role === 'asisten_pelatih';
-                const coachedSchools = sekolahList.filter(s => s.pelatihId === u.id);
+                const coachedSchools = sekolahList.filter(s => isSchoolCoach(s, u.id));
                 const sessionsLogged = isAsisten
                   ? absenAsistenList.filter(a => a.asistenId === u.id).length
                   : absenPelatihList.filter(a => a.pelatihId === u.id).length;
@@ -806,13 +806,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 Belum ada sekolah (atur di tab Kelola Sekolah)
                               </span>
                             ) : (
-                              <div className="space-y-0.5">
-                                {coachedSchools.map(sch => (
-                                  <span key={sch.id} className="text-[11px] font-semibold text-indigo-900 bg-indigo-50 px-2 py-0.5 rounded flex items-center gap-1">
-                                    <School className="w-3 h-3 text-indigo-600 shrink-0" />
-                                    <span className="truncate">{sch.namaSekolah}</span>
-                                  </span>
-                                ))}
+                              <div className="space-y-1">
+                                {coachedSchools.map(sch => {
+                                  const isLead = sch.pelatihId === u.id;
+                                  return (
+                                    <div key={sch.id} className="text-[11px] font-semibold text-indigo-900 bg-indigo-50 px-2 py-1 rounded flex items-center justify-between gap-1 border border-indigo-100">
+                                      <span className="flex items-center gap-1 truncate">
+                                        <School className="w-3 h-3 text-indigo-600 shrink-0" />
+                                        <span className="truncate">{sch.namaSekolah}</span>
+                                      </span>
+                                      <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded shrink-0 ${
+                                        isLead ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                                      }`}>
+                                        {isLead ? 'Utama' : 'Kolaborator'}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>

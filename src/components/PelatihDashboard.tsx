@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Sekolah, Divisi, Anggota, JadwalLatihan, AbsenPelatihItem, AbsenSiswaEntry, EventLog } from '../types';
+import { User, Sekolah, Divisi, Anggota, JadwalLatihan, AbsenPelatihItem, AbsenSiswaEntry, EventLog, isSchoolCoach, getSchoolCoachIds } from '../types';
 import { DivisiManager } from './DivisiManager';
 import { JadwalManager } from './JadwalManager';
 import { AbsenPelatih } from './AbsenPelatih';
@@ -67,21 +67,29 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'beranda' | 'anggota' | 'absen_pelatih' | 'penilaian' | 'rekap_pdf' | 'jadwal' | 'divisi' | 'statistik' | 'event' | 'galeri_foto'>('beranda');
 
-  // RBAC Constraint: Coach ONLY manages their assigned schools
-  const userSekolahList = sekolahList.filter(s => s.pelatihId === currentUser.id);
+  // RBAC Constraint: Coach ONLY manages their assigned or collaborative schools
+  const userSekolahList = sekolahList.filter(s => isSchoolCoach(s, currentUser.id));
   const activeSchool = userSekolahList.find(s => s.id === selectedSekolahId) || userSekolahList[0];
-  const userDivisiList = divisiList.filter(d => d.pelatihId === currentUser.id);
   const pelatihSchoolIds = userSekolahList.map(s => s.id);
+  const userDivisiList = divisiList.filter(d => d.pelatihId === currentUser.id || pelatihSchoolIds.includes(d.sekolahId));
 
   const userAnggotaList = anggotaList.filter(a => a.pelatihId === currentUser.id || pelatihSchoolIds.includes(a.sekolahId));
   const userJadwalList = jadwalList.filter(j => j.pelatihId === currentUser.id || pelatihSchoolIds.includes(j.sekolahId));
-  const userAbsenPelatihList = absenPelatihList.filter(a => a.pelatihId === currentUser.id);
+  // In a collaborative school, collaborating coaches share journals and attendance records
+  const userAbsenPelatihList = absenPelatihList.filter(a => pelatihSchoolIds.includes(a.sekolahId));
   const userAbsenSiswaList = absenSiswaList.filter(a => pelatihSchoolIds.includes(a.sekolahId));
   const userEventsList = eventsList.filter(e => pelatihSchoolIds.includes(e.sekolahId));
 
   const schoolAnggota = userAnggotaList.filter(a => a.sekolahId === selectedSekolahId);
   const schoolJadwal = userJadwalList.filter(j => j.sekolahId === selectedSekolahId);
   const schoolAbsenPelatih = userAbsenPelatihList.filter(a => a.sekolahId === selectedSekolahId);
+
+  // Collaborating coach info for the currently active school
+  const allUsers = StorageService.getUsers();
+  const activeCoachIds = activeSchool ? getSchoolCoachIds(activeSchool) : [];
+  const activeSchoolCoaches = allUsers.filter(u => activeCoachIds.includes(u.id));
+  const isCollaborative = activeCoachIds.length > 1;
+  const isLeadCoach = activeSchool?.pelatihId === currentUser.id;
 
   // If coach has no schools assigned yet
   if (userSekolahList.length === 0) {
@@ -117,13 +125,45 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
       {/* Navigation Bar for Coach */}
       <div className="bg-white p-3.5 rounded-3xl shadow-sm border border-slate-200">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-2.5">
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">
-              <UserCheck className="w-4 h-4" />
-            </span>
-            <span className="text-xs font-bold text-slate-700">
-              Sekolah Binaan Aktif: <strong className="text-blue-700">{activeSchool?.namaSekolah}</strong>
-            </span>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">
+                <UserCheck className="w-4 h-4" />
+              </span>
+              <span className="text-xs font-bold text-slate-700">
+                Sekolah Binaan Aktif: <strong className="text-blue-700">{activeSchool?.namaSekolah}</strong>
+              </span>
+              {isCollaborative && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-800 border border-purple-300">
+                  🤝 Kolaborasi {activeSchoolCoaches.length} Pelatih
+                </span>
+              )}
+            </div>
+
+            {isCollaborative && (
+              <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600 pl-8">
+                <span className="text-slate-500 font-medium">Tim Pelatih:</span>
+                {activeSchoolCoaches.map((c) => {
+                  const isCurrent = c.id === currentUser.id;
+                  const isLead = c.id === activeSchool?.pelatihId;
+                  return (
+                    <span 
+                      key={c.id} 
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold text-[10px] ${
+                        isCurrent 
+                          ? 'bg-blue-100 text-blue-800 border border-blue-300' 
+                          : 'bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}
+                    >
+                      <span>{c.name}</span>
+                      <span className="text-[9px] opacity-75">
+                        ({isLead ? 'Utama' : 'Kolaborator'}{isCurrent ? ' • Anda' : ''})
+                      </span>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Quick Select for Mobile */}

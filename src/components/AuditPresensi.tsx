@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Sekolah, Anggota, AbsenSiswaEntry, User } from '../types';
+import { Sekolah, Anggota, AbsenSiswaEntry, User, getSchoolCoachIds } from '../types';
 import { formatNamaKapital, formatKelasAngka } from '../utils/nameFormatter';
 import { BULAN_OPTIONS, getCurrentMonthName } from '../utils/dateUtils';
 import * as XLSX from 'xlsx';
@@ -43,12 +43,14 @@ export const AuditPresensi: React.FC<AuditPresensiProps> = ({
 
   const bulanOptions = BULAN_OPTIONS;
 
-  // Map school ID to Pelatih info
+  // Map school ID to Pelatih info (supporting collaborative coaching teams)
   const schoolPelatihMap = useMemo(() => {
     const map = new Map<string, string>();
     sekolahList.forEach(s => {
-      const pelatih = usersList.find(u => u.id === s.pelatihId);
-      map.set(s.id, pelatih ? pelatih.name : 'Belum Ditugaskan');
+      const coachIds = getSchoolCoachIds(s);
+      const coaches = usersList.filter(u => coachIds.includes(u.id));
+      const names = coaches.map(c => c.name).join(', ');
+      map.set(s.id, names || 'Belum Ditugaskan');
     });
     return map;
   }, [sekolahList, usersList]);
