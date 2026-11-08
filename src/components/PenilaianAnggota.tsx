@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Sekolah, Anggota, AbsenSiswaEntry, isSchoolCoach } from '../types';
 import { StorageService } from '../data/storage';
+import { formatNamaKapital, formatKelasAngka } from '../utils/nameFormatter';
 import {
   Award,
   Download,
@@ -16,7 +17,8 @@ import {
   Image as ImageIcon,
   RotateCcw,
   X,
-  Stamp
+  Stamp,
+  FileText
 } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
@@ -37,6 +39,7 @@ interface StudentGradeRow {
   totalHadir: number;
   totalPertemuan: number;
   persentaseKehadiran: number;
+  nilaiAngka: number;
   nilaiHuruf: 'A' | 'B' | 'C' | 'D';
   predikat: string;
   keterangan: string;
@@ -205,10 +208,12 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
     return Array.from(divs);
   }, [anggotaList, filterSekolahId]);
 
-  // Calculate monthly attendance & grade for each member
+  const [sortBy, setSortBy] = useState<'kehadiran' | 'nama' | 'kelas'>('kehadiran');
+
+  // Calculate monthly attendance & grade for each member based purely on accumulated attendance
   const gradedStudents = useMemo((): StudentGradeRow[] => {
-    return filteredAnggota.map(anggota => {
-      // Find all attendance records for this student in the selected academic year and semester months
+    // 1. Gather raw attendance data for each member
+    const studentDataList = filteredAnggota.map(anggota => {
       const records = absenSiswaList.filter(entry => {
         const matchStudent = entry.anggotaId === anggota.id;
         const matchSchool = entry.sekolahId === filterSekolahId;
@@ -223,11 +228,10 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
       });
 
       let totalHadir = 0;
-      let totalPertemuan = 0;
+      const totalPertemuan = records.length;
 
       records.forEach(r => {
         const st = (r.status || '').toLowerCase();
-        totalPertemuan++;
         if (st === 'hadir') {
           totalHadir++;
           if (monthlyAttendance[r.bulan] !== undefined) {
@@ -236,53 +240,104 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
         }
       });
 
-      let persentase = 0;
-      if (totalPertemuan > 0) {
-        persentase = Math.round((totalHadir / totalPertemuan) * 100);
-      } else {
-        // Default baseline presentation if fresh
-        persentase = 85;
-      }
+      return {
+        anggota,
+        records,
+        monthlyAttendance,
+        totalHadir,
+        totalPertemuan
+      };
+    });
 
-      // Grade logic:
-      // A (Sangat Baik): Kehadiran >= 85%
-      // B (Baik): Kehadiran 70% - 84%
-      // C (Cukup): Kehadiran 55% - 69%
-      // D (Kurang): Kehadiran < 55%
+    // 2. Determine highest accumulated attendance across members or recorded meetings
+    const maxAccumulatedAttendance = Math.max(...studentDataList.map(s => s.totalHadir), 0);
+    const maxMeetingsRecorded = Math.max(...studentDataList.map(s => s.totalPertemuan), 0);
+    const benchmarkKehadiran = Math.max(maxAccumulatedAttendance, maxMeetingsRecorded, 1);
+    const hasAnyAttendance = maxAccumulatedAttendance > 0 || maxMeetingsRecorded > 0;
+
+    // 3. Compute score (0-100) and predicate (A, B, C, D) strictly based on accumulated attendance:
+    // "Semakin banyak kehadiran semakin bagus predikat nilainya"
+    const results: StudentGradeRow[] = studentDataList.map(item => {
+      let persentase = 0;
+      let nilaiAngka = 80;
       let nilaiHuruf: 'A' | 'B' | 'C' | 'D' = 'B';
       let predikat = 'Baik';
-      let keterangan = 'Mengikuti kegiatan ekstrakurikuler dengan disiplin dan aktif.';
+      let keterangan = 'Aktif dan disiplin mengikuti latihan ekstrakurikuler marching band.';
 
-      if (persentase >= 85) {
-        nilaiHuruf = 'A';
-        predikat = 'Sangat Baik';
-        keterangan = 'Sangat aktif, berdedikasi tinggi, dan selalu disiplin dalam setiap latihan.';
-      } else if (persentase >= 70) {
+      if (!hasAnyAttendance) {
+        // If no attendance records yet in current semester
+        persentase = 80;
+        nilaiAngka = 80;
         nilaiHuruf = 'B';
         predikat = 'Baik';
-        keterangan = 'Aktif dan disiplin mengikuti latihan ekstrakurikuler marching band.';
-      } else if (persentase >= 55) {
-        nilaiHuruf = 'C';
-        predikat = 'Cukup';
-        keterangan = 'Cukup aktif, perlu ditingkatkan kedisiplinan dan kehadirannya.';
+        keterangan = 'Presensi semester sedang berlangsung.';
       } else {
-        nilaiHuruf = 'D';
-        predikat = 'Kurang';
-        keterangan = 'Tingkat kehadiran rendah, memerlukan bimbingan dan motivasi kehadiran.';
+        const ratio = item.totalHadir / benchmarkKehadiran;
+        persentase = Math.round(ratio * 100);
+
+        if (item.totalHadir === 0) {
+          nilaiAngka = 50;
+          nilaiHuruf = 'D';
+          predikat = 'Kurang';
+          keterangan = 'Belum memiliki akumulasi kehadiran latihan, memerlukan pembinaan keaktifan.';
+        } else if (ratio >= 0.85) {
+          // Akumulasi Tertinggi / Kehadiran Sangat Aktif
+          nilaiAngka = Math.min(100, Math.round(86 + (ratio >= 1 ? 14 : ((ratio - 0.85) / 0.15) * 14)));
+          nilaiHuruf = 'A';
+          predikat = 'Sangat Baik';
+          keterangan = 'Akumulasi kehadiran sangat tinggi, sangat aktif dan konsisten dalam setiap latihan.';
+        } else if (ratio >= 0.70) {
+          // Akumulasi Baik
+          nilaiAngka = Math.round(75 + ((ratio - 0.70) / 0.15) * 10);
+          nilaiHuruf = 'B';
+          predikat = 'Baik';
+          keterangan = 'Akumulasi kehadiran baik, aktif dan disiplin mengikuti latihan ekstrakurikuler.';
+        } else if (ratio >= 0.50) {
+          // Akumulasi Cukup
+          nilaiAngka = Math.round(65 + ((ratio - 0.50) / 0.20) * 9);
+          nilaiHuruf = 'C';
+          predikat = 'Cukup';
+          keterangan = 'Akumulasi kehadiran cukup, perlu meningkatkan keaktifan dalam latihan.';
+        } else {
+          // Akumulasi Kurang
+          nilaiAngka = Math.round(52 + (ratio / 0.50) * 12);
+          nilaiHuruf = 'D';
+          predikat = 'Kurang';
+          keterangan = 'Akumulasi kehadiran rendah, jarang mengikuti jadwal latihan ekstrakurikuler.';
+        }
       }
 
       return {
-        anggota,
-        monthlyAttendance,
-        totalHadir,
-        totalPertemuan,
+        anggota: item.anggota,
+        monthlyAttendance: item.monthlyAttendance,
+        totalHadir: item.totalHadir,
+        totalPertemuan: item.totalPertemuan,
         persentaseKehadiran: persentase,
+        nilaiAngka,
         nilaiHuruf,
         predikat,
         keterangan
       };
     });
-  }, [filteredAnggota, absenSiswaList, filterSekolahId, filterTahunAjaran, semesterMonths]);
+
+    // 4. Sort rows based on user preference
+    return results.sort((a, b) => {
+      if (sortBy === 'kehadiran') {
+        if (b.totalHadir !== a.totalHadir) return b.totalHadir - a.totalHadir;
+        if (b.nilaiAngka !== a.nilaiAngka) return b.nilaiAngka - a.nilaiAngka;
+        return a.anggota.nama.localeCompare(b.anggota.nama);
+      }
+      if (sortBy === 'nama') {
+        return a.anggota.nama.localeCompare(b.anggota.nama);
+      }
+      if (sortBy === 'kelas') {
+        const classComp = (a.anggota.kelas || '').localeCompare(b.anggota.kelas || '');
+        if (classComp !== 0) return classComp;
+        return a.anggota.nama.localeCompare(b.anggota.nama);
+      }
+      return 0;
+    });
+  }, [filteredAnggota, absenSiswaList, filterSekolahId, filterTahunAjaran, semesterMonths, sortBy]);
 
   // Statistics calculation
   const stats = useMemo(() => {
@@ -319,41 +374,47 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
     window.print();
   };
 
-  // PDF Export
+  // PDF Export (Strictly 1 Single A4 Portrait Page, High Resolution & Crisp)
   const handleExportPdf = async () => {
     if (!printAreaRef.current) return;
     setIsExporting(true);
     try {
       const element = printAreaRef.current;
       const canvas = await html2canvas(element, {
-        scale: 2,
+        scale: 2.5,
         useCORS: true,
         allowTaint: false,
         logging: false,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        windowWidth: 1200
       });
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      const imgData = canvas.toDataURL('image/png');
+      // Strictly fit onto exactly 1 single A4 portrait page
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4'
       });
 
-      const imgWidth = 210; // A4 width in mm
+      const pageWidth = 210; // A4 width in mm
       const pageHeight = 297; // A4 height in mm
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
+      const margin = 6; // 6mm margin
+      const maxW = pageWidth - (margin * 2);
+      const maxH = pageHeight - (margin * 2);
 
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+      const canvasRatio = canvas.width / canvas.height;
+      let renderW = maxW;
+      let renderH = maxW / canvasRatio;
 
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+      if (renderH > maxH) {
+        renderH = maxH;
+        renderW = maxH * canvasRatio;
       }
+
+      const posX = margin + (maxW - renderW) / 2;
+      const posY = margin + (maxH - renderH) / 2;
+
+      pdf.addImage(imgData, 'PNG', posX, posY, renderW, renderH, undefined, 'FAST');
 
       const pdfBlob = pdf.output('blob');
       const blobUrl = URL.createObjectURL(pdfBlob);
@@ -376,23 +437,24 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
 
   const [isExportingImage, setIsExportingImage] = useState(false);
 
-  // Export Nilai as High-Resolution JPG / PNG Image
+  // Export Nilai as High-Resolution JPG / PNG Image (Desktop Proportioned & Crisp)
   const handleExportImage = async (format: 'jpeg' | 'png') => {
     if (!printAreaRef.current) return;
     setIsExportingImage(true);
     const formatLabel = format === 'jpeg' ? 'JPG' : 'PNG';
     const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
     const ext = format === 'jpeg' ? 'jpg' : 'png';
-    const quality = format === 'jpeg' ? 0.95 : undefined;
+    const quality = format === 'jpeg' ? 0.98 : undefined;
 
     try {
       const element = printAreaRef.current;
       const canvas = await html2canvas(element, {
-        scale: 2,
+        scale: 2.5,
         useCORS: true,
         allowTaint: false,
         logging: false,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        windowWidth: 1200
       });
 
       canvas.toBlob((blob) => {
@@ -416,47 +478,47 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
     }
   };
 
-  // Native Excel (.xlsx) Export with multi-column grades and rubrics
+  // Native Excel (.xlsx) Export with multi-column grades, clean formatting and signatures
   const handleExportExcel = () => {
     try {
       const wb = XLSX.utils.book_new();
 
       const headers = [
         'No',
-        'Nama Anggota',
+        'Nama Lengkap Anggota',
         'Kelas',
         'Divisi / Alat Musik',
         ...semesterMonths.map(m => `Hadir ${m}`),
         'Total Hadir',
-        'Total Pertemuan',
-        'Persentase (%)',
+        'Nilai Angka',
         'Nilai Huruf',
         'Predikat',
         'Deskripsi Capaian'
       ];
 
       const rows: any[][] = [
-        ['DAFTAR NILAI & RAPORT EKSTRAKURIKULER MARCHING BAND'],
-        [`Sekolah: ${selectedSekolah?.namaSekolah || '-'}`],
+        ['DAFTAR NILAI & RAPORT EVALUASI EKSTRAKURIKULER MARCHING BAND'],
+        [`Satuan Pendidikan: ${selectedSekolah?.namaSekolah || '-'}`],
+        [`Alamat: ${selectedSekolah?.alamat || 'Kecamatan Cigombong, Kabupaten Bogor'}`],
         [`Semester: ${filterSemester} | Tahun Pelajaran: ${filterTahunAjaran}`],
-        [`Pelatih: ${pelatihUser?.name || 'Pelatih Ekstrakurikuler'}`],
+        [`Pelatih Pembina: ${pelatihUser?.name || 'Pelatih Ekstrakurikuler'}`],
+        ['Dasar Penilaian: Akumulasi Kehadiran Latihan (Semakin banyak kehadiran semakin bagus predikat nilainya)'],
         [],
         headers
       ];
 
       if (gradedStudents.length === 0) {
-        rows.push(['-', 'Belum ada data anggota pada sekolah/semester ini', '-', '-', ...semesterMonths.map(() => '-'), 0, 0, '0%', '-', '-', '-']);
+        rows.push(['-', 'Belum ada data anggota pada sekolah/semester ini', '-', '-', ...semesterMonths.map(() => '-'), 0, 0, '-', '-', '-']);
       } else {
         gradedStudents.forEach((row, idx) => {
           rows.push([
             idx + 1,
-            row.anggota.nama,
-            row.anggota.kelas || '-',
+            formatNamaKapital(row.anggota.nama),
+            formatKelasAngka(row.anggota.kelas) || '-',
             row.anggota.divisiNama || '-',
             ...semesterMonths.map(m => row.monthlyAttendance[m] || 0),
             row.totalHadir,
-            row.totalPertemuan,
-            `${row.persentaseKehadiran}%`,
+            row.nilaiAngka,
             row.nilaiHuruf,
             row.predikat,
             row.keterangan
@@ -466,26 +528,75 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
 
       // Add summary statistics
       rows.push([]);
-      rows.push(['REKAPITULASI PREDIKAT NILAI']);
-      rows.push(['Predikat A (Sangat Baik - >=85%)', stats.countA, `${stats.pctA}%`]);
-      rows.push(['Predikat B (Baik - 70%-84%)', stats.countB, `${stats.pctB}%`]);
-      rows.push(['Predikat C (Cukup - 55%-69%)', stats.countC, `${stats.pctC}%`]);
-      rows.push(['Predikat D (Kurang - <55%)', stats.countD, `${stats.pctD}%`]);
-      rows.push(['Total Anggota Dinilai', gradedStudents.length]);
+      rows.push(['REKAPITULASI PREDIKAT AKUMULASI KEHADIRAN']);
+      rows.push(['Predikat A (Sangat Baik - Akumulasi >= 85%)', stats.countA, `${stats.pctA}%`]);
+      rows.push(['Predikat B (Baik - Akumulasi 70% - 84%)', stats.countB, `${stats.pctB}%`]);
+      rows.push(['Predikat C (Cukup - Akumulasi 50% - 69%)', stats.countC, `${stats.pctC}%`]);
+      rows.push(['Predikat D (Kurang - Akumulasi < 50%)', stats.countD, `${stats.pctD}%`]);
+      rows.push(['Total Peserta Didik Dinilai', gradedStudents.length]);
+
+      // Add official signatures at the bottom
+      rows.push([]);
+      rows.push([]);
+      rows.push([
+        '',
+        'Mengetahui,',
+        '',
+        '',
+        ...semesterMonths.map(() => ''),
+        '',
+        `Bogor, ${signatureDate}`,
+        '',
+        ''
+      ]);
+      rows.push([
+        '',
+        `Kepala Sekolah ${selectedSekolah?.namaSekolah || ''}`,
+        '',
+        '',
+        ...semesterMonths.map(() => ''),
+        '',
+        'Pelatih Ekstrakurikuler',
+        '',
+        ''
+      ]);
+      rows.push([]);
+      rows.push([]);
+      rows.push([
+        '',
+        selectedSekolah?.kepalaSekolah || 'NITA HERNITA, S.Pd.MM',
+        '',
+        '',
+        ...semesterMonths.map(() => ''),
+        '',
+        pelatihUser?.name || 'Pelatih Ekstrakurikuler',
+        '',
+        ''
+      ]);
+      rows.push([
+        '',
+        `NIP. ${selectedSekolah?.nipKepalaSekolah || '197310221996032002'}`,
+        '',
+        '',
+        ...semesterMonths.map(() => ''),
+        '',
+        pelatihUser?.nip ? `NIP. ${pelatihUser.nip}` : 'Pelatih Pembina Marching Band',
+        '',
+        ''
+      ]);
 
       const ws = XLSX.utils.aoa_to_sheet(rows);
       ws['!cols'] = [
         { wch: 6 },
-        { wch: 28 },
+        { wch: 30 },
         { wch: 10 },
-        { wch: 20 },
+        { wch: 22 },
         ...semesterMonths.map(() => ({ wch: 12 })),
+        { wch: 14 },
+        { wch: 12 },
         { wch: 12 },
         { wch: 16 },
-        { wch: 16 },
-        { wch: 12 },
-        { wch: 16 },
-        { wch: 45 }
+        { wch: 55 }
       ];
 
       XLSX.utils.book_append_sheet(wb, ws, 'Nilai Raport Ekskul');
@@ -532,19 +643,30 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
     }
     .header-box {
       text-align: center;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
+    }
+    .header-instansi {
+      font-size: 10pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      margin: 0;
     }
     .header-title {
       font-size: 13pt;
       font-weight: bold;
       text-transform: uppercase;
-      margin: 0;
+      margin: 2px 0;
     }
     .header-sub {
-      font-size: 11pt;
+      font-size: 10pt;
       font-weight: bold;
       text-transform: uppercase;
       margin: 2px 0;
+    }
+    .divider-line {
+      border-bottom: 2px solid #000;
+      margin-top: 6px;
+      margin-bottom: 12px;
     }
     table.data-table {
       width: 100%;
@@ -588,9 +710,12 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
 </head>
 <body>
   <div class="header-box">
-    <div class="header-title">DAFTAR NILAI EKSTRAKURIKULER MARCHING BAND</div>
-    <div class="header-sub">${(selectedSekolah?.namaSekolah || 'NAMA SEKOLAH').toUpperCase()}</div>
-    <div class="header-sub">SEMESTER ${filterSemester.toUpperCase()} — TAHUN PELAJARAN ${filterTahunAjaran}</div>
+    <div class="header-instansi">PEMERINTAH DAERAH KABUPATEN BOGOR &bull; DINAS PENDIDIKAN</div>
+    <div class="header-title">${(selectedSekolah?.namaSekolah || 'NAMA SEKOLAH').toUpperCase()}</div>
+    <div style="font-size: 9pt;">${selectedSekolah?.alamat || 'Kecamatan Cigombong, Kabupaten Bogor - Provinsi Jawa Barat'}</div>
+    <div class="divider-line"></div>
+    <div class="header-sub">DAFTAR NILAI & LAPORAN EVALUASI EKSTRAKURIKULER MARCHING BAND</div>
+    <div style="font-size: 9.5pt; font-weight: bold;">SEMESTER ${filterSemester.toUpperCase()} &bull; TAHUN PELAJARAN ${filterTahunAjaran}</div>
   </div>
 
   <table class="data-table">
@@ -601,9 +726,8 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
         <th style="width: 8%;">Kelas</th>
         <th style="width: 14%;">Divisi / Alat</th>
         ${semesterMonths.map(m => `<th style="width: 6%;">${m.substring(0, 3)}</th>`).join('')}
-        <th style="width: 6%;">Hadir</th>
-        <th style="width: 6%;">%</th>
-        <th style="width: 6%;">Nilai</th>
+        <th style="width: 6%;">Total Hadir</th>
+        <th style="width: 7%;">Nilai</th>
         <th style="width: 10%;">Predikat</th>
         <th>Deskripsi Capaian</th>
       </tr>
@@ -617,8 +741,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
           <td class="text-left">${row.anggota.divisiNama || '-'}</td>
           ${semesterMonths.map(m => `<td>${row.monthlyAttendance[m] || 0}</td>`).join('')}
           <td><b>${row.totalHadir}</b></td>
-          <td>${row.persentaseKehadiran}%</td>
-          <td><b>${row.nilaiHuruf}</b></td>
+          <td><b>${row.nilaiAngka} (${row.nilaiHuruf})</b></td>
           <td>${row.predikat}</td>
           <td class="text-left" style="font-size: 8pt;">${row.keterangan}</td>
         </tr>
@@ -627,11 +750,11 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
   </table>
 
   <div class="rubrik-box">
-    <b>SKALA & KRITERIA PENILAIAN EKSTRAKURIKULER:</b><br/>
-    • <b>Nilai A (Sangat Baik)</b>: Kehadiran &ge; 85% — Sangat aktif, berdedikasi tinggi, dan selalu disiplin dalam setiap latihan.<br/>
-    • <b>Nilai B (Baik)</b>: Kehadiran 70% – 84% — Aktif dan disiplin mengikuti latihan ekstrakurikuler marching band.<br/>
-    • <b>Nilai C (Cukup)</b>: Kehadiran 55% – 69% — Cukup aktif, perlu ditingkatkan kedisiplinan dan kehadirannya.<br/>
-    • <b>Nilai D (Kurang)</b>: Kehadiran &lt; 55% — Tingkat kehadiran rendah, memerlukan bimbingan dan motivasi kehadiran.
+    <b>PEDOMAN PENILAIAN BERDASARKAN AKUMULASI KEHADIRAN:</b><br/>
+    &bull; <b>Nilai A (Sangat Baik)</b>: Akumulasi kehadiran tertinggi (&ge; 85%) &mdash; Sangat aktif, berdedikasi tinggi, dan selalu disiplin dalam setiap latihan.<br/>
+    &bull; <b>Nilai B (Baik)</b>: Akumulasi kehadiran baik (70% &ndash; 84%) &mdash; Aktif dan disiplin mengikuti latihan ekstrakurikuler marching band.<br/>
+    &bull; <b>Nilai C (Cukup)</b>: Akumulasi kehadiran cukup (50% &ndash; 69%) &mdash; Cukup aktif, perlu ditingkatkan kedisiplinan dan kehadirannya.<br/>
+    &bull; <b>Nilai D (Kurang)</b>: Akumulasi kehadiran kurang (&lt; 50%) &mdash; Tingkat kehadiran rendah, memerlukan bimbingan dan peningkatan keaktifan.
   </div>
 
   <table class="sig-table">
@@ -711,45 +834,45 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs"
-              title="Cetak langsung menggunakan printer dialog browser"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-sm border border-slate-700"
+              title="Cetak langsung format 1 halaman resmi menggunakan dialog printer browser"
             >
-              <Printer className="w-4 h-4 text-slate-300" />
-              <span>Cetak</span>
-            </button>
-            <button
-              onClick={handleExportExcel}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-md cursor-pointer"
-              title="Unduh rekap nilai ke format Microsoft Excel (.xlsx)"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
-              <span>Unduh Excel (.xlsx)</span>
-            </button>
-            <button
-              onClick={handleExportWord}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition shadow-md cursor-pointer"
-              title="Unduh rekap nilai ke format Microsoft Word (.doc)"
-            >
-              <Download className="w-4 h-4 text-blue-200" />
-              <span>Unduh Word (.doc)</span>
+              <Printer className="w-4 h-4 text-amber-300" />
+              <span>Cetak (1 Halaman)</span>
             </button>
             <button
               onClick={handleExportPdf}
               disabled={isExporting || isExportingImage}
               className="flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition shadow-md cursor-pointer disabled:opacity-50"
-              title="Unduh rekap nilai ke format PDF resmi"
+              title="Unduh rekap nilai ke format PDF resmi (pasti 1 halaman)"
             >
-              <Download className="w-4 h-4 text-white" />
-              <span>{isExporting ? 'Memproses PDF...' : 'Unduh PDF'}</span>
+              <FileText className="w-4 h-4 text-white" />
+              <span>{isExporting ? 'Memproses PDF...' : 'Unduh PDF (1 Halaman)'}</span>
+            </button>
+            <button
+              onClick={handleExportExcel}
+              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-md cursor-pointer"
+              title="Unduh rekap nilai ke format Microsoft Excel (.xlsx)"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+              <span>Unduh Excel</span>
+            </button>
+            <button
+              onClick={handleExportWord}
+              className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition shadow-md cursor-pointer"
+              title="Unduh rekap nilai ke format Microsoft Word (.doc)"
+            >
+              <Download className="w-4 h-4 text-blue-200" />
+              <span>Word (.doc)</span>
             </button>
             <button
               onClick={() => handleExportImage('jpeg')}
               disabled={isExporting || isExportingImage}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition shadow-md cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition shadow-md cursor-pointer disabled:opacity-50"
               title="Unduh rekap nilai sebagai gambar JPG berkualitas tinggi"
             >
               <ImageIcon className="w-4 h-4 text-amber-200" />
-              <span>{isExportingImage ? 'Memproses JPG...' : 'Unduh JPG'}</span>
+              <span>JPG</span>
             </button>
             <button
               onClick={() => handleExportImage('png')}
@@ -763,8 +886,8 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
           </div>
         </div>
 
-        {/* Filter Controls */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-4">
+        {/* Filter & Sort Controls */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-4">
           {/* Sekolah */}
           <div>
             <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1 flex items-center gap-1">
@@ -832,7 +955,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
             </select>
           </div>
 
-          {/* Divisi / Search */}
+          {/* Divisi */}
           <div>
             <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1 flex items-center gap-1">
               <Sparkles className="w-3.5 h-3.5 text-indigo-500" /> Filter Divisi
@@ -848,6 +971,22 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
                   Divisi {d}
                 </option>
               ))}
+            </select>
+          </div>
+
+          {/* Urutan Data Berdasarkan Akumulasi Kehadiran */}
+          <div>
+            <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1 flex items-center gap-1">
+              <Award className="w-3.5 h-3.5 text-emerald-500" /> Urutkan Nilai
+            </label>
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value as any)}
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+            >
+              <option value="kehadiran">Akumulasi Kehadiran (Tertinggi)</option>
+              <option value="nama">Nama Anggota (A-Z)</option>
+              <option value="kelas">Tingkat Kelas</option>
             </select>
           </div>
         </div>
@@ -901,20 +1040,20 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
         <div className="mt-3 p-3 bg-blue-50/80 border border-blue-200/80 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs text-blue-900">
           <div className="flex items-center gap-2">
             <Info className="w-4 h-4 text-blue-600 shrink-0" />
-            <span className="font-semibold">Pedoman Standar Nilai Kehadiran:</span>
+            <span className="font-semibold">Pedoman Nilai Berdasarkan Akumulasi Kehadiran (Semakin banyak hadir semakin tinggi nilai):</span>
           </div>
           <div className="flex flex-wrap gap-2 text-[11px] font-bold">
             <span className="bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-md border border-emerald-300">
-              A (Sangat Baik): Kehadiran ≥ 85%
+              A (Sangat Baik): Akumulasi Tertinggi (≥ 85%)
             </span>
             <span className="bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-md border border-blue-300">
-              B (Baik): Kehadiran 70% - 84%
+              B (Baik): Akumulasi Baik (70% - 84%)
             </span>
             <span className="bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-md border border-amber-300">
-              C (Cukup): Kehadiran 55% - 69%
+              C (Cukup): Akumulasi Cukup (50% - 69%)
             </span>
             <span className="bg-rose-100 text-rose-800 px-2.5 py-0.5 rounded-md border border-rose-300">
-              D (Kurang): Kehadiran &lt; 55%
+              D (Kurang): Akumulasi Rendah (&lt; 50%)
             </span>
           </div>
         </div>
@@ -963,79 +1102,165 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
         </div>
       </div>
 
-      {/* Official Report Document Format (Print / Preview / PDF) */}
-      <div
-        ref={printAreaRef}
-        className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm max-w-5xl mx-auto text-slate-900"
-      >
-        {/* Metadata Information: Nama Sekolah & Semester */}
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-5 text-xs font-medium grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6">
-          <div className="space-y-1">
+      {/* Official A4 Sheet Preview & Print Wrapper */}
+      <div className="w-full flex flex-col items-center justify-center overflow-x-auto py-2">
+        {/* A4 Sheet Dimensions Indicator */}
+        <div className="flex items-center justify-between w-full max-w-[210mm] mb-2 px-1 text-xs text-slate-500 font-semibold print:hidden">
+          <span className="inline-flex items-center gap-1.5 text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+            <FileText className="w-3.5 h-3.5 text-blue-600" />
+            <span>Format Standar: <b>A4 Portrait (210 × 297 mm)</b></span>
+          </span>
+          <span className="text-slate-400 text-[11px]">Pas 1 Lembar Cetak & Unduh PDF Resmi</span>
+        </div>
+
+        {/* Official Report Document Format (Print / Preview / PDF - Strictly Standard A4 Portrait: 210mm x 297mm) */}
+        <div
+          id="printable-nilai-single-page"
+          ref={printAreaRef}
+          className="bg-white w-[210mm] max-w-full min-h-[297mm] p-[8mm] sm:p-[10mm] rounded-xs border border-slate-300 shadow-xl mx-auto text-slate-900 font-sans box-border flex flex-col justify-between transition-all"
+          style={{ color: '#0f172a' }}
+        >
+          {/* Scoped CSS to enforce exact single-page A4 portrait printing */}
+          <style dangerouslySetInnerHTML={{ __html: `
+            @media print {
+              @page {
+                size: A4 portrait;
+                margin: 0;
+              }
+              html, body {
+                background: #ffffff !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 100% !important;
+              }
+              body * {
+                visibility: hidden !important;
+              }
+              #printable-nilai-single-page, #printable-nilai-single-page * {
+                visibility: visible !important;
+              }
+              #printable-nilai-single-page {
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 210mm !important;
+                max-width: 210mm !important;
+                min-height: 297mm !important;
+                max-height: 297mm !important;
+                height: 297mm !important;
+                margin: 0 !important;
+                padding: 7mm 9mm !important;
+                border: none !important;
+                box-shadow: none !important;
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+                box-sizing: border-box !important;
+                overflow: hidden !important;
+              }
+              .no-print-in-sheet {
+                display: none !important;
+              }
+            }
+          `}} />
+
+        {/* 1. Official Kop Surat (Text Only - Formal, Rapi, & Tanpa Gambar) */}
+        <div className="text-center pb-1">
+          <p className="text-[10px] sm:text-[11px] font-bold tracking-widest text-slate-700 uppercase leading-none">
+            PEMERINTAH DAERAH KABUPATEN BOGOR • DINAS PENDIDIKAN
+          </p>
+          <h1 className="text-sm sm:text-base font-black text-slate-900 tracking-wider uppercase leading-tight mt-1">
+            {selectedSekolah?.namaSekolah || 'SATUAN PENDIDIKAN BINAAN'}
+          </h1>
+          <p className="text-[10px] text-slate-600 font-medium leading-tight mt-0.5">
+            {selectedSekolah?.alamat || 'Kecamatan Cigombong, Kabupaten Bogor - Provinsi Jawa Barat'}
+          </p>
+          <p className="text-[9px] text-slate-500 font-medium leading-none mt-0.5">
+            Satuan Pelaksana Kegiatan Ekstrakurikuler Seni & Olahraga Marching Band
+          </p>
+
+          {/* Formal Double Border (Tebal - Tipis) */}
+          <div className="border-b-2 border-slate-900 mt-2"></div>
+          <div className="border-b border-slate-700 mt-[1.5px] mb-2.5"></div>
+        </div>
+
+        {/* 2. Official Document Title */}
+        <div className="text-center mb-2.5">
+          <h2 className="text-xs sm:text-sm font-black text-slate-900 tracking-wider uppercase underline underline-offset-4">
+            DAFTAR NILAI DAN LAPORAN EVALUASI HASIL BELAJAR EKSTRAKURIKULER
+          </h2>
+          <h3 className="text-[11px] font-black text-blue-900 uppercase tracking-wide mt-1">
+            UNIT KEGIATAN: MARCHING BAND / DRUMBAND
+          </h3>
+          <p className="text-[10px] font-bold text-slate-700 uppercase mt-0.5">
+            SEMESTER {filterSemester.toUpperCase()} ({filterSemester === 'Ganjil' ? 'JULI - DESEMBER' : 'JANUARI - JUNI'}) • TAHUN PELAJARAN {filterTahunAjaran}
+          </p>
+        </div>
+
+        {/* 3. Formal Two-Column Identity Metadata */}
+        <div className="border border-slate-400 bg-slate-50/70 rounded-md p-2 mb-2.5 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5 leading-tight">
+          <div className="space-y-0.5">
             <div className="flex">
-              <span className="w-32 text-slate-500 font-semibold">Nama Sekolah</span>
+              <span className="w-28 text-slate-600 font-semibold">Satuan Pendidikan</span>
               <span className="font-bold text-slate-900">: {selectedSekolah?.namaSekolah || '-'}</span>
             </div>
             <div className="flex">
-              <span className="w-32 text-slate-500 font-semibold">Semester</span>
-              <span className="font-bold text-slate-900 uppercase">: {filterSemester} ({filterSemester === 'Ganjil' ? 'Juli - Desember' : 'Januari - Juni'})</span>
+              <span className="w-28 text-slate-600 font-semibold">Semester / TP</span>
+              <span className="font-bold text-slate-900">: {filterSemester} / {filterTahunAjaran}</span>
             </div>
             <div className="flex">
-              <span className="w-32 text-slate-500 font-semibold">Tahun Pelajaran</span>
-              <span className="font-bold text-slate-900">: {filterTahunAjaran}</span>
+              <span className="w-28 text-slate-600 font-semibold">Divisi / Alat</span>
+              <span className="font-bold text-slate-900">: {filterDivisi === 'ALL' ? 'Semua Divisi Musik & Visual' : `Divisi ${filterDivisi}`}</span>
             </div>
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             <div className="flex">
-              <span className="w-32 text-slate-500 font-semibold">Kegiatan Ekskul</span>
-              <span className="font-bold text-slate-900">: Marching Band / Drumband</span>
-            </div>
-            <div className="flex">
-              <span className="w-32 text-slate-500 font-semibold">Pelatih Pembina</span>
+              <span className="w-28 text-slate-600 font-semibold">Pelatih Pembina</span>
               <span className="font-bold text-slate-900">: {pelatihUser?.name || 'Pelatih Ekstrakurikuler'}</span>
             </div>
             <div className="flex">
-              <span className="w-32 text-slate-500 font-semibold">Jumlah Anggota</span>
-              <span className="font-bold text-slate-900">: {gradedStudents.length} Anggota</span>
+              <span className="w-28 text-slate-600 font-semibold">Dasar Penilaian</span>
+              <span className="font-bold text-slate-900">: Akumulasi Kehadiran Latihan</span>
+            </div>
+            <div className="flex">
+              <span className="w-28 text-slate-600 font-semibold">Jumlah Anggota</span>
+              <span className="font-bold text-slate-900">: {gradedStudents.length} Peserta Didik</span>
             </div>
           </div>
         </div>
 
-        {/* Grades Table with Monthly Attendance Columns */}
-        <div className="overflow-x-auto border border-slate-300 rounded-xl mb-6">
-          <table className="w-full text-left text-xs border-collapse">
+        {/* 4. Official Member Grades Table (Compact & Clean) */}
+        <div className="overflow-x-auto border border-slate-400 mb-2 rounded-xs">
+          <table className="w-full text-left text-[10px] border-collapse">
             <thead>
-              {/* Header baris 1 */}
-              <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
-                <th rowSpan={2} className="py-2.5 px-2.5 border-r border-slate-300 text-center w-10">No</th>
-                <th rowSpan={2} className="py-2.5 px-3 border-r border-slate-300 text-center">Nama Anggota</th>
-                <th rowSpan={2} className="py-2.5 px-2 border-r border-slate-300 text-center w-14">Kelas</th>
-                <th rowSpan={2} className="py-2.5 px-3 border-r border-slate-300">Divisi / Alat</th>
-                <th colSpan={semesterMonths.length} className="py-1.5 px-2 border-r border-slate-300 text-center bg-blue-50/60 font-black">
-                  Jumlah Kehadiran Latihan (Bulan)
+              <tr className="bg-slate-100 text-slate-900 font-bold border-b border-slate-400">
+                <th rowSpan={2} className="py-1 px-1.5 border-r border-slate-400 text-center w-6">No</th>
+                <th rowSpan={2} className="py-1 px-2 border-r border-slate-400 text-left">Nama Peserta Didik</th>
+                <th rowSpan={2} className="py-1 px-1.5 border-r border-slate-400 text-center w-10">Kelas</th>
+                <th rowSpan={2} className="py-1 px-2 border-r border-slate-400 text-left w-24">Divisi</th>
+                <th colSpan={semesterMonths.length} className="py-0.5 px-1 border-r border-slate-400 text-center bg-blue-50/70 font-black">
+                  Presensi Latihan Bulanan
                 </th>
-                <th rowSpan={2} className="py-2.5 px-2.5 border-r border-slate-300 text-center w-14" title="Total Kehadiran">Total Hadir</th>
-                <th rowSpan={2} className="py-2.5 px-2.5 border-r border-slate-300 text-center w-14 bg-amber-50/60">Nilai</th>
-                <th rowSpan={2} className="py-2.5 px-3 border-r border-slate-300 text-center w-24">Predikat</th>
-                <th rowSpan={2} className="py-2.5 px-3">Keterangan</th>
+                <th rowSpan={2} className="py-1 px-1.5 border-r border-slate-400 text-center w-11 bg-slate-50 font-black">Total Hadir</th>
+                <th rowSpan={2} className="py-1 px-1.5 border-r border-slate-400 text-center w-12 bg-amber-50 font-black">Nilai</th>
+                <th rowSpan={2} className="py-1 px-2 border-r border-slate-400 text-center w-18 font-black">Predikat</th>
+                <th rowSpan={2} className="py-1 px-2 text-left">Capaian Kompetensi / Keterangan</th>
               </tr>
-              {/* Header baris 2 (Nama Bulan Semester) */}
-              <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300 text-[11px]">
+              <tr className="bg-slate-100 text-slate-900 font-bold border-b border-slate-400 text-[9px]">
                 {semesterMonths.map(monthName => (
                   <th
                     key={monthName}
-                    className="py-1.5 px-2 border-r border-slate-300 text-center w-12 bg-blue-50/40"
-                    title={`Kehadiran Bulan ${monthName}`}
+                    className="py-0.5 px-1 border-r border-slate-400 text-center w-8 bg-blue-50/40"
                   >
                     {monthName.substring(0, 3)}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-slate-300">
               {gradedStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={6 + semesterMonths.length} className="py-8 text-center text-slate-500 italic">
+                  <td colSpan={6 + semesterMonths.length} className="py-5 text-center text-slate-500 italic">
                     Belum ada data anggota pada sekolah dan divisi yang dipilih.
                   </td>
                 </tr>
@@ -1044,38 +1269,38 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
                   const getGradeBadge = (grade: string) => {
                     switch (grade) {
                       case 'A':
-                        return 'bg-emerald-100 text-emerald-800 border-emerald-300';
+                        return 'bg-emerald-100 text-emerald-900 font-black';
                       case 'B':
-                        return 'bg-blue-100 text-blue-800 border-blue-300';
+                        return 'bg-blue-100 text-blue-900 font-black';
                       case 'C':
-                        return 'bg-amber-100 text-amber-800 border-amber-300';
+                        return 'bg-amber-100 text-amber-900 font-black';
                       default:
-                        return 'bg-rose-100 text-rose-800 border-rose-300';
+                        return 'bg-rose-100 text-rose-900 font-black';
                     }
                   };
 
                   return (
-                    <tr key={row.anggota.id} className="hover:bg-slate-50/70 transition">
-                      <td className="py-2 px-2.5 border-r border-slate-200 text-center font-semibold text-slate-600">
+                    <tr key={row.anggota.id} className="hover:bg-slate-50/60 leading-tight">
+                      <td className="py-1 px-1.5 border-r border-slate-300 text-center font-semibold text-slate-700">
                         {index + 1}
                       </td>
-                      <td className="py-2 px-3 border-r border-slate-200 font-bold text-slate-900 text-center">
-                        {row.anggota.nama}
+                      <td className="py-1 px-2 border-r border-slate-300 font-bold text-slate-900">
+                        {formatNamaKapital(row.anggota.nama)}
                       </td>
-                      <td className="py-2 px-2 border-r border-slate-200 text-center text-slate-700 font-medium">
-                        {row.anggota.kelas || '-'}
+                      <td className="py-1 px-1.5 border-r border-slate-300 text-center text-slate-800 font-semibold font-mono">
+                        {formatKelasAngka(row.anggota.kelas) || '-'}
                       </td>
-                      <td className="py-2 px-3 border-r border-slate-200 text-slate-700">
+                      <td className="py-1 px-2 border-r border-slate-300 text-slate-700">
                         {row.anggota.divisiNama || '-'}
                       </td>
-                      {/* Kolom Kehadiran Setiap Bulan */}
+                      {/* Presensi Tiap Bulan */}
                       {semesterMonths.map(monthName => {
                         const count = row.monthlyAttendance[monthName] || 0;
                         return (
                           <td
                             key={monthName}
-                            className={`py-2 px-2 border-r border-slate-200 text-center font-bold ${
-                              count > 0 ? 'text-slate-900 bg-slate-50/50' : 'text-slate-400'
+                            className={`py-1 px-1 border-r border-slate-300 text-center ${
+                              count > 0 ? 'text-slate-900 font-bold bg-slate-50/30' : 'text-slate-400'
                             }`}
                           >
                             {count > 0 ? count : '-'}
@@ -1083,21 +1308,21 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
                         );
                       })}
                       {/* Total Hadir */}
-                      <td className="py-2 px-2.5 border-r border-slate-200 text-center font-black text-blue-700 bg-blue-50/30">
+                      <td className="py-1 px-1.5 border-r border-slate-300 text-center font-black text-blue-900 bg-blue-50/40">
                         {row.totalHadir}
                       </td>
-                      {/* Nilai Huruf */}
-                      <td className="py-2 px-2.5 border-r border-slate-200 text-center bg-amber-50/20">
-                        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg font-black text-sm border ${getGradeBadge(row.nilaiHuruf)}`}>
-                          {row.nilaiHuruf}
+                      {/* Nilai Angka & Huruf */}
+                      <td className="py-1 px-1 border-r border-slate-300 text-center">
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-black ${getGradeBadge(row.nilaiHuruf)}`}>
+                          {row.nilaiAngka} ({row.nilaiHuruf})
                         </span>
                       </td>
                       {/* Predikat */}
-                      <td className="py-2 px-3 border-r border-slate-200 text-center font-bold text-slate-800">
+                      <td className="py-1 px-2 border-r border-slate-300 text-center font-bold text-slate-800 text-[9.5px]">
                         {row.predikat}
                       </td>
                       {/* Keterangan */}
-                      <td className="py-2 px-3 text-slate-600 text-[11px] leading-tight">
+                      <td className="py-1 px-2 text-slate-700 text-[9px] leading-snug">
                         {row.keterangan}
                       </td>
                     </tr>
@@ -1108,74 +1333,67 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
           </table>
         </div>
 
-        {/* Legend & Summary Notes */}
-        <div className="border border-slate-200 rounded-xl p-3.5 bg-slate-50 mb-8 text-[11px]">
-          <p className="font-bold text-slate-800 mb-1">Kriteria Predikat Nilai Raport Ekstrakurikuler:</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-slate-700">
-            <div className="bg-white p-2 rounded-lg border border-slate-200">
-              <strong className="text-emerald-700">A (Sangat Baik)</strong>: Kehadiran ≥ 85%
-            </div>
-            <div className="bg-white p-2 rounded-lg border border-slate-200">
-              <strong className="text-blue-700">B (Baik)</strong>: Kehadiran 70% - 84%
-            </div>
-            <div className="bg-white p-2 rounded-lg border border-slate-200">
-              <strong className="text-amber-700">C (Cukup)</strong>: Kehadiran 55% - 69%
-            </div>
-            <div className="bg-white p-2 rounded-lg border border-slate-200">
-              <strong className="text-rose-700">D (Kurang)</strong>: Kehadiran &lt; 55%
-            </div>
-          </div>
+        {/* 5. Formal Compact Legend (Tanpa KKM, Sederhana & Rapi) */}
+        <div className="border border-slate-400 p-1.5 bg-slate-50 text-[9px] mb-2.5 rounded-xs flex flex-wrap items-center justify-between gap-1.5 text-slate-800 leading-none">
+          <span className="font-bold uppercase tracking-wider text-slate-900">Pedoman Predikat Akumulasi Kehadiran:</span>
+          <span><strong className="text-emerald-800">A (Sangat Baik)</strong>: Akumulasi Kehadiran Tertinggi (&ge;85%)</span>
+          <span><strong className="text-blue-800">B (Baik)</strong>: Akumulasi Kehadiran Baik (70% - 84%)</span>
+          <span><strong className="text-amber-800">C (Cukup)</strong>: Akumulasi Kehadiran Cukup (50% - 69%)</span>
+          <span><strong className="text-rose-800">D (Kurang)</strong>: Akumulasi Kehadiran Rendah (&lt;50%)</span>
         </div>
 
-        {/* Official Signatures Section with Authentic Wet Ink (Tanpa Stempel) */}
-        <div className="signature-row grid grid-cols-2 gap-8 text-xs pt-4 border-t border-slate-300">
+        {/* 6. Official Signatures (Lembar Pengesahan Dua Sisi) */}
+        <div className="signature-row grid grid-cols-2 gap-4 text-[10.5px] pt-1.5 border-t border-slate-400 leading-tight">
           {/* Sisi Kiri: Mengetahui Kepala Sekolah */}
           <div className="text-center relative flex flex-col items-center">
-            <p className="text-slate-500 font-semibold mb-1">Mengetahui,</p>
-            <p className="font-bold text-slate-800">Kepala Sekolah {selectedSekolah?.namaSekolah}</p>
+            <p className="text-slate-600 font-semibold mb-0.5">Mengetahui,</p>
+            <p className="font-bold text-slate-900 leading-tight">
+              Kepala Sekolah {selectedSekolah?.namaSekolah}
+            </p>
 
-            <div className="relative h-20 w-48 flex items-center justify-center my-1">
-              {/* Wet Ink Blue Signature */}
+            <div className="relative h-14 w-44 flex items-center justify-center my-0.5">
               {useWetSignature ? (
                 <TandaTanganBasahKepalaSekolah />
               ) : (
-                <div className="h-16" />
+                <div className="h-12" />
               )}
             </div>
 
             <p className="font-black text-slate-900 underline uppercase tracking-wide">
               {selectedSekolah?.kepalaSekolah || 'NITA HERNITA, S.Pd.MM'}
             </p>
-            <p className="text-[11px] text-slate-600">
+            <p className="text-[10px] text-slate-600">
               NIP. {selectedSekolah?.nipKepalaSekolah || '197310221996032002'}
             </p>
           </div>
 
           {/* Sisi Kanan: Pelatih Ekstrakurikuler */}
           <div className="text-center relative flex flex-col items-center">
-            <p className="text-slate-500 font-semibold mb-1">
+            <p className="text-slate-600 font-semibold mb-0.5">
               Bogor, {signatureDate}
             </p>
-            <p className="font-bold text-slate-800">Pelatih Ekstrakurikuler</p>
+            <p className="font-bold text-slate-900 leading-tight">
+              Pelatih Ekstrakurikuler
+            </p>
 
-            <div className="relative h-20 w-48 flex items-center justify-center my-1">
-              {/* Wet Ink Blue Signature */}
+            <div className="relative h-14 w-44 flex items-center justify-center my-0.5">
               {useWetSignature ? (
                 <TandaTanganBasahPelatih customSignatureUrl={customCoachSignature} />
               ) : (
-                <div className="h-16" />
+                <div className="h-12" />
               )}
             </div>
 
             <p className="font-black text-slate-900 underline uppercase tracking-wide">
               {pelatihUser?.name || 'Pelatih Ekstrakurikuler'}
             </p>
-            <p className="text-[11px] text-slate-600">
+            <p className="text-[10px] text-slate-600">
               {pelatihUser?.nip ? `NIP. ${pelatihUser.nip}` : 'Pelatih Marching Band'}
             </p>
           </div>
         </div>
       </div>
+    </div>
 
       {/* Signature Customization Modal */}
       {isSignatureModalOpen && (

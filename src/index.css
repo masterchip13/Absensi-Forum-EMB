@@ -45,23 +45,39 @@ html, body {
     display: none !important;
   }
 
-  #printable-pdf-area {
+  #printable-pdf-area,
+  #printable-nilai-single-page {
     margin: 0 auto !important;
     padding: 0 !important;
     width: 100% !important;
-    max-width: 100% !important;
     background: transparent !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 
   .pdf-page {
     page-break-after: always !important;
+    break-after: page !important;
     page-break-inside: avoid !important;
+    break-inside: avoid !important;
     box-shadow: none !important;
-    margin: 0 auto 10mm auto !important;
-    width: 210mm !important;
-    min-height: 297mm !important;
+    margin: 0 auto !important;
     border: none !important;
     background-color: #ffffff !important;
+    box-sizing: border-box !important;
+  }
+
+  .pdf-page.pdf-portrait,
+  .pdf-page:not(.pdf-landscape) {
+    width: 210mm !important;
+    min-height: 297mm !important;
+    max-width: 210mm !important;
+  }
+
+  .pdf-page.pdf-landscape {
+    width: 297mm !important;
+    min-height: 210mm !important;
+    max-width: 297mm !important;
   }
 
   /* Table rules for all print dialogs (Safari, Chrome, Edge, Firefox) */

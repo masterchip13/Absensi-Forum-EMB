@@ -362,7 +362,8 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
   const getPdfPageClass = (extraPadding = 'p-[14mm]') => {
     const isLandscape = orientasiKertas === 'landscape';
     const dims = isLandscape ? 'w-[297mm] min-h-[210mm]' : 'w-[210mm] min-h-[297mm]';
-    return `pdf-page bg-white ${dims} ${extraPadding} shadow-lg text-black box-border flex flex-col justify-between mx-auto relative transition-all`;
+    const pageClass = isLandscape ? 'pdf-landscape' : 'pdf-portrait';
+    return `pdf-page ${pageClass} bg-white ${dims} ${extraPadding} shadow-xl text-black box-border flex flex-col justify-between mx-auto relative transition-all`;
   };
 
   const exportPdf = async () => {
@@ -1491,6 +1492,60 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
             </button>
           </div>
         )}
+
+        {/* A4 Sheet Dimensions Indicator */}
+        <div className={`flex items-center justify-between w-full ${orientasiKertas === 'landscape' ? 'max-w-[297mm]' : 'max-w-[210mm]'} mb-2 px-1 text-xs text-slate-500 font-semibold print:hidden`}>
+          <span className="inline-flex items-center gap-1.5 text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+            <FileText className="w-3.5 h-3.5 text-blue-600" />
+            <span>Format Standar: <b>A4 {orientasiKertas === 'landscape' ? 'Landscape (297 × 210 mm)' : 'Portrait (210 × 297 mm)'}</b></span>
+          </span>
+          <span className="text-slate-400 text-[11px]">Setiap Halaman Pas Standar Lembar Kertas A4</span>
+        </div>
+
+        {/* Scoped CSS to enforce exact A4 printing in chosen orientation */}
+        <style dangerouslySetInnerHTML={{ __html: `
+          @media print {
+            @page {
+              size: A4 ${orientasiKertas};
+              margin: 0;
+            }
+            html, body {
+              background: #ffffff !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              width: 100% !important;
+            }
+            body * {
+              visibility: hidden !important;
+            }
+            #printable-pdf-area, #printable-pdf-area * {
+              visibility: visible !important;
+            }
+            #printable-pdf-area {
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 100% !important;
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+            .pdf-page {
+              box-shadow: none !important;
+              border: none !important;
+              margin: 0 !important;
+              page-break-after: always !important;
+              break-after: page !important;
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+              width: ${orientasiKertas === 'landscape' ? '297mm' : '210mm'} !important;
+              height: ${orientasiKertas === 'landscape' ? '210mm' : '297mm'} !important;
+              min-height: ${orientasiKertas === 'landscape' ? '210mm' : '297mm'} !important;
+              max-height: ${orientasiKertas === 'landscape' ? '210mm' : '297mm'} !important;
+              box-sizing: border-box !important;
+              overflow: hidden !important;
+            }
+          }
+        `}} />
 
         <div id="printable-pdf-area" ref={pdfContainerRef} className={`space-y-8 w-full ${orientasiKertas === 'landscape' ? 'max-w-[297mm]' : 'max-w-[210mm]'}`}>
 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { AbsenPelatihItem, Sekolah } from '../types';
 import { StorageService } from '../data/storage';
 import { SignaturePad } from './SignaturePad';
-import { Camera, CheckCircle2, Image as ImageIcon, Plus, Calendar, Clock, Award, Trash2 } from 'lucide-react';
+import { Camera, CheckCircle2, Image as ImageIcon, Plus, Calendar, Clock, Award, Trash2, Edit2 } from 'lucide-react';
 
 import { compressImageDataUrl } from '../utils/imageCompressor';
 
@@ -24,6 +24,8 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
   onDataChanged
 }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingAuthorId, setEditingAuthorId] = useState<string | null>(null);
 
   const [tanggal, setTanggal] = useState(new Date().toISOString().split('T')[0]);
   const [jamMulai, setJamMulai] = useState('15:00');
@@ -38,6 +40,28 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
   const allUsers = StorageService.getUsers();
   const activeSchool = sekolahList.find(s => s.id === selectedSekolahId);
   const schoolAbsenList = absenPelatihList.filter(a => a.sekolahId === selectedSekolahId);
+
+  const handleOpenAdd = () => {
+    setEditingId(null);
+    setEditingAuthorId(null);
+    resetForm();
+    setIsFormOpen(true);
+  };
+
+  const handleOpenEdit = (item: AbsenPelatihItem) => {
+    setEditingId(item.id);
+    setEditingAuthorId(item.pelatihId);
+    setTanggal(item.tanggal);
+    setJamMulai(item.jamMulai || '15:00');
+    setJamSelesai(item.jamSelesai || '17:30');
+    setMateriPokok(item.materiPokok || '');
+    setPencapaianPercent(item.pencapaianPercent ?? 85);
+    setFotoDokumentasiUrl(item.fotoDokumentasiUrl || '');
+    setParafPelatihUrl(item.parafPelatihUrl || '');
+    setCatatan(item.catatan || '');
+    setShowSignaturePad(false);
+    setIsFormOpen(true);
+  };
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -73,9 +97,12 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
     const formatted = `${dayNames[d.getDay()]}, ${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()}`;
 
-    const newRecord: AbsenPelatihItem = {
-      id: `abp-${Date.now()}`,
-      pelatihId: currentPelatihId,
+    const targetId = editingId || `abp-${Date.now()}`;
+    const targetAuthorId = editingAuthorId || currentPelatihId;
+
+    const record: AbsenPelatihItem = {
+      id: targetId,
+      pelatihId: targetAuthorId,
       sekolahId: selectedSekolahId,
       tahunAjaran: StorageService.getActiveTahunAjaran(),
       tanggal,
@@ -90,13 +117,20 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
       catatan
     };
 
-    StorageService.saveAbsenPelatih(newRecord);
+    StorageService.saveAbsenPelatih(record);
     setIsFormOpen(false);
+    setEditingId(null);
+    setEditingAuthorId(null);
     resetForm();
     onDataChanged();
   };
 
   const resetForm = () => {
+    setEditingId(null);
+    setEditingAuthorId(null);
+    setTanggal(new Date().toISOString().split('T')[0]);
+    setJamMulai('15:00');
+    setJamSelesai('17:30');
     setMateriPokok('');
     setPencapaianPercent(85);
     setFotoDokumentasiUrl('');
@@ -127,8 +161,8 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
         </div>
 
         <button
-          onClick={() => setIsFormOpen(true)}
-          className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition"
+          onClick={handleOpenAdd}
+          className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>Isi Absen Melatih</span>
@@ -144,8 +178,8 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
             Setiap selesai melatih, wajib mengisi materi pokok, pencapaian %, dan melampirkan foto dokumentasi.
           </p>
           <button
-            onClick={() => setIsFormOpen(true)}
-            className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3.5 py-2 rounded-xl transition"
+            onClick={handleOpenAdd}
+            className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3.5 py-2 rounded-xl transition cursor-pointer"
           >
             + Input Rekap Latihan Pertama
           </button>
@@ -171,13 +205,24 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
                       </span>
                       <h4 className="font-bold text-slate-900 text-sm mt-1">{item.materiPokok}</h4>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <span className="text-xs font-black bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-lg">
                         {item.pencapaianPercent}%
                       </span>
                       <button
+                        type="button"
+                        onClick={() => handleOpenEdit(item)}
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition border border-blue-200 cursor-pointer"
+                        title="Edit Absen Melatih"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                        <span>Edit</span>
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => handleDelete(item.id)}
-                        className="text-slate-400 hover:text-rose-600 p-1 rounded"
+                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                        title="Hapus Absen"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -225,15 +270,43 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
       {isFormOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fade-in overflow-y-auto">
           <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-slate-200 my-8">
-            <div className="bg-emerald-800 text-white p-4 flex items-center justify-between">
+            <div className={`p-4 flex items-center justify-between text-white ${editingId ? 'bg-blue-800' : 'bg-emerald-800'}`}>
               <h3 className="font-bold text-sm flex items-center gap-2">
-                <Camera className="w-4 h-4 text-emerald-300" />
-                Form Absen Melatih & Dokumentasi Foto
+                {editingId ? <Edit2 className="w-4 h-4 text-blue-300" /> : <Camera className="w-4 h-4 text-emerald-300" />}
+                {editingId ? 'Edit Jurnal & Absensi Melatih' : 'Form Absen Melatih & Dokumentasi Foto'}
               </h3>
-              <button onClick={() => setIsFormOpen(false)} className="text-slate-300 hover:text-white">✕</button>
+              <button 
+                onClick={() => { setIsFormOpen(false); resetForm(); }} 
+                className="text-slate-300 hover:text-white cursor-pointer p-1 rounded-lg hover:bg-white/10"
+              >
+                ✕
+              </button>
             </div>
 
             <form onSubmit={handleSave} className="p-4 space-y-3.5">
+              {editingId && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between text-xs text-blue-900">
+                  <div className="flex items-center gap-2">
+                    <Edit2 className="w-4 h-4 text-blue-600 shrink-0" />
+                    <div>
+                      <span className="font-bold block">Mode Edit Absensi Pelatih</span>
+                      <span className="text-[11px] text-blue-700">Mengubah sesi tanggal {tanggal}</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingId(null);
+                      setEditingAuthorId(null);
+                      resetForm();
+                    }}
+                    className="text-[10px] font-bold text-blue-700 bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded-lg transition cursor-pointer"
+                  >
+                    Batal Edit (Baru)
+                  </button>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Tanggal Latihan</label>
@@ -398,9 +471,13 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md transition"
+                  className={`flex-1 py-2.5 text-xs font-bold text-white rounded-xl shadow-md transition cursor-pointer ${
+                    editingId 
+                      ? 'bg-blue-600 hover:bg-blue-700' 
+                      : 'bg-emerald-600 hover:bg-emerald-700'
+                  }`}
                 >
-                  Simpan Absen & Dokumentasi
+                  {editingId ? 'Simpan Perubahan Absen' : 'Simpan Absen & Dokumentasi'}
                 </button>
               </div>
             </form>
