@@ -846,7 +846,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     userRoleFilter === 'pelatih' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  Coach / Pelatih Utama ({pelatihUsers.length})
+                  Coach / Pelatih ({pelatihUsers.length})
                 </button>
                 <button
                   type="button"
@@ -1396,8 +1396,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <tr key={item.id} className="hover:bg-slate-50/80 transition">
                               <td className="p-3 text-center font-medium text-slate-500">{idx + 1}</td>
                               <td className="p-3">
-                                <span className="font-bold text-blue-900 block">{coach?.name || item.pelatihNama || 'Pelatih'}</span>
-                                <span className="text-[10px] text-slate-500 font-mono">@{coach?.username || 'akun-pelatih'}</span>
+                                <span className="font-bold text-blue-900 block">{coach?.name || item.pelatihNama || 'Pelatih 1'}</span>
+                                {item.pelatih2Nama && (
+                                  <span className="text-[11px] font-semibold text-indigo-700 block mt-0.5">
+                                    🤝 {item.pelatih2Nama}
+                                  </span>
+                                )}
                               </td>
                               <td className="p-3 font-semibold text-slate-800">{school?.namaSekolah || '-'}</td>
                               <td className="p-3 text-slate-700">{item.hariTanggalFormat || item.tanggal}</td>
@@ -1418,10 +1422,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 )}
                               </td>
                               <td className="p-3 text-center">
-                                {item.parafPelatihUrl ? (
-                                  <div className="flex flex-col items-center">
-                                    <img src={item.parafPelatihUrl} alt="Paraf" className="h-6 max-w-[50px] object-contain mx-auto" />
-                                    <span className="text-[9px] text-emerald-700 font-semibold mt-0.5">Akun Resmi</span>
+                                {item.parafPelatihUrl || item.parafPelatih2Url ? (
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    {item.parafPelatihUrl && (
+                                      <div className="flex flex-col items-center">
+                                        <img src={item.parafPelatihUrl} alt="Paraf 1" className="h-6 max-w-[45px] object-contain" />
+                                        <span className="text-[8px] text-emerald-700 font-semibold mt-0.5">Pelatih 1</span>
+                                      </div>
+                                    )}
+                                    {item.parafPelatih2Url && (
+                                      <div className="flex flex-col items-center border-l border-slate-200 pl-1.5">
+                                        <img src={item.parafPelatih2Url} alt="Paraf 2" className="h-6 max-w-[45px] object-contain" />
+                                        <span className="text-[8px] text-indigo-700 font-semibold mt-0.5">Pelatih 2</span>
+                                      </div>
+                                    )}
                                   </div>
                                 ) : (
                                   <span className="text-slate-400 italic text-[10px]">Belum tanda tangan</span>
@@ -1677,7 +1691,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   onChange={(e) => setRole(e.target.value as UserRole)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 >
-                  <option value="pelatih">🎺 Coach (Pelatih Utama)</option>
+                  <option value="pelatih">🎺 Coach (Pelatih)</option>
                   <option value="asisten_pelatih">👥 Asisten Pelatih</option>
                 </select>
               </div>

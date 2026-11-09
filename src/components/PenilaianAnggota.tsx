@@ -95,7 +95,7 @@ const TandaTanganBasahPelatih: React.FC<{ customSignatureUrl?: string }> = ({ cu
       <div className="relative w-44 h-16 flex items-center justify-center">
         <img
           src={customSignatureUrl}
-          alt="Tanda Tangan Basah Pelatih Utama"
+          alt="Tanda Tangan Basah Pelatih"
           className="h-14 max-w-[170px] object-contain transform -rotate-2"
           style={{ filter: 'contrast(130%) brightness(95%)' }}
         />
@@ -140,14 +140,14 @@ const TandaTanganBasahPelatih: React.FC<{ customSignatureUrl?: string }> = ({ cu
   );
 };
 
-// Realistic Wet-Ink Signature for Pelatih 2 / Kolaborator (Navy-Indigo Ink Stroke)
+// Realistic Wet-Ink Signature for Pelatih 2 (Navy-Indigo Ink Stroke)
 const TandaTanganBasahPelatih2: React.FC<{ customSignatureUrl?: string }> = ({ customSignatureUrl }) => {
   if (customSignatureUrl) {
     return (
       <div className="relative w-44 h-16 flex items-center justify-center">
         <img
           src={customSignatureUrl}
-          alt="Tanda Tangan Basah Pelatih Kolaborator"
+          alt="Tanda Tangan Basah Pelatih"
           className="h-14 max-w-[170px] object-contain transform rotate-1"
           style={{ filter: 'contrast(130%) brightness(95%)' }}
         />
@@ -628,10 +628,10 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
           '',
           '',
           ...semesterMonths.map(() => ''),
-          'Pelatih Utama',
+          'Pelatih',
           '',
           '',
-          'Pelatih Kolaborator'
+          'Pelatih'
         ]);
         rows.push([]);
         rows.push([]);
@@ -641,10 +641,10 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
           '',
           '',
           ...semesterMonths.map(() => ''),
-          leadCoach?.name || 'Pelatih Utama',
+          leadCoach?.name || 'Pelatih',
           '',
           '',
-          partnerCoach?.name || 'Pelatih Kolaborator'
+          partnerCoach?.name || 'Pelatih'
         ]);
         rows.push([
           '',
@@ -730,6 +730,190 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
     }
   };
 
+  // Export Nilai to CSV format
+  const handleExportCsv = () => {
+    try {
+      const schoolName = selectedSekolah?.namaSekolah || 'Sekolah';
+      const coachText = isCollaborative 
+        ? `${leadCoach?.name || 'Pelatih'} & ${partnerCoach?.name || 'Pelatih'}` 
+        : (pelatihUser?.name || 'Pelatih Ekstrakurikuler');
+
+      const headers = [
+        'No',
+        'Nama Lengkap Anggota',
+        'Kelas',
+        'Divisi / Alat Musik',
+        ...semesterMonths.map(m => `Hadir ${m}`),
+        'Total Hadir',
+        'Nilai Angka',
+        'Nilai Huruf',
+        'Predikat',
+        'Deskripsi Capaian'
+      ];
+
+      const rows: (string | number)[][] = [
+        ['DAFTAR NILAI & RAPORT EVALUASI EKSTRAKURIKULER MARCHING BAND'],
+        [`Satuan Pendidikan: ${schoolName}`],
+        [`Alamat: ${selectedSekolah?.alamat || 'Kecamatan Cigombong, Kabupaten Bogor'}`],
+        [`Semester: ${filterSemester} | Tahun Pelajaran: ${filterTahunAjaran}`],
+        [`Pelatih Pembina: ${coachText}`],
+        ['Dasar Penilaian: Akumulasi Kehadiran Latihan (Semakin banyak kehadiran semakin bagus predikat nilainya)'],
+        [],
+        headers
+      ];
+
+      if (gradedStudents.length === 0) {
+        rows.push(['-', 'Belum ada data anggota pada sekolah/semester ini', '-', '-', ...semesterMonths.map(() => '-'), 0, 0, '-', '-', '-']);
+      } else {
+        gradedStudents.forEach((row, idx) => {
+          rows.push([
+            idx + 1,
+            formatNamaKapital(row.anggota.nama),
+            formatKelasAngka(row.anggota.kelas) || '-',
+            row.anggota.divisiNama || '-',
+            ...semesterMonths.map(m => row.monthlyAttendance[m] || 0),
+            row.totalHadir,
+            row.nilaiAngka,
+            row.nilaiHuruf,
+            row.predikat,
+            row.keterangan
+          ]);
+        });
+      }
+
+      // Add summary statistics
+      rows.push([]);
+      rows.push(['REKAPITULASI PREDIKAT AKUMULASI KEHADIRAN']);
+      rows.push(['Predikat A (Sangat Baik - Akumulasi >= 85%)', stats.countA, `${stats.pctA}%`]);
+      rows.push(['Predikat B (Baik - Akumulasi 70% - 84%)', stats.countB, `${stats.pctB}%`]);
+      rows.push(['Predikat C (Cukup - Akumulasi 50% - 69%)', stats.countC, `${stats.pctC}%`]);
+      rows.push(['Predikat D (Kurang - Akumulasi < 50%)', stats.countD, `${stats.pctD}%`]);
+      rows.push(['Total Peserta Didik Dinilai', gradedStudents.length]);
+
+      // Add signatures at the bottom
+      rows.push([]);
+      rows.push([]);
+
+      if (isCollaborative) {
+        rows.push([
+          '',
+          'Mengetahui,',
+          '',
+          '',
+          ...semesterMonths.map(() => ''),
+          `Bogor, ${signatureDate}`,
+          '',
+          '',
+          `Bogor, ${signatureDate}`
+        ]);
+        rows.push([
+          '',
+          `Kepala Sekolah ${schoolName}`,
+          '',
+          '',
+          ...semesterMonths.map(() => ''),
+          'Pelatih',
+          '',
+          '',
+          'Pelatih'
+        ]);
+        rows.push([]);
+        rows.push([]);
+        rows.push([
+          '',
+          selectedSekolah?.kepalaSekolah || 'Kepala Sekolah',
+          '',
+          '',
+          ...semesterMonths.map(() => ''),
+          leadCoach?.name || 'Pelatih',
+          '',
+          '',
+          partnerCoach?.name || 'Pelatih'
+        ]);
+        rows.push([
+          '',
+          `NIP. ${selectedSekolah?.nipKepalaSekolah || '-'}`,
+          '',
+          '',
+          ...semesterMonths.map(() => ''),
+          leadCoach?.nip ? `NIP. ${leadCoach.nip}` : 'Pelatih Marching Band',
+          '',
+          '',
+          partnerCoach?.nip ? `NIP. ${partnerCoach.nip}` : 'Pelatih Marching Band'
+        ]);
+      } else {
+        rows.push([
+          '',
+          'Mengetahui,',
+          '',
+          '',
+          ...semesterMonths.map(() => ''),
+          '',
+          `Bogor, ${signatureDate}`,
+          '',
+          ''
+        ]);
+        rows.push([
+          '',
+          `Kepala Sekolah ${schoolName}`,
+          '',
+          '',
+          ...semesterMonths.map(() => ''),
+          '',
+          'Pelatih Ekstrakurikuler',
+          '',
+          ''
+        ]);
+        rows.push([]);
+        rows.push([]);
+        rows.push([
+          '',
+          selectedSekolah?.kepalaSekolah || 'Kepala Sekolah',
+          '',
+          '',
+          ...semesterMonths.map(() => ''),
+          '',
+          pelatihUser?.name || 'Pelatih Ekstrakurikuler',
+          '',
+          ''
+        ]);
+        rows.push([
+          '',
+          `NIP. ${selectedSekolah?.nipKepalaSekolah || '-'}`,
+          '',
+          '',
+          ...semesterMonths.map(() => ''),
+          '',
+          pelatihUser?.nip ? `NIP. ${pelatihUser.nip}` : 'Pelatih Pembina Marching Band',
+          '',
+          ''
+        ]);
+      }
+
+      const csvContent = '\ufeff' + rows.map(r => r.map(cell => {
+        const str = String(cell ?? '');
+        if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r') || str.includes(';')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      }).join(',')).join('\r\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const cleanSchool = schoolName.replace(/[^a-zA-Z0-9]/g, '_');
+      link.download = `Nilai_Ekskul_${cleanSchool}_Semester_${filterSemester}_${filterTahunAjaran.replace('/', '-')}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch (err) {
+      console.error('Export CSV Nilai failed:', err);
+      alert('Terjadi kesalahan saat mengekspor file CSV Nilai.');
+    }
+  };
+
   // Microsoft Word (.doc) Export
   const handleExportWord = () => {
     const cleanSchool = (selectedSekolah?.namaSekolah || 'Sekolah').replace(/[^a-zA-Z0-9]/g, '_');
@@ -747,14 +931,14 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
         </td>
         <td style="width: 33%;">
           <div>Bogor, ${signatureDate}</div>
-          <div><b>Pelatih Utama</b></div>
+          <div><b>Pelatih</b></div>
           <div style="height: 60px;"></div>
           <div><u><b>${leadCoach?.name || '...........................................'}</b></u></div>
           <div>NIP/NUPTK. ${leadCoach?.nip || '...........................................'}</div>
         </td>
         <td style="width: 33%;">
           <div>Bogor, ${signatureDate}</div>
-          <div><b>Pelatih Kolaborator</b></div>
+          <div><b>Pelatih</b></div>
           <div style="height: 60px;"></div>
           <div><u><b>${partnerCoach?.name || '...........................................'}</b></u></div>
           <div>NIP/NUPTK. ${partnerCoach?.nip || '...........................................'}</div>
@@ -1017,6 +1201,14 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
             >
               <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
               <span>Unduh Excel</span>
+            </button>
+            <button
+              onClick={handleExportCsv}
+              className="flex items-center gap-1.5 px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-md cursor-pointer"
+              title="Unduh rekap nilai ke format CSV (.csv)"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-teal-200" />
+              <span>Unduh CSV</span>
             </button>
             <button
               onClick={handleExportWord}
@@ -1568,13 +1760,13 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
               </p>
             </div>
 
-            {/* Kolom 2: Pelatih 1 / Utama */}
+            {/* Kolom 2: Pelatih 1 */}
             <div className="text-center relative flex flex-col items-center">
               <p className="text-slate-600 font-semibold mb-0.5">
                 Bogor, {signatureDate}
               </p>
               <p className="font-bold text-slate-900 leading-tight">
-                Pelatih Utama
+                Pelatih
               </p>
 
               <div className="relative h-14 w-full flex items-center justify-center my-0.5">
@@ -1586,20 +1778,20 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
               </div>
 
               <p className="font-black text-slate-900 underline uppercase tracking-wide">
-                {leadCoach?.name || 'Pelatih Utama'}
+                {leadCoach?.name || 'Pelatih'}
               </p>
               <p className="text-[9.5px] text-slate-600">
                 {leadCoach?.nip ? `NIP. ${leadCoach.nip}` : 'Pelatih Marching Band'}
               </p>
             </div>
 
-            {/* Kolom 3: Pelatih 2 / Kolaborator */}
+            {/* Kolom 3: Pelatih 2 */}
             <div className="text-center relative flex flex-col items-center">
               <p className="text-slate-600 font-semibold mb-0.5">
                 Bogor, {signatureDate}
               </p>
               <p className="font-bold text-slate-900 leading-tight">
-                Pelatih Kolaborator
+                Pelatih
               </p>
 
               <div className="relative h-14 w-full flex items-center justify-center my-0.5">
@@ -1611,7 +1803,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
               </div>
 
               <p className="font-black text-slate-900 underline uppercase tracking-wide">
-                {partnerCoach?.name || 'Pelatih Kolaborator'}
+                {partnerCoach?.name || 'Pelatih'}
               </p>
               <p className="text-[9.5px] text-slate-600">
                 {partnerCoach?.nip ? `NIP. ${partnerCoach.nip}` : 'Pelatih Marching Band'}
@@ -1716,7 +1908,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  Pelatih 2: {partnerCoach?.name?.split(' ')[0] || 'Kolaborator'}
+                  Pelatih 2: {partnerCoach?.name?.split(' ')[0] || 'Pelatih 2'}
                 </button>
               </div>
             )}
@@ -1725,7 +1917,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
               <div className="text-xs text-slate-600">
                 {isCollaborative ? (
                   <span>
-                    Mengatur tanda tangan untuk: <b>{activeEditingCoach === 1 ? leadCoach?.name : partnerCoach?.name}</b> ({activeEditingCoach === 1 ? 'Pelatih Utama' : 'Pelatih Kolaborator'}).
+                    Mengatur tanda tangan untuk: <b>{activeEditingCoach === 1 ? leadCoach?.name : partnerCoach?.name}</b> (Pelatih {activeEditingCoach}).
                   </span>
                 ) : (
                   <span>

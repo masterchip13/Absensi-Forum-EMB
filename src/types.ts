@@ -80,6 +80,8 @@ export interface AbsenPelatihItem {
   id: string;
   pelatihId: string;
   pelatihNama?: string;
+  pelatih2Id?: string; // ID Pelatih ke-2 (Kolaborator / Pendamping)
+  pelatih2Nama?: string; // Nama Pelatih ke-2
   sekolahId: string;
   tahunAjaran?: string; // e.g. "2024/2025"
   tanggal: string; // YYYY-MM-DD
@@ -89,7 +91,8 @@ export interface AbsenPelatihItem {
   materiPokok: string;
   pencapaianPercent: number; // 0 - 100
   fotoDokumentasiUrl: string; // Data URL or Image URL
-  parafPelatihUrl?: string;
+  parafPelatihUrl?: string; // Tanda tangan Pelatih 1
+  parafPelatih2Url?: string; // Tanda tangan Pelatih 2
   statusKepalaSekolah: 'Mengetahui' | 'Menunggu';
   catatan?: string;
   // Status Verifikasi oleh Admin

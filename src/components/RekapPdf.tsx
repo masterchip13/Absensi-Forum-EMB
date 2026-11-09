@@ -108,7 +108,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
   const partnerCoach = schoolCoaches[1] || null;
   const leadCoachName = leadCoach?.name || pelatihName;
   const leadCoachNip = leadCoach?.nip || pelatihNip;
-  const partnerCoachName = partnerCoach?.name || 'Pelatih Kolaborator';
+  const partnerCoachName = partnerCoach?.name || 'Pelatih';
   const partnerCoachNip = partnerCoach?.nip || '';
 
   // Get headmaster & NIP info for the school
@@ -556,7 +556,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
       rows.push([]);
       if (isCoachCollaboration) {
         rows.push(['', 'Mengetahui,', '', '', '', '', '', '', `Bogor, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`]);
-        rows.push(['', `Kepala Sekolah ${schoolName}`, '', '', '', '', '', 'Pelatih Utama', 'Pelatih Kolaborator']);
+        rows.push(['', `Kepala Sekolah ${schoolName}`, '', '', '', '', '', 'Pelatih', 'Pelatih']);
         rows.push([]);
         rows.push(['', selectedSekolah?.kepalaSekolah || 'Kepala Sekolah', '', '', '', '', '', leadCoachName, partnerCoachName]);
         rows.push(['', `NIP. ${selectedSekolah?.nipKepalaSekolah || '-'}`, '', '', '', '', '', leadCoachNip ? `NIP. ${leadCoachNip}` : 'Pelatih Marching Band', partnerCoachNip ? `NIP. ${partnerCoachNip}` : 'Pelatih Marching Band']);
@@ -603,19 +603,24 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         [`Bulan: ${filterBulan} | Tahun Pelajaran: ${filterTahunAjaran}`],
         [`Pelatih: ${isCoachCollaboration ? `${leadCoachName} & ${partnerCoachName}` : `${pelatihName}${pelatihNip ? ` (NIP: ${pelatihNip})` : ''}`}`],
         [],
-        ['No', 'Hari & Tanggal', 'Waktu Latihan', 'Materi Pokok / Kegiatan', 'Pencapaian (%)', 'Status Pengesahan', 'Catatan / Evaluasi']
+        ['No', 'Hari & Tanggal', 'Waktu Latihan', 'Materi Pokok / Kegiatan', 'Pencapaian (%)', 'Pelatih / Pengampu', 'Status Pengesahan', 'Catatan / Evaluasi']
       ];
 
       if (schoolAbsenPelatih.length === 0) {
-        agendaData.push(['-', 'Belum ada catatan jurnal latihan pada periode ini', '-', '-', '-', '-', '-']);
+        agendaData.push(['-', 'Belum ada catatan jurnal latihan pada periode ini', '-', '-', '-', '-', '-', '-']);
       } else {
         schoolAbsenPelatih.forEach((item, idx) => {
+          const coachLabel = item.pelatih2Nama 
+            ? `${item.pelatihNama || leadCoachName} & ${item.pelatih2Nama}` 
+            : (item.pelatihNama || pelatihName);
+
           agendaData.push([
             idx + 1,
             item.hariTanggalFormat || item.tanggal || '-',
             `${item.jamMulai || '-'} s/d ${item.jamSelesai || '-'}`,
             item.materiPokok || '-',
             `${item.pencapaianPercent || 0}%`,
+            coachLabel,
             item.statusKepalaSekolah || 'Mengetahui',
             item.catatan || '-'
           ]);
@@ -626,19 +631,19 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
       agendaData.push([]);
       agendaData.push([]);
       if (isCoachCollaboration) {
-        agendaData.push(['', 'Mengetahui,', '', '', '', `Bogor, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`]);
-        agendaData.push(['', `Kepala Sekolah ${selectedSekolah?.namaSekolah || ''}`, '', '', 'Pelatih Utama', 'Pelatih Kolaborator']);
+        agendaData.push(['', 'Mengetahui,', '', '', '', '', `Bogor, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`]);
+        agendaData.push(['', `Kepala Sekolah ${selectedSekolah?.namaSekolah || ''}`, '', '', '', 'Pelatih', 'Pelatih']);
         agendaData.push([]);
         agendaData.push([]);
-        agendaData.push(['', selectedSekolah?.kepalaSekolah || 'Kepala Sekolah', '', '', leadCoachName, partnerCoachName]);
-        agendaData.push(['', `NIP. ${selectedSekolah?.nipKepalaSekolah || '-'}`, '', '', leadCoachNip ? `NIP. ${leadCoachNip}` : 'Pelatih Marching Band', partnerCoachNip ? `NIP. ${partnerCoachNip}` : 'Pelatih Marching Band']);
+        agendaData.push(['', selectedSekolah?.kepalaSekolah || 'Kepala Sekolah', '', '', '', leadCoachName, partnerCoachName]);
+        agendaData.push(['', `NIP. ${selectedSekolah?.nipKepalaSekolah || '-'}`, '', '', '', leadCoachNip ? `NIP. ${leadCoachNip}` : 'Pelatih Marching Band', partnerCoachNip ? `NIP. ${partnerCoachNip}` : 'Pelatih Marching Band']);
       } else {
-        agendaData.push(['', 'Mengetahui,', '', '', `Bogor, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`]);
-        agendaData.push(['', `Kepala Sekolah ${selectedSekolah?.namaSekolah || ''}`, '', '', 'Pelatih Ekstrakurikuler']);
+        agendaData.push(['', 'Mengetahui,', '', '', '', `Bogor, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`]);
+        agendaData.push(['', `Kepala Sekolah ${selectedSekolah?.namaSekolah || ''}`, '', '', '', 'Pelatih Ekstrakurikuler']);
         agendaData.push([]);
         agendaData.push([]);
-        agendaData.push(['', selectedSekolah?.kepalaSekolah || 'Kepala Sekolah', '', '', pelatihName]);
-        agendaData.push(['', `NIP. ${selectedSekolah?.nipKepalaSekolah || '-'}`, '', '', pelatihNip ? `NIP. ${pelatihNip}` : 'Pelatih Pembina']);
+        agendaData.push(['', selectedSekolah?.kepalaSekolah || 'Kepala Sekolah', '', '', '', pelatihName]);
+        agendaData.push(['', `NIP. ${selectedSekolah?.nipKepalaSekolah || '-'}`, '', '', '', pelatihNip ? `NIP. ${pelatihNip}` : 'Pelatih Pembina']);
       }
 
       const wsAgenda = XLSX.utils.aoa_to_sheet(agendaData);
@@ -648,6 +653,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         { wch: 18 },
         { wch: 38 },
         { wch: 16 },
+        { wch: 28 },
         { wch: 18 },
         { wch: 30 }
       ];
@@ -699,7 +705,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
       attendanceData.push([]);
       if (isCoachCollaboration) {
         attendanceData.push(['', 'Mengetahui,', '', '', '', '', '', '', `Bogor, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`]);
-        attendanceData.push(['', `Kepala Sekolah ${selectedSekolah?.namaSekolah || ''}`, '', '', '', '', '', 'Pelatih Utama', 'Pelatih Kolaborator']);
+        attendanceData.push(['', `Kepala Sekolah ${selectedSekolah?.namaSekolah || ''}`, '', '', '', '', '', 'Pelatih', 'Pelatih']);
         attendanceData.push([]);
         attendanceData.push([]);
         attendanceData.push(['', selectedSekolah?.kepalaSekolah || 'Kepala Sekolah', '', '', '', '', '', leadCoachName, partnerCoachName]);
@@ -854,14 +860,39 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
     let bodyContent = '';
 
     if (resolvedTemplate === 'SMPN2_CIGOMBONG') {
-      const agendaRows = padded5AgendaRows.map((row, idx) => `
-        <tr style="height: 50px;">
-          <td><b>${idx + 1}</b></td>
-          <td>${row?.hariTanggalFormat || row?.tanggal || ''}</td>
-          <td class="text-left">${row?.materiPokok || ''}</td>
-          <td>${row?.parafPelatihUrl ? `<img src="${row.parafPelatihUrl}" height="32" />` : ''}</td>
-        </tr>
-      `).join('');
+      const agendaRows = padded5AgendaRows.map((row, idx) => {
+        let parafHtml = '';
+        if (row?.parafPelatih2Url && row?.parafPelatihUrl) {
+          parafHtml = `
+            <table style="border: none; width: 100%; margin: 0 auto; text-align: center;">
+              <tr>
+                <td style="border: none; padding: 0 4px; text-align: center; vertical-align: middle;">
+                  <img src="${row.parafPelatihUrl}" height="28" style="max-height: 28px;" />
+                  <div style="font-size: 7pt; color: #444; font-weight: bold;">${row.pelatihNama || 'Pelatih 1'}</div>
+                </td>
+                <td style="border: none; width: 6px; color: #999; font-size: 8pt; vertical-align: middle;">|</td>
+                <td style="border: none; padding: 0 4px; text-align: center; vertical-align: middle;">
+                  <img src="${row.parafPelatih2Url}" height="28" style="max-height: 28px;" />
+                  <div style="font-size: 7pt; color: #444; font-weight: bold;">${row.pelatih2Nama || 'Pelatih 2'}</div>
+                </td>
+              </tr>
+            </table>
+          `;
+        } else if (row?.parafPelatihUrl) {
+          parafHtml = `<img src="${row.parafPelatihUrl}" height="32" />`;
+        } else if (row?.parafPelatih2Url) {
+          parafHtml = `<img src="${row.parafPelatih2Url}" height="32" />`;
+        }
+
+        return `
+          <tr style="height: 50px;">
+            <td><b>${idx + 1}</b></td>
+            <td>${row?.hariTanggalFormat || row?.tanggal || ''}</td>
+            <td class="text-left">${row?.materiPokok || ''}</td>
+            <td>${parafHtml}</td>
+          </tr>
+        `;
+      }).join('');
 
       // Include all registered school members in the Word export table, or at least padded to 30 rows if empty/small
       const allMembersToExport = schoolAnggota.length > 0 ? schoolAnggota : paddedPage1to30Rows;
@@ -898,13 +929,13 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
             <table style="border: none; text-align: center; font-size: 9.5pt; width: auto; margin-left: auto;">
               <tr>
                 <td style="width: 160px; vertical-align: top; border: none; padding-right: 25px;">
-                  <div><b>Pelatih Utama</b></div>
+                  <div><b>Pelatih</b></div>
                   <div style="height: 55px;"></div>
                   <div><b>(${leadCoachName})</b></div>
                   ${leadCoachNip ? `<div style="font-size: 8.5pt;">NIP/NUPTK. ${leadCoachNip}</div>` : ''}
                 </td>
                 <td style="width: 160px; vertical-align: top; border: none; padding-left: 25px;">
-                  <div><b>Pelatih Kolaborator</b></div>
+                  <div><b>Pelatih</b></div>
                   <div style="height: 55px;"></div>
                   <div><b>(${partnerCoachName})</b></div>
                   ${partnerCoachNip ? `<div style="font-size: 8.5pt;">NIP/NUPTK. ${partnerCoachNip}</div>` : ''}
@@ -921,7 +952,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
             <table style="border: none; text-align: center; font-size: 9.5pt; width: auto; margin-left: auto;">
               <tr>
                 <td style="width: 160px; vertical-align: top; border: none; padding-right: 25px;">
-                  <div><b>Pelatih Utama</b></div>
+                  <div><b>Pelatih</b></div>
                   <div style="height: 55px;"></div>
                   <div><b>(${pelatihName})</b></div>
                   ${pelatihNip ? `<div style="font-size: 8.5pt;">NIP/NUPTK. ${pelatihNip}</div>` : ''}
@@ -1073,13 +1104,13 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
               <table style="width: 100%; border: none; margin-top: 4px;">
                 <tr>
                   <td style="width: 50%; border: none; text-align: center; vertical-align: top;">
-                    <div style="font-size: 8.5pt; font-weight: bold;">Pelatih Utama</div>
+                    <div style="font-size: 8.5pt; font-weight: bold;">Pelatih</div>
                     <div style="height: 44px;"></div>
                     <div><b>(${leadCoachName})</b></div>
                     <div style="margin-top: 2px; font-size: 8pt;">NIP/NUPTK. ${leadCoachNip || '....................'}</div>
                   </td>
                   <td style="width: 50%; border: none; text-align: center; vertical-align: top;">
-                    <div style="font-size: 8.5pt; font-weight: bold;">Pelatih Kolaborator</div>
+                    <div style="font-size: 8.5pt; font-weight: bold;">Pelatih</div>
                     <div style="height: 44px;"></div>
                     <div><b>(${partnerCoachName})</b></div>
                     <div style="margin-top: 2px; font-size: 8pt;">NIP/NUPTK. ${partnerCoachNip || '....................'}</div>
@@ -1104,7 +1135,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
               <table style="width: 100%; border: none; margin-top: 4px;">
                 <tr>
                   <td style="width: 50%; border: none; text-align: center; vertical-align: top;">
-                    <div style="font-size: 8.5pt; font-weight: bold;">Pelatih Utama</div>
+                    <div style="font-size: 8.5pt; font-weight: bold;">Pelatih</div>
                     <div style="height: 44px;"></div>
                     <div><b>(${pelatihName})</b></div>
                     <div style="margin-top: 2px; font-size: 8pt;">NIP/NUPTK. ${pelatihNip || '....................'}</div>
@@ -1795,12 +1826,15 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                         <th className="border border-black p-2.5 w-24">Minggu Ke-</th>
                         <th className="border border-black p-2.5 w-32">Tanggal</th>
                         <th className="border border-black p-2.5">Materi Kegiatan</th>
-                        <th className="border border-black p-2.5 w-36">Tanda Tangan</th>
+                        <th className="border border-black p-2.5 w-48">Tanda Tangan Pelatih</th>
                       </tr>
                     </thead>
                     <tbody>
                       {padded5AgendaRows.map((row, idx) => {
                         const weekNum = idx + 1;
+                        const has2Sigs = (row?.parafPelatihUrl && row?.parafPelatih2Url) ||
+                          (isCoachCollaboration && row && (row?.parafPelatihUrl || coachSignatureUrl) && (row?.parafPelatih2Url || coach2SignatureUrl));
+
                         return (
                           <tr key={idx} className="h-16 border-b border-black">
                             <td className="border border-black p-2 font-bold align-middle text-sm">
@@ -1813,20 +1847,64 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                               {row?.materiPokok || ''}
                             </td>
                             <td className="border border-black p-1.5 align-middle">
-                              {row?.parafPelatihUrl ? (
-                                <img
-                                  src={row.parafPelatihUrl}
-                                  alt="Tanda Tangan"
-                                  className="h-10 max-w-[90px] mx-auto object-contain"
-                                />
+                              {/* 2 Coach Signatures Column */}
+                              {has2Sigs ? (
+                                <div className="flex items-center justify-around gap-1 px-1">
+                                  {/* Pelatih 1 */}
+                                  <div className="text-center flex-1">
+                                    <img
+                                      src={row?.parafPelatihUrl || coachSignatureUrl}
+                                      alt="TTD Pelatih 1"
+                                      className="h-8 max-w-[50px] mx-auto object-contain"
+                                    />
+                                    <span className="text-[7.5px] block font-sans font-bold text-slate-800 truncate leading-tight mt-0.5">
+                                      {row?.pelatihNama || leadCoachName}
+                                    </span>
+                                  </div>
+
+                                  <div className="w-[1px] h-8 bg-black/40 shrink-0"></div>
+
+                                  {/* Pelatih 2 */}
+                                  <div className="text-center flex-1">
+                                    <img
+                                      src={row?.parafPelatih2Url || coach2SignatureUrl}
+                                      alt="TTD Pelatih 2"
+                                      className="h-8 max-w-[50px] mx-auto object-contain"
+                                    />
+                                    <span className="text-[7.5px] block font-sans font-bold text-slate-800 truncate leading-tight mt-0.5">
+                                      {row?.pelatih2Nama || partnerCoachName}
+                                    </span>
+                                  </div>
+                                </div>
+                              ) : row?.parafPelatihUrl ? (
+                                <div className="text-center">
+                                  <img
+                                    src={row.parafPelatihUrl}
+                                    alt="Tanda Tangan"
+                                    className="h-9 max-w-[90px] mx-auto object-contain"
+                                  />
+                                  {row?.pelatihNama && (
+                                    <span className="text-[7.5px] block font-sans text-slate-700 truncate leading-tight mt-0.5">
+                                      {row.pelatihNama}
+                                    </span>
+                                  )}
+                                </div>
                               ) : coachSignatureUrl && row ? (
-                                <img
-                                  src={coachSignatureUrl}
-                                  alt="Tanda Tangan"
-                                  className="h-10 max-w-[90px] mx-auto object-contain"
-                                />
+                                <div className="text-center">
+                                  <img
+                                    src={coachSignatureUrl}
+                                    alt="Tanda Tangan"
+                                    className="h-9 max-w-[90px] mx-auto object-contain"
+                                  />
+                                </div>
                               ) : (
                                 ''
+                              )}
+
+                              {row?.statusVerifikasiAdmin === 'diverifikasi' && (
+                                <div className="text-[7px] font-sans font-bold text-emerald-800 tracking-tight mt-0.5">
+                                  ✓ Terverifikasi Admin
+                                </div>
                               )}
                             </td>
                           </tr>
@@ -1846,12 +1924,12 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
 
                     {isCoachCollaboration ? (
                       <div className="signature-row flex items-start gap-8 mt-2">
-                        {/* Pelatih Utama */}
+                        {/* Pelatih 1 */}
                         <div className="min-w-[130px] text-center">
-                          <div className="font-bold text-[11px]">Pelatih Utama</div>
+                          <div className="font-bold text-[11px]">Pelatih</div>
                           <div className="h-16 flex items-center justify-center my-1">
                             {coachSignatureUrl && (
-                              <img src={coachSignatureUrl} alt="TTD Pelatih Utama" className="h-14 max-w-[120px] object-contain" />
+                              <img src={coachSignatureUrl} alt="TTD Pelatih" className="h-14 max-w-[120px] object-contain" />
                             )}
                           </div>
                           <div className="border-b border-dotted border-black w-36 mx-auto"></div>
@@ -1859,12 +1937,12 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                           {leadCoachNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {leadCoachNip}</div>}
                         </div>
 
-                        {/* Pelatih Kolaborator */}
+                        {/* Pelatih 2 */}
                         <div className="min-w-[130px] text-center">
-                          <div className="font-bold text-[11px]">Pelatih Kolaborator</div>
+                          <div className="font-bold text-[11px]">Pelatih</div>
                           <div className="h-16 flex items-center justify-center my-1">
                             {coach2SignatureUrl && (
-                              <img src={coach2SignatureUrl} alt="TTD Pelatih Kolaborator" className="h-14 max-w-[120px] object-contain" />
+                              <img src={coach2SignatureUrl} alt="TTD Pelatih" className="h-14 max-w-[120px] object-contain" />
                             )}
                           </div>
                           <div className="border-b border-dotted border-black w-36 mx-auto"></div>
@@ -1874,12 +1952,12 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                       </div>
                     ) : includeAsistenPelatih ? (
                       <div className="signature-row flex items-start gap-8 mt-2">
-                        {/* Pelatih Utama */}
+                        {/* Pelatih */}
                         <div className="min-w-[130px] text-center">
-                          <div className="font-bold text-[11px]">Pelatih Utama</div>
+                          <div className="font-bold text-[11px]">Pelatih</div>
                           <div className="h-16 flex items-center justify-center my-1">
                             {coachSignatureUrl && (
-                              <img src={coachSignatureUrl} alt="TTD Pelatih Utama" className="h-14 max-w-[120px] object-contain" />
+                              <img src={coachSignatureUrl} alt="TTD Pelatih" className="h-14 max-w-[120px] object-contain" />
                             )}
                           </div>
                           <div className="border-b border-dotted border-black w-36 mx-auto"></div>
@@ -2010,12 +2088,12 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
 
                         {isCoachCollaboration ? (
                           <div className="signature-row flex items-start gap-8 mt-2">
-                            {/* Pelatih Utama */}
+                            {/* Pelatih 1 */}
                             <div className="min-w-[130px] text-center">
-                              <div className="font-bold text-[11px]">Pelatih Utama</div>
+                              <div className="font-bold text-[11px]">Pelatih</div>
                               <div className="h-14 flex items-center justify-center my-1">
                                 {coachSignatureUrl && (
-                                  <img src={coachSignatureUrl} alt="TTD Pelatih Utama" className="h-12 max-w-[120px] object-contain" />
+                                  <img src={coachSignatureUrl} alt="TTD Pelatih" className="h-12 max-w-[120px] object-contain" />
                                 )}
                               </div>
                               <div className="border-b border-dotted border-black w-36 mx-auto"></div>
@@ -2023,12 +2101,12 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                               {leadCoachNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {leadCoachNip}</div>}
                             </div>
 
-                            {/* Pelatih Kolaborator */}
+                            {/* Pelatih 2 */}
                             <div className="min-w-[130px] text-center">
-                              <div className="font-bold text-[11px]">Pelatih Kolaborator</div>
+                              <div className="font-bold text-[11px]">Pelatih</div>
                               <div className="h-14 flex items-center justify-center my-1">
                                 {coach2SignatureUrl && (
-                                  <img src={coach2SignatureUrl} alt="TTD Pelatih Kolaborator" className="h-12 max-w-[120px] object-contain" />
+                                  <img src={coach2SignatureUrl} alt="TTD Pelatih" className="h-12 max-w-[120px] object-contain" />
                                 )}
                               </div>
                               <div className="border-b border-dotted border-black w-36 mx-auto"></div>
@@ -2038,12 +2116,12 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                           </div>
                         ) : includeAsistenPelatih ? (
                           <div className="signature-row flex items-start gap-8 mt-2">
-                            {/* Pelatih Utama */}
+                            {/* Pelatih */}
                             <div className="min-w-[130px] text-center">
-                              <div className="font-bold text-[11px]">Pelatih Utama</div>
+                              <div className="font-bold text-[11px]">Pelatih</div>
                               <div className="h-14 flex items-center justify-center my-1">
                                 {coachSignatureUrl && (
-                                  <img src={coachSignatureUrl} alt="TTD Pelatih Utama" className="h-12 max-w-[120px] object-contain" />
+                                  <img src={coachSignatureUrl} alt="TTD Pelatih" className="h-12 max-w-[120px] object-contain" />
                                 )}
                               </div>
                               <div className="border-b border-dotted border-black w-36 mx-auto"></div>
@@ -2392,12 +2470,12 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
 
                         {isCoachCollaboration ? (
                           <div className="signature-grid flex items-start gap-6">
-                            {/* Pelatih Utama */}
+                            {/* Pelatih 1 */}
                             <div className="text-center min-w-[130px]">
-                              <div className="font-semibold text-[11px]">Pelatih Utama</div>
+                              <div className="font-semibold text-[11px]">Pelatih</div>
                               <div className="h-14 flex items-center justify-center">
                                 {coachSignatureUrl && (
-                                  <img src={coachSignatureUrl} alt="TTD Pelatih Utama" className="h-11 max-w-[110px] object-contain" />
+                                  <img src={coachSignatureUrl} alt="TTD Pelatih" className="h-11 max-w-[110px] object-contain" />
                                 )}
                               </div>
                               <div className="border-b border-dotted border-black w-36 mx-auto"></div>
@@ -2407,12 +2485,12 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                               </div>
                             </div>
 
-                            {/* Pelatih Kolaborator */}
+                            {/* Pelatih 2 */}
                             <div className="text-center min-w-[130px]">
-                              <div className="font-semibold text-[11px]">Pelatih Kolaborator</div>
+                              <div className="font-semibold text-[11px]">Pelatih</div>
                               <div className="h-14 flex items-center justify-center">
                                 {coach2SignatureUrl && (
-                                  <img src={coach2SignatureUrl} alt="TTD Pelatih Kolaborator" className="h-11 max-w-[110px] object-contain" />
+                                  <img src={coach2SignatureUrl} alt="TTD Pelatih" className="h-11 max-w-[110px] object-contain" />
                                 )}
                               </div>
                               <div className="border-b border-dotted border-black w-36 mx-auto"></div>
@@ -2424,12 +2502,12 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                           </div>
                         ) : includeAsistenPelatih ? (
                           <div className="signature-grid flex items-start gap-6">
-                            {/* Pelatih Utama */}
+                            {/* Pelatih */}
                             <div className="text-center min-w-[130px]">
-                              <div className="font-semibold text-[11px]">Pelatih Utama</div>
+                              <div className="font-semibold text-[11px]">Pelatih</div>
                               <div className="h-14 flex items-center justify-center">
                                 {coachSignatureUrl && (
-                                  <img src={coachSignatureUrl} alt="TTD Pelatih Utama" className="h-11 max-w-[110px] object-contain" />
+                                  <img src={coachSignatureUrl} alt="TTD Pelatih" className="h-11 max-w-[110px] object-contain" />
                                 )}
                               </div>
                               <div className="border-b border-dotted border-black w-36 mx-auto"></div>
@@ -2639,37 +2717,66 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                         <th className="border border-black p-1.5 w-20">WAKTU</th>
                         <th className="border border-black p-1.5">MATERI POKOK</th>
                         <th className="border border-black p-1.5 w-16">PENCAPAIAN<br/>%</th>
-                        <th className="border border-black p-1.5 w-20">PARAF<br/>PELATIH</th>
+                        <th className="border border-black p-1.5 w-32">PARAF / TTD<br/>PELATIH</th>
                         <th className="border border-black p-1.5 w-24">MENGETAHUI<br/>KEPALA SEKOLAH</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {padded7AgendaRows.map((row, idx) => (
-                        <tr key={idx} className="h-12 border-b border-black">
-                          <td className="border border-black p-1 font-semibold align-middle text-[9px]">
-                            {row?.hariTanggalFormat || ''}
-                          </td>
-                          <td className="border border-black p-1 align-middle text-[8.5px]">
-                            {row ? `${row.jamMulai} S/D ${row.jamSelesai}` : 'S/D'}
-                          </td>
-                          <td className="border border-black p-1 text-left align-middle font-medium text-[9px]">
-                            {row?.materiPokok || ''}
-                          </td>
-                          <td className="border border-black p-1 align-middle font-bold text-[9px]">
-                            {row ? `${row.pencapaianPercent}%` : ''}
-                          </td>
-                          <td className="border border-black p-1 align-middle">
-                            {row?.parafPelatihUrl ? (
-                              <img src={row.parafPelatihUrl} alt="Paraf" className="h-7 max-w-[55px] mx-auto object-contain" />
-                            ) : (
-                              ''
-                            )}
-                          </td>
+                      {padded7AgendaRows.map((row, idx) => {
+                        const has2Sigs = (row?.parafPelatihUrl && row?.parafPelatih2Url) ||
+                          (isCoachCollaboration && row && (row?.parafPelatihUrl || coachSignatureUrl) && (row?.parafPelatih2Url || coach2SignatureUrl));
+
+                        return (
+                          <tr key={idx} className="h-12 border-b border-black">
+                            <td className="border border-black p-1 font-semibold align-middle text-[9px]">
+                              {row?.hariTanggalFormat || ''}
+                            </td>
+                            <td className="border border-black p-1 align-middle text-[8.5px]">
+                              {row ? `${row.jamMulai} S/D ${row.jamSelesai}` : 'S/D'}
+                            </td>
+                            <td className="border border-black p-1 text-left align-middle font-medium text-[9px]">
+                              {row?.materiPokok || ''}
+                            </td>
+                            <td className="border border-black p-1 align-middle font-bold text-[9px]">
+                              {row ? `${row.pencapaianPercent}%` : ''}
+                            </td>
+                            <td className="border border-black p-1 align-middle">
+                              {has2Sigs ? (
+                                <div className="flex items-center justify-around gap-1 px-0.5">
+                                  <div className="text-center flex-1">
+                                    <img
+                                      src={row?.parafPelatihUrl || coachSignatureUrl}
+                                      alt="TTD 1"
+                                      className="h-6 max-w-[42px] mx-auto object-contain"
+                                    />
+                                    <span className="text-[7px] block font-bold text-slate-800 truncate">
+                                      {row?.pelatihNama || leadCoachName}
+                                    </span>
+                                  </div>
+                                  <div className="w-[1px] h-6 bg-black/40 shrink-0"></div>
+                                  <div className="text-center flex-1">
+                                    <img
+                                      src={row?.parafPelatih2Url || coach2SignatureUrl}
+                                      alt="TTD 2"
+                                      className="h-6 max-w-[42px] mx-auto object-contain"
+                                    />
+                                    <span className="text-[7px] block font-bold text-slate-800 truncate">
+                                      {row?.pelatih2Nama || partnerCoachName}
+                                    </span>
+                                  </div>
+                                </div>
+                              ) : row?.parafPelatihUrl ? (
+                                <img src={row.parafPelatihUrl} alt="Paraf" className="h-7 max-w-[55px] mx-auto object-contain" />
+                              ) : (
+                                ''
+                              )}
+                            </td>
                           <td className="border border-black p-1 align-middle text-[8.5px]">
                             {/* Dikosongkan agar bersih atau untuk paraf manual */}
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
 

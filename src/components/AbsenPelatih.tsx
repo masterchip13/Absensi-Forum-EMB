@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { AbsenPelatihItem, Sekolah } from '../types';
 import { StorageService } from '../data/storage';
 import { SignaturePad } from './SignaturePad';
-import { Camera, CheckCircle2, Image as ImageIcon, Plus, Calendar, Clock, Award, Trash2, Edit2, AlertCircle, ShieldCheck } from 'lucide-react';
+import { Camera, CheckCircle2, Image as ImageIcon, Plus, Calendar, Clock, Award, Trash2, Edit2, AlertCircle, ShieldCheck, Users, PenTool } from 'lucide-react';
 
 import { compressImageDataUrl } from '../utils/imageCompressor';
 
@@ -37,9 +37,16 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
   const [catatan, setCatatan] = useState('');
   const [showSignaturePad, setShowSignaturePad] = useState(false);
 
+  // Second Coach Signature States
+  const [includePelatih2, setIncludePelatih2] = useState<boolean>(false);
+  const [pelatih2Id, setPelatih2Id] = useState<string>('');
+  const [parafPelatih2Url, setParafPelatih2Url] = useState<string>('');
+  const [showSignaturePad2, setShowSignaturePad2] = useState<boolean>(false);
+
   const allUsers = StorageService.getUsers();
   const activeSchool = sekolahList.find(s => s.id === selectedSekolahId);
   const schoolAbsenList = absenPelatihList.filter(a => a.sekolahId === selectedSekolahId);
+  const allCoaches = allUsers.filter(u => u.role === 'pelatih');
 
   // Load saved coach account signature
   const getCoachAccountSignature = (coachId: string): string => {
@@ -55,6 +62,23 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
     if (savedSig) {
       setParafPelatihUrl(savedSig);
     }
+
+    // Auto-detect if school has collaborating partner coach
+    const schoolCollabs = (activeSchool?.pelatihIds || []).filter(id => id && id !== currentPelatihId);
+    if (schoolCollabs.length > 0) {
+      const partnerId = schoolCollabs[0];
+      setIncludePelatih2(true);
+      setPelatih2Id(partnerId);
+      const savedSig2 = getCoachAccountSignature(partnerId);
+      if (savedSig2) {
+        setParafPelatih2Url(savedSig2);
+      }
+    } else {
+      setIncludePelatih2(false);
+      setPelatih2Id('');
+      setParafPelatih2Url('');
+    }
+
     setIsFormOpen(true);
   };
 
@@ -70,6 +94,18 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
     setParafPelatihUrl(item.parafPelatihUrl || getCoachAccountSignature(item.pelatihId));
     setCatatan(item.catatan || '');
     setShowSignaturePad(false);
+
+    if (item.pelatih2Id || item.parafPelatih2Url) {
+      setIncludePelatih2(true);
+      setPelatih2Id(item.pelatih2Id || '');
+      setParafPelatih2Url(item.parafPelatih2Url || (item.pelatih2Id ? getCoachAccountSignature(item.pelatih2Id) : ''));
+    } else {
+      setIncludePelatih2(false);
+      setPelatih2Id('');
+      setParafPelatih2Url('');
+    }
+    setShowSignaturePad2(false);
+
     setIsFormOpen(true);
   };
 
@@ -100,6 +136,7 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
     // Compress photo and signature if needed
     const compressedPhoto = await compressImageDataUrl(fotoDokumentasiUrl, 500, 0.65);
     const compressedParaf = parafPelatihUrl ? await compressImageDataUrl(parafPelatihUrl, 300, 0.7) : '';
+    const compressedParaf2 = (includePelatih2 && parafPelatih2Url) ? await compressImageDataUrl(parafPelatih2Url, 300, 0.7) : '';
 
     // Format Hari Tanggal
     const d = new Date(tanggal);
@@ -110,16 +147,23 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
     const targetId = editingId || `abp-${Date.now()}`;
     const targetAuthorId = editingAuthorId || currentPelatihId;
     const authorUser = allUsers.find(u => u.id === targetAuthorId);
+    const pelatih2User = includePelatih2 && pelatih2Id ? allUsers.find(u => u.id === pelatih2Id) : undefined;
 
     // Save author's signature to their coach account cache
     if (compressedParaf) {
       localStorage.setItem(`coach_sig_${targetAuthorId}`, compressedParaf);
+    }
+    // Save second coach signature to cache if provided
+    if (compressedParaf2 && pelatih2Id) {
+      localStorage.setItem(`coach_sig_${pelatih2Id}`, compressedParaf2);
     }
 
     const record: AbsenPelatihItem = {
       id: targetId,
       pelatihId: targetAuthorId,
       pelatihNama: authorUser?.name || currentPelatihName,
+      pelatih2Id: includePelatih2 && pelatih2Id ? pelatih2Id : undefined,
+      pelatih2Nama: includePelatih2 ? (pelatih2User?.name || undefined) : undefined,
       sekolahId: selectedSekolahId,
       tahunAjaran: StorageService.getActiveTahunAjaran(),
       tanggal,
@@ -130,6 +174,7 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
       pencapaianPercent,
       fotoDokumentasiUrl: compressedPhoto,
       parafPelatihUrl: compressedParaf,
+      parafPelatih2Url: includePelatih2 && compressedParaf2 ? compressedParaf2 : undefined,
       statusKepalaSekolah: 'Mengetahui',
       catatan,
       // Status verifikasi admin: menunggu verifikasi jika baru atau telah diedit
@@ -157,6 +202,11 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
     setPencapaianPercent(85);
     setFotoDokumentasiUrl('');
     setParafPelatihUrl('');
+    setIncludePelatih2(false);
+    setPelatih2Id('');
+    setParafPelatih2Url('');
+    setShowSignaturePad(false);
+    setShowSignaturePad2(false);
     setCatatan('');
   };
 
@@ -259,32 +309,62 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
 
                   <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
                     {(() => {
-                      const authorCoach = allUsers.find(u => u.id === item.pelatihId);
-                      const authorName = authorCoach ? authorCoach.name : (item.pelatihId === currentPelatihId ? currentPelatihName : 'Pelatih Rekan');
-                      const isAuthorMe = item.pelatihId === currentPelatihId;
+                      const coach1 = allUsers.find(u => u.id === item.pelatihId);
+                      const coach1Name = coach1 ? coach1.name : (item.pelatihId === currentPelatihId ? currentPelatihName : (item.pelatihNama || 'Pelatih 1'));
+                      const isCoach1Me = item.pelatihId === currentPelatihId;
+
+                      const coach2 = item.pelatih2Id ? allUsers.find(u => u.id === item.pelatih2Id) : undefined;
+                      const coach2Name = coach2 ? coach2.name : (item.pelatih2Nama || (item.pelatih2Id ? 'Pelatih 2' : ''));
+                      const isCoach2Me = item.pelatih2Id === currentPelatihId;
+
                       return (
-                        <div className="flex items-center gap-1.5">
-                          <span>Dilatih Oleh: <strong className="text-slate-800 font-bold">{authorName}</strong></span>
-                          {isAuthorMe ? (
-                            <span className="text-[10px] font-extrabold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
-                              Akun Anda
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-extrabold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
-                              🤝 Rekan Pelatih
-                            </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <span>Pelatih 1: <strong className="text-slate-800 font-bold">{coach1Name}</strong></span>
+                            {isCoach1Me ? (
+                              <span className="text-[9px] font-extrabold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                                Akun Anda
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-extrabold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                                Rekan
+                              </span>
+                            )}
+                          </div>
+
+                          {coach2Name && (
+                            <div className="flex items-center gap-1 border-l border-slate-300 pl-2">
+                              <span>Pelatih 2: <strong className="text-indigo-900 font-bold">{coach2Name}</strong></span>
+                              {isCoach2Me ? (
+                                <span className="text-[9px] font-extrabold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                                  Akun Anda
+                                </span>
+                              ) : (
+                                <span className="text-[9px] font-extrabold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                                  🤝 Mitra
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
                       );
                     })()}
 
-                    {/* Coach Signature Preview */}
-                    {item.parafPelatihUrl && (
-                      <div className="flex items-center gap-1.5 bg-white px-2 py-0.5 rounded border border-slate-200 text-[10px]">
-                        <span className="text-slate-400">Tanda Tangan Akun:</span>
-                        <img src={item.parafPelatihUrl} alt="Paraf" className="h-5 max-w-[45px] object-contain" />
-                      </div>
-                    )}
+                    {/* Both Coaches Signature Preview */}
+                    <div className="flex items-center gap-2">
+                      {item.parafPelatihUrl && (
+                        <div className="flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-slate-200 text-[10px]">
+                          <span className="text-slate-400">TTD 1:</span>
+                          <img src={item.parafPelatihUrl} alt="TTD Pelatih 1" className="h-5 max-w-[45px] object-contain" />
+                        </div>
+                      )}
+                      {item.parafPelatih2Url && (
+                        <div className="flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-indigo-200 text-[10px]">
+                          <span className="text-indigo-500 font-semibold">TTD 2:</span>
+                          <img src={item.parafPelatih2Url} alt="TTD Pelatih 2" className="h-5 max-w-[45px] object-contain" />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Admin Verification Status Alert / Badge */}
@@ -495,9 +575,18 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
                 )}
               </div>
 
-              {/* Paraf Pelatih Signature */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Paraf / Tanda Tangan Pelatih</label>
+              {/* Tanda Tangan Pelatih 1 */}
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <PenTool className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Tanda Tangan Pelatih 1 (Utama):</span>
+                  </label>
+                  <span className="text-[11px] font-bold text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded">
+                    {editingAuthorId ? (allUsers.find(u => u.id === editingAuthorId)?.name || currentPelatihName) : currentPelatihName}
+                  </span>
+                </div>
+
                 {showSignaturePad ? (
                   <SignaturePad
                     onSave={(url) => {
@@ -510,18 +599,115 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
                   <div className="flex items-center gap-2">
                     {parafPelatihUrl ? (
                       <div className="border border-slate-300 rounded-xl p-2 bg-white flex-1 h-14 flex items-center justify-center">
-                        <img src={parafPelatihUrl} alt="Paraf" className="max-h-12 object-contain" />
+                        <img src={parafPelatihUrl} alt="Paraf Pelatih 1" className="max-h-12 object-contain" />
                       </div>
                     ) : (
-                      <span className="text-xs text-slate-400 italic">Belum ada paraf</span>
+                      <span className="text-xs text-slate-400 italic">Belum ada tanda tangan Pelatih 1</span>
                     )}
                     <button
                       type="button"
                       onClick={() => setShowSignaturePad(true)}
-                      className="text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl border border-slate-300"
+                      className="text-xs font-semibold bg-white hover:bg-slate-100 text-slate-700 px-3 py-2 rounded-xl border border-slate-300 cursor-pointer"
                     >
-                      {parafPelatihUrl ? 'Ubah Paraf' : '+ Buat Paraf'}
+                      {parafPelatihUrl ? 'Ubah TTD' : '+ Buat TTD'}
                     </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Tanda Tangan Pelatih 2 (Kolaborator / Pendamping) */}
+              <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={includePelatih2}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setIncludePelatih2(checked);
+                        if (checked && !pelatih2Id) {
+                          const schoolCollabs = (activeSchool?.pelatihIds || []).filter(id => id && id !== (editingAuthorId || currentPelatihId));
+                          const otherCoaches = allCoaches.filter(u => u.id !== (editingAuthorId || currentPelatihId));
+                          const defaultP2 = schoolCollabs[0] || otherCoaches[0]?.id || '';
+                          setPelatih2Id(defaultP2);
+                          if (defaultP2) {
+                            setParafPelatih2Url(getCoachAccountSignature(defaultP2));
+                          }
+                        }
+                      }}
+                      className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 border-slate-300 cursor-pointer"
+                    />
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-indigo-600" />
+                      Input Tanda Tangan Pelatih 2 (Kolaborasi / Pendamping)
+                    </span>
+                  </label>
+                  {includePelatih2 && (
+                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+                      2 Pelatih Aktif
+                    </span>
+                  )}
+                </div>
+
+                {includePelatih2 && (
+                  <div className="space-y-2 pt-1 border-t border-indigo-100 animate-in fade-in">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Pilih Pelatih Ke-2:
+                      </label>
+                      <select
+                        value={pelatih2Id}
+                        onChange={(e) => {
+                          const newId = e.target.value;
+                          setPelatih2Id(newId);
+                          const sig = getCoachAccountSignature(newId);
+                          setParafPelatih2Url(sig);
+                        }}
+                        className="w-full px-3 py-1.5 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      >
+                        <option value="">-- Pilih Akun Pelatih Ke-2 --</option>
+                        {allCoaches
+                          .filter(c => c.id !== (editingAuthorId || currentPelatihId))
+                          .map(c => (
+                            <option key={c.id} value={c.id}>
+                              {c.name} {activeSchool?.pelatihIds?.includes(c.id) ? '★ (Mitra Sekolah)' : ''}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+                    {/* Signature Pad for Pelatih 2 */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Paraf / Tanda Tangan Pelatih 2:
+                      </label>
+                      {showSignaturePad2 ? (
+                        <SignaturePad
+                          onSave={(url) => {
+                            setParafPelatih2Url(url);
+                            setShowSignaturePad2(false);
+                          }}
+                          initialDataUrl={parafPelatih2Url}
+                        />
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {parafPelatih2Url ? (
+                            <div className="border border-indigo-200 rounded-xl p-2 bg-white flex-1 h-14 flex items-center justify-center">
+                              <img src={parafPelatih2Url} alt="Paraf Pelatih 2" className="max-h-12 object-contain" />
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400 italic">Belum ada tanda tangan Pelatih 2</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setShowSignaturePad2(true)}
+                            className="text-xs font-semibold bg-white hover:bg-slate-100 text-indigo-700 px-3 py-2 rounded-xl border border-indigo-200 cursor-pointer"
+                          >
+                            {parafPelatih2Url ? 'Ubah TTD Pelatih 2' : '+ Buat TTD Pelatih 2'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

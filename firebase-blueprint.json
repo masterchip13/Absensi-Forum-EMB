@@ -99,6 +99,9 @@
         "pencapaianPercent": { "type": "number" },
         "fotoDokumentasiUrl": { "type": "string" },
         "parafPelatihUrl": { "type": "string" },
+        "pelatih2Id": { "type": "string" },
+        "pelatih2Nama": { "type": "string" },
+        "parafPelatih2Url": { "type": "string" },
         "statusKepalaSekolah": { "type": "string" },
         "catatan": { "type": "string" }
       },

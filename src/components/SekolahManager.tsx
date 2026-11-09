@@ -282,7 +282,7 @@ export const SekolahManager: React.FC<SekolahManagerProps> = ({
               {isAdmin && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Pelatih Utama (Penanggung Jawab) <span className="text-rose-500">*</span>
+                    Pelatih (Penanggung Jawab) <span className="text-rose-500">*</span>
                   </label>
                   <select
                     value={assignedPelatihId}
@@ -304,7 +304,7 @@ export const SekolahManager: React.FC<SekolahManagerProps> = ({
                     )}
                   </select>
                   <p className="text-[10px] text-slate-500 mt-0.5">
-                    Pelatih utama bertindak sebagai penanggung jawab utama sekolah ini.
+                    Pelatih yang ditugaskan di sekolah ini.
                   </p>
                 </div>
               )}
