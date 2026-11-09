@@ -79,6 +79,7 @@ export interface JadwalLatihan {
 export interface AbsenPelatihItem {
   id: string;
   pelatihId: string;
+  pelatihNama?: string;
   sekolahId: string;
   tahunAjaran?: string; // e.g. "2024/2025"
   tanggal: string; // YYYY-MM-DD
@@ -91,6 +92,11 @@ export interface AbsenPelatihItem {
   parafPelatihUrl?: string;
   statusKepalaSekolah: 'Mengetahui' | 'Menunggu';
   catatan?: string;
+  // Status Verifikasi oleh Admin
+  statusVerifikasiAdmin?: 'menunggu' | 'diverifikasi' | 'ditolak';
+  diverifikasiOleh?: string;
+  diverifikasiPada?: string;
+  catatanAdmin?: string;
 }
 
 export interface AbsenAsistenPelatihItem {

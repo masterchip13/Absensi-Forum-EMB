@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { Sekolah, Anggota, AbsenSiswaEntry, isSchoolCoach } from '../types';
+import { Sekolah, Anggota, AbsenSiswaEntry, isSchoolCoach, getSchoolCoachIds } from '../types';
 import { StorageService } from '../data/storage';
 import { formatNamaKapital, formatKelasAngka } from '../utils/nameFormatter';
 import {
@@ -18,7 +18,8 @@ import {
   RotateCcw,
   X,
   Stamp,
-  FileText
+  FileText,
+  Users
 } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
@@ -87,14 +88,14 @@ const TandaTanganBasahKepalaSekolah: React.FC = () => {
   );
 };
 
-// Realistic Wet-Ink Signature for Pelatih (Dark Blue Ink)
+// Realistic Wet-Ink Signature for Pelatih 1 / Utama (Deep Blue Fountain Pen Ink)
 const TandaTanganBasahPelatih: React.FC<{ customSignatureUrl?: string }> = ({ customSignatureUrl }) => {
   if (customSignatureUrl) {
     return (
       <div className="relative w-44 h-16 flex items-center justify-center">
         <img
           src={customSignatureUrl}
-          alt="Tanda Tangan Basah Pelatih"
+          alt="Tanda Tangan Basah Pelatih Utama"
           className="h-14 max-w-[170px] object-contain transform -rotate-2"
           style={{ filter: 'contrast(130%) brightness(95%)' }}
         />
@@ -139,6 +140,57 @@ const TandaTanganBasahPelatih: React.FC<{ customSignatureUrl?: string }> = ({ cu
   );
 };
 
+// Realistic Wet-Ink Signature for Pelatih 2 / Kolaborator (Navy-Indigo Ink Stroke)
+const TandaTanganBasahPelatih2: React.FC<{ customSignatureUrl?: string }> = ({ customSignatureUrl }) => {
+  if (customSignatureUrl) {
+    return (
+      <div className="relative w-44 h-16 flex items-center justify-center">
+        <img
+          src={customSignatureUrl}
+          alt="Tanda Tangan Basah Pelatih Kolaborator"
+          className="h-14 max-w-[170px] object-contain transform rotate-1"
+          style={{ filter: 'contrast(130%) brightness(95%)' }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-44 h-16 flex items-center justify-center pointer-events-none select-none">
+      <svg
+        viewBox="0 0 240 90"
+        className="w-full h-full max-h-16 transform rotate-1"
+        style={{ filter: 'drop-shadow(0.5px 0.5px 0px rgba(15,23,42,0.4))' }}
+      >
+        {/* Distinctive artistic signature for Coach 2 */}
+        <path
+          d="M 24 45 C 38 18, 55 12, 60 48 C 64 68, 82 28, 98 34 C 112 40, 118 64, 132 46 C 146 26, 160 32, 172 50 C 182 66, 198 25, 215 32 C 224 36, 232 46, 236 42"
+          fill="none"
+          stroke="#0f2b5c"
+          strokeWidth="3.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M 32 68 C 75 82, 140 85, 205 70 C 222 66, 234 58, 236 52"
+          fill="none"
+          stroke="#0a1d40"
+          strokeWidth="2.8"
+          strokeLinecap="round"
+        />
+        <path
+          d="M 80 72 C 120 78, 175 76, 218 64"
+          fill="none"
+          stroke="#0f2b5c"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+        />
+        <circle cx="232" cy="48" r="2.2" fill="#0a1d40" />
+      </svg>
+    </div>
+  );
+};
+
 export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
   sekolahList,
   selectedSekolahId,
@@ -155,6 +207,8 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
   // Wet Signature Controls
   const [useWetSignature, setUseWetSignature] = useState(true);
   const [customCoachSignature, setCustomCoachSignature] = useState<string>('');
+  const [customCoach2Signature, setCustomCoach2Signature] = useState<string>('');
+  const [activeEditingCoach, setActiveEditingCoach] = useState<1 | 2>(1);
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
   const [signatureDate, setSignatureDate] = useState(() => {
     return new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -166,11 +220,15 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
   const tahunAjaranOptions = StorageService.getTahunAjaranList();
   const selectedSekolah = sekolahList.find(s => s.id === filterSekolahId) || sekolahList[0];
 
-  // Load saved coach signature from storage or profile if exists
+  // Load saved coach signatures from storage or profile if exists
   useEffect(() => {
-    const savedSig = localStorage.getItem('coach_wet_signature_data') || '';
-    if (savedSig) {
-      setCustomCoachSignature(savedSig);
+    const savedSig1 = localStorage.getItem('coach_wet_signature_data') || '';
+    if (savedSig1) {
+      setCustomCoachSignature(savedSig1);
+    }
+    const savedSig2 = localStorage.getItem('coach2_wet_signature_data') || '';
+    if (savedSig2) {
+      setCustomCoach2Signature(savedSig2);
     }
   }, []);
 
@@ -369,6 +427,19 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
     return users.find(u => u.id === selectedSekolah?.pelatihId) || currentUser;
   }, [selectedSekolah]);
 
+  // Resolve all assigned coaches for collaboration in this school
+  const schoolCoaches = useMemo(() => {
+    const users = StorageService.getUsers();
+    const coachIds = getSchoolCoachIds(selectedSekolah);
+    const coaches = coachIds.map(id => users.find(u => u.id === id)).filter(Boolean);
+    if (coaches.length === 0 && pelatihUser) return [pelatihUser];
+    return coaches;
+  }, [selectedSekolah, pelatihUser]);
+
+  const isCollaborative = schoolCoaches.length > 1;
+  const leadCoach = schoolCoaches[0] || pelatihUser;
+  const partnerCoach = schoolCoaches[1] || null;
+
   // Print Window Handler
   const handlePrint = () => {
     window.print();
@@ -501,7 +572,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
         [`Satuan Pendidikan: ${selectedSekolah?.namaSekolah || '-'}`],
         [`Alamat: ${selectedSekolah?.alamat || 'Kecamatan Cigombong, Kabupaten Bogor'}`],
         [`Semester: ${filterSemester} | Tahun Pelajaran: ${filterTahunAjaran}`],
-        [`Pelatih Pembina: ${pelatihUser?.name || 'Pelatih Ekstrakurikuler'}`],
+        [`Pelatih Pembina: ${isCollaborative ? `${leadCoach?.name || '-'} & ${partnerCoach?.name || '-'}` : pelatihUser?.name || 'Pelatih Ekstrakurikuler'}`],
         ['Dasar Penilaian: Akumulasi Kehadiran Latihan (Semakin banyak kehadiran semakin bagus predikat nilainya)'],
         [],
         headers
@@ -538,52 +609,102 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
       // Add official signatures at the bottom
       rows.push([]);
       rows.push([]);
-      rows.push([
-        '',
-        'Mengetahui,',
-        '',
-        '',
-        ...semesterMonths.map(() => ''),
-        '',
-        `Bogor, ${signatureDate}`,
-        '',
-        ''
-      ]);
-      rows.push([
-        '',
-        `Kepala Sekolah ${selectedSekolah?.namaSekolah || ''}`,
-        '',
-        '',
-        ...semesterMonths.map(() => ''),
-        '',
-        'Pelatih Ekstrakurikuler',
-        '',
-        ''
-      ]);
-      rows.push([]);
-      rows.push([]);
-      rows.push([
-        '',
-        selectedSekolah?.kepalaSekolah || 'NITA HERNITA, S.Pd.MM',
-        '',
-        '',
-        ...semesterMonths.map(() => ''),
-        '',
-        pelatihUser?.name || 'Pelatih Ekstrakurikuler',
-        '',
-        ''
-      ]);
-      rows.push([
-        '',
-        `NIP. ${selectedSekolah?.nipKepalaSekolah || '197310221996032002'}`,
-        '',
-        '',
-        ...semesterMonths.map(() => ''),
-        '',
-        pelatihUser?.nip ? `NIP. ${pelatihUser.nip}` : 'Pelatih Pembina Marching Band',
-        '',
-        ''
-      ]);
+
+      if (isCollaborative) {
+        rows.push([
+          '',
+          'Mengetahui,',
+          '',
+          '',
+          ...semesterMonths.map(() => ''),
+          `Bogor, ${signatureDate}`,
+          '',
+          '',
+          `Bogor, ${signatureDate}`
+        ]);
+        rows.push([
+          '',
+          `Kepala Sekolah ${selectedSekolah?.namaSekolah || ''}`,
+          '',
+          '',
+          ...semesterMonths.map(() => ''),
+          'Pelatih Utama',
+          '',
+          '',
+          'Pelatih Kolaborator'
+        ]);
+        rows.push([]);
+        rows.push([]);
+        rows.push([
+          '',
+          selectedSekolah?.kepalaSekolah || 'NITA HERNITA, S.Pd.MM',
+          '',
+          '',
+          ...semesterMonths.map(() => ''),
+          leadCoach?.name || 'Pelatih Utama',
+          '',
+          '',
+          partnerCoach?.name || 'Pelatih Kolaborator'
+        ]);
+        rows.push([
+          '',
+          `NIP. ${selectedSekolah?.nipKepalaSekolah || '197310221996032002'}`,
+          '',
+          '',
+          ...semesterMonths.map(() => ''),
+          leadCoach?.nip ? `NIP. ${leadCoach.nip}` : 'Pelatih Marching Band',
+          '',
+          '',
+          partnerCoach?.nip ? `NIP. ${partnerCoach.nip}` : 'Pelatih Marching Band'
+        ]);
+      } else {
+        rows.push([
+          '',
+          'Mengetahui,',
+          '',
+          '',
+          ...semesterMonths.map(() => ''),
+          '',
+          `Bogor, ${signatureDate}`,
+          '',
+          ''
+        ]);
+        rows.push([
+          '',
+          `Kepala Sekolah ${selectedSekolah?.namaSekolah || ''}`,
+          '',
+          '',
+          ...semesterMonths.map(() => ''),
+          '',
+          'Pelatih Ekstrakurikuler',
+          '',
+          ''
+        ]);
+        rows.push([]);
+        rows.push([]);
+        rows.push([
+          '',
+          selectedSekolah?.kepalaSekolah || 'NITA HERNITA, S.Pd.MM',
+          '',
+          '',
+          ...semesterMonths.map(() => ''),
+          '',
+          pelatihUser?.name || 'Pelatih Ekstrakurikuler',
+          '',
+          ''
+        ]);
+        rows.push([
+          '',
+          `NIP. ${selectedSekolah?.nipKepalaSekolah || '197310221996032002'}`,
+          '',
+          '',
+          ...semesterMonths.map(() => ''),
+          '',
+          pelatihUser?.nip ? `NIP. ${pelatihUser.nip}` : 'Pelatih Pembina Marching Band',
+          '',
+          ''
+        ]);
+      }
 
       const ws = XLSX.utils.aoa_to_sheet(rows);
       ws['!cols'] = [
@@ -613,6 +734,53 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
   const handleExportWord = () => {
     const cleanSchool = (selectedSekolah?.namaSekolah || 'Sekolah').replace(/[^a-zA-Z0-9]/g, '_');
     const fileName = `Nilai_Ekskul_${cleanSchool}_Semester_${filterSemester}_${filterTahunAjaran.replace('/', '-')}.doc`;
+
+    const wordSigTableHtml = isCollaborative ? `
+    <table class="sig-table">
+      <tr>
+        <td style="width: 34%;">
+          <div>Mengetahui,</div>
+          <div><b>Kepala Sekolah</b></div>
+          <div style="height: 60px;"></div>
+          <div><u><b>${selectedSekolah?.kepalaSekolah || '...........................................'}</b></u></div>
+          <div>NIP. ${selectedSekolah?.nipKepalaSekolah || '...........................................'}</div>
+        </td>
+        <td style="width: 33%;">
+          <div>Bogor, ${signatureDate}</div>
+          <div><b>Pelatih Utama</b></div>
+          <div style="height: 60px;"></div>
+          <div><u><b>${leadCoach?.name || '...........................................'}</b></u></div>
+          <div>NIP/NUPTK. ${leadCoach?.nip || '...........................................'}</div>
+        </td>
+        <td style="width: 33%;">
+          <div>Bogor, ${signatureDate}</div>
+          <div><b>Pelatih Kolaborator</b></div>
+          <div style="height: 60px;"></div>
+          <div><u><b>${partnerCoach?.name || '...........................................'}</b></u></div>
+          <div>NIP/NUPTK. ${partnerCoach?.nip || '...........................................'}</div>
+        </td>
+      </tr>
+    </table>
+    ` : `
+    <table class="sig-table">
+      <tr>
+        <td style="width: 50%;">
+          <div>Mengetahui,</div>
+          <div><b>Kepala Sekolah</b></div>
+          <div style="height: 60px;"></div>
+          <div><u><b>${selectedSekolah?.kepalaSekolah || '...........................................'}</b></u></div>
+          <div>NIP. ${selectedSekolah?.nipKepalaSekolah || '...........................................'}</div>
+        </td>
+        <td style="width: 50%;">
+          <div>Bogor, ${signatureDate}</div>
+          <div><b>Pelatih Ekstrakurikuler</b></div>
+          <div style="height: 60px;"></div>
+          <div><u><b>${pelatihUser?.name || '...........................................'}</b></u></div>
+          <div>NIP/NUPTK. ${pelatihUser?.nip || '...........................................'}</div>
+        </td>
+      </tr>
+    </table>
+    `;
 
     const htmlHeader = `
 <html xmlns:o='urn:schemas-microsoft-com:office:office'
@@ -704,7 +872,6 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
       border: none;
       text-align: center;
       vertical-align: top;
-      width: 50%;
     }
   </style>
 </head>
@@ -716,6 +883,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
     <div class="divider-line"></div>
     <div class="header-sub">DAFTAR NILAI & LAPORAN EVALUASI EKSTRAKURIKULER MARCHING BAND</div>
     <div style="font-size: 9.5pt; font-weight: bold;">SEMESTER ${filterSemester.toUpperCase()} &bull; TAHUN PELAJARAN ${filterTahunAjaran}</div>
+    ${isCollaborative ? `<div style="font-size: 9pt; font-weight: bold; margin-top: 2px;">TIM PELATIH: ${leadCoach?.name || ''} &bull; ${partnerCoach?.name || ''}</div>` : ''}
   </div>
 
   <table class="data-table">
@@ -757,24 +925,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
     &bull; <b>Nilai D (Kurang)</b>: Akumulasi kehadiran kurang (&lt; 50%) &mdash; Tingkat kehadiran rendah, memerlukan bimbingan dan peningkatan keaktifan.
   </div>
 
-  <table class="sig-table">
-    <tr>
-      <td>
-        <div>Mengetahui,</div>
-        <div><b>Kepala Sekolah</b></div>
-        <div style="height: 60px;"></div>
-        <div><u><b>${selectedSekolah?.kepalaSekolah || '...........................................'}</b></u></div>
-        <div>NIP. ${selectedSekolah?.nipKepalaSekolah || '...........................................'}</div>
-      </td>
-      <td>
-        <div>Bogor, ...........................................</div>
-        <div><b>Pelatih Ekstrakurikuler</b></div>
-        <div style="height: 60px;"></div>
-        <div><u><b>${pelatihUser?.name || '...........................................'}</b></u></div>
-        <div>NIP/NUPTK. ${pelatihUser?.nip || '...........................................'}</div>
-      </td>
-    </tr>
-  </table>
+  ${wordSigTableHtml}
 </body>
 </html>
     `;
@@ -792,8 +943,13 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
 
   // Handle Save Custom Signature
   const handleSaveSignature = (sigDataUrl: string) => {
-    setCustomCoachSignature(sigDataUrl);
-    localStorage.setItem('coach_wet_signature_data', sigDataUrl);
+    if (activeEditingCoach === 1) {
+      setCustomCoachSignature(sigDataUrl);
+      localStorage.setItem('coach_wet_signature_data', sigDataUrl);
+    } else {
+      setCustomCoach2Signature(sigDataUrl);
+      localStorage.setItem('coach2_wet_signature_data', sigDataUrl);
+    }
     setIsSignatureModalOpen(false);
   };
 
@@ -804,8 +960,13 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
-      setCustomCoachSignature(result);
-      localStorage.setItem('coach_wet_signature_data', result);
+      if (activeEditingCoach === 1) {
+        setCustomCoachSignature(result);
+        localStorage.setItem('coach_wet_signature_data', result);
+      } else {
+        setCustomCoach2Signature(result);
+        localStorage.setItem('coach2_wet_signature_data', result);
+      }
       setIsSignatureModalOpen(false);
     };
     reader.readAsDataURL(file);
@@ -1008,24 +1169,63 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
               />
               <span>Cetak Tanda Tangan Basah (Tinta Biru Asli)</span>
             </label>
+
+            {isCollaborative && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold shadow-xs">
+                <Users className="w-3.5 h-3.5 text-amber-700" />
+                <span>Kolaborasi 2 Pelatih Aktif (2 Tanda Tangan)</span>
+              </span>
+            )}
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsSignatureModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold transition cursor-pointer"
-            >
-              <PenTool className="w-3.5 h-3.5" />
-              <span>{customCoachSignature ? 'Ubah Tanda Tangan Pelatih' : 'Gambar / Unggah TTD Pelatih'}</span>
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {isCollaborative ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveEditingCoach(1);
+                    setIsSignatureModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold transition cursor-pointer"
+                >
+                  <PenTool className="w-3.5 h-3.5" />
+                  <span>TTD Pelatih 1 ({leadCoach?.name?.split(' ')[0] || 'Utama'})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveEditingCoach(2);
+                    setIsSignatureModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition cursor-pointer"
+                >
+                  <PenTool className="w-3.5 h-3.5" />
+                  <span>TTD Pelatih 2 ({partnerCoach?.name?.split(' ')[0] || 'Kolaborator'})</span>
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveEditingCoach(1);
+                  setIsSignatureModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold transition cursor-pointer"
+              >
+                <PenTool className="w-3.5 h-3.5" />
+                <span>{customCoachSignature ? 'Ubah Tanda Tangan Pelatih' : 'Gambar / Unggah TTD Pelatih'}</span>
+              </button>
+            )}
 
-            {customCoachSignature && (
+            {(customCoachSignature || customCoach2Signature) && (
               <button
                 type="button"
                 onClick={() => {
                   setCustomCoachSignature('');
+                  setCustomCoach2Signature('');
                   localStorage.removeItem('coach_wet_signature_data');
+                  localStorage.removeItem('coach2_wet_signature_data');
                 }}
                 className="text-xs text-rose-600 hover:underline font-semibold"
                 title="Reset ke TTD Basah Standar"
@@ -1216,7 +1416,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
           <div className="space-y-0.5">
             <div className="flex">
               <span className="w-28 text-slate-600 font-semibold">Pelatih Pembina</span>
-              <span className="font-bold text-slate-900">: {pelatihUser?.name || 'Pelatih Ekstrakurikuler'}</span>
+              <span className="font-bold text-slate-900">: {isCollaborative ? `${leadCoach?.name || '-'} & ${partnerCoach?.name || '-'}` : pelatihUser?.name || 'Pelatih Ekstrakurikuler'}</span>
             </div>
             <div className="flex">
               <span className="w-28 text-slate-600 font-semibold">Dasar Penilaian</span>
@@ -1342,56 +1542,133 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
           <span><strong className="text-rose-800">D (Kurang)</strong>: Akumulasi Kehadiran Rendah (&lt;50%)</span>
         </div>
 
-        {/* 6. Official Signatures (Lembar Pengesahan Dua Sisi) */}
-        <div className="signature-row grid grid-cols-2 gap-4 text-[10.5px] pt-1.5 border-t border-slate-400 leading-tight">
-          {/* Sisi Kiri: Mengetahui Kepala Sekolah */}
-          <div className="text-center relative flex flex-col items-center">
-            <p className="text-slate-600 font-semibold mb-0.5">Mengetahui,</p>
-            <p className="font-bold text-slate-900 leading-tight">
-              Kepala Sekolah {selectedSekolah?.namaSekolah}
-            </p>
+        {/* 6. Official Signatures (2 Tanda Tangan Pelatih Jika Kolaborasi) */}
+        {isCollaborative ? (
+          <div className="signature-row grid grid-cols-3 gap-2 text-[10px] pt-1.5 border-t border-slate-400 leading-tight">
+            {/* Kolom 1: Mengetahui Kepala Sekolah */}
+            <div className="text-center relative flex flex-col items-center">
+              <p className="text-slate-600 font-semibold mb-0.5">Mengetahui,</p>
+              <p className="font-bold text-slate-900 leading-tight">
+                Kepala Sekolah {selectedSekolah?.namaSekolah}
+              </p>
 
-            <div className="relative h-14 w-44 flex items-center justify-center my-0.5">
-              {useWetSignature ? (
-                <TandaTanganBasahKepalaSekolah />
-              ) : (
-                <div className="h-12" />
-              )}
+              <div className="relative h-14 w-full flex items-center justify-center my-0.5">
+                {useWetSignature ? (
+                  <TandaTanganBasahKepalaSekolah />
+                ) : (
+                  <div className="h-12" />
+                )}
+              </div>
+
+              <p className="font-black text-slate-900 underline uppercase tracking-wide">
+                {selectedSekolah?.kepalaSekolah || 'NITA HERNITA, S.Pd.MM'}
+              </p>
+              <p className="text-[9.5px] text-slate-600">
+                NIP. {selectedSekolah?.nipKepalaSekolah || '197310221996032002'}
+              </p>
             </div>
 
-            <p className="font-black text-slate-900 underline uppercase tracking-wide">
-              {selectedSekolah?.kepalaSekolah || 'NITA HERNITA, S.Pd.MM'}
-            </p>
-            <p className="text-[10px] text-slate-600">
-              NIP. {selectedSekolah?.nipKepalaSekolah || '197310221996032002'}
-            </p>
-          </div>
+            {/* Kolom 2: Pelatih 1 / Utama */}
+            <div className="text-center relative flex flex-col items-center">
+              <p className="text-slate-600 font-semibold mb-0.5">
+                Bogor, {signatureDate}
+              </p>
+              <p className="font-bold text-slate-900 leading-tight">
+                Pelatih Utama
+              </p>
 
-          {/* Sisi Kanan: Pelatih Ekstrakurikuler */}
-          <div className="text-center relative flex flex-col items-center">
-            <p className="text-slate-600 font-semibold mb-0.5">
-              Bogor, {signatureDate}
-            </p>
-            <p className="font-bold text-slate-900 leading-tight">
-              Pelatih Ekstrakurikuler
-            </p>
+              <div className="relative h-14 w-full flex items-center justify-center my-0.5">
+                {useWetSignature ? (
+                  <TandaTanganBasahPelatih customSignatureUrl={customCoachSignature} />
+                ) : (
+                  <div className="h-12" />
+                )}
+              </div>
 
-            <div className="relative h-14 w-44 flex items-center justify-center my-0.5">
-              {useWetSignature ? (
-                <TandaTanganBasahPelatih customSignatureUrl={customCoachSignature} />
-              ) : (
-                <div className="h-12" />
-              )}
+              <p className="font-black text-slate-900 underline uppercase tracking-wide">
+                {leadCoach?.name || 'Pelatih Utama'}
+              </p>
+              <p className="text-[9.5px] text-slate-600">
+                {leadCoach?.nip ? `NIP. ${leadCoach.nip}` : 'Pelatih Marching Band'}
+              </p>
             </div>
 
-            <p className="font-black text-slate-900 underline uppercase tracking-wide">
-              {pelatihUser?.name || 'Pelatih Ekstrakurikuler'}
-            </p>
-            <p className="text-[10px] text-slate-600">
-              {pelatihUser?.nip ? `NIP. ${pelatihUser.nip}` : 'Pelatih Marching Band'}
-            </p>
+            {/* Kolom 3: Pelatih 2 / Kolaborator */}
+            <div className="text-center relative flex flex-col items-center">
+              <p className="text-slate-600 font-semibold mb-0.5">
+                Bogor, {signatureDate}
+              </p>
+              <p className="font-bold text-slate-900 leading-tight">
+                Pelatih Kolaborator
+              </p>
+
+              <div className="relative h-14 w-full flex items-center justify-center my-0.5">
+                {useWetSignature ? (
+                  <TandaTanganBasahPelatih2 customSignatureUrl={customCoach2Signature} />
+                ) : (
+                  <div className="h-12" />
+                )}
+              </div>
+
+              <p className="font-black text-slate-900 underline uppercase tracking-wide">
+                {partnerCoach?.name || 'Pelatih Kolaborator'}
+              </p>
+              <p className="text-[9.5px] text-slate-600">
+                {partnerCoach?.nip ? `NIP. ${partnerCoach.nip}` : 'Pelatih Marching Band'}
+              </p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="signature-row grid grid-cols-2 gap-4 text-[10.5px] pt-1.5 border-t border-slate-400 leading-tight">
+            {/* Sisi Kiri: Mengetahui Kepala Sekolah */}
+            <div className="text-center relative flex flex-col items-center">
+              <p className="text-slate-600 font-semibold mb-0.5">Mengetahui,</p>
+              <p className="font-bold text-slate-900 leading-tight">
+                Kepala Sekolah {selectedSekolah?.namaSekolah}
+              </p>
+
+              <div className="relative h-14 w-44 flex items-center justify-center my-0.5">
+                {useWetSignature ? (
+                  <TandaTanganBasahKepalaSekolah />
+                ) : (
+                  <div className="h-12" />
+                )}
+              </div>
+
+              <p className="font-black text-slate-900 underline uppercase tracking-wide">
+                {selectedSekolah?.kepalaSekolah || 'NITA HERNITA, S.Pd.MM'}
+              </p>
+              <p className="text-[10px] text-slate-600">
+                NIP. {selectedSekolah?.nipKepalaSekolah || '197310221996032002'}
+              </p>
+            </div>
+
+            {/* Sisi Kanan: Pelatih Ekstrakurikuler */}
+            <div className="text-center relative flex flex-col items-center">
+              <p className="text-slate-600 font-semibold mb-0.5">
+                Bogor, {signatureDate}
+              </p>
+              <p className="font-bold text-slate-900 leading-tight">
+                Pelatih Ekstrakurikuler
+              </p>
+
+              <div className="relative h-14 w-44 flex items-center justify-center my-0.5">
+                {useWetSignature ? (
+                  <TandaTanganBasahPelatih customSignatureUrl={customCoachSignature} />
+                ) : (
+                  <div className="h-12" />
+                )}
+              </div>
+
+              <p className="font-black text-slate-900 underline uppercase tracking-wide">
+                {pelatihUser?.name || 'Pelatih Ekstrakurikuler'}
+              </p>
+              <p className="text-[10px] text-slate-600">
+                {pelatihUser?.nip ? `NIP. ${pelatihUser.nip}` : 'Pelatih Marching Band'}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
 
@@ -1410,21 +1687,58 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
               </div>
               <button
                 onClick={() => setIsSignatureModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
+            {/* Coach Tab Selector when Collaborative */}
+            {isCollaborative && (
+              <div className="mt-3 grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setActiveEditingCoach(1)}
+                  className={`py-1.5 px-2 text-xs font-bold rounded-lg transition cursor-pointer text-center ${
+                    activeEditingCoach === 1
+                      ? 'bg-white text-blue-800 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Pelatih 1: {leadCoach?.name?.split(' ')[0] || 'Utama'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveEditingCoach(2)}
+                  className={`py-1.5 px-2 text-xs font-bold rounded-lg transition cursor-pointer text-center ${
+                    activeEditingCoach === 2
+                      ? 'bg-white text-indigo-800 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Pelatih 2: {partnerCoach?.name?.split(' ')[0] || 'Kolaborator'}
+                </button>
+              </div>
+            )}
+
             <div className="mt-4 space-y-4">
-              <p className="text-xs text-slate-600">
-                Goreskan tanda tangan Anda dengan jari/stylus/mouse pada kanvas di bawah untuk menghasilkan efek tanda tangan basah alami:
-              </p>
+              <div className="text-xs text-slate-600">
+                {isCollaborative ? (
+                  <span>
+                    Mengatur tanda tangan untuk: <b>{activeEditingCoach === 1 ? leadCoach?.name : partnerCoach?.name}</b> ({activeEditingCoach === 1 ? 'Pelatih Utama' : 'Pelatih Kolaborator'}).
+                  </span>
+                ) : (
+                  <span>
+                    Goreskan tanda tangan Anda dengan jari/stylus/mouse pada kanvas di bawah untuk menghasilkan efek tanda tangan basah alami:
+                  </span>
+                )}
+              </div>
 
               <div className="border-2 border-dashed border-slate-300 rounded-2xl p-2 bg-slate-50 flex items-center justify-center">
                 <SignaturePad
+                  key={`sigpad-${activeEditingCoach}`}
                   onSave={handleSaveSignature}
-                  initialDataUrl={customCoachSignature}
+                  initialDataUrl={activeEditingCoach === 1 ? customCoachSignature : customCoach2Signature}
                   width={340}
                   height={150}
                 />
@@ -1452,7 +1766,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsSignatureModalOpen(false)}
-                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl transition"
+                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
                 >
                   Tutup
                 </button>

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { AbsenPelatihItem, Sekolah } from '../types';
 import { StorageService } from '../data/storage';
 import { SignaturePad } from './SignaturePad';
-import { Camera, CheckCircle2, Image as ImageIcon, Plus, Calendar, Clock, Award, Trash2, Edit2 } from 'lucide-react';
+import { Camera, CheckCircle2, Image as ImageIcon, Plus, Calendar, Clock, Award, Trash2, Edit2, AlertCircle, ShieldCheck } from 'lucide-react';
 
 import { compressImageDataUrl } from '../utils/imageCompressor';
 
@@ -41,10 +41,20 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
   const activeSchool = sekolahList.find(s => s.id === selectedSekolahId);
   const schoolAbsenList = absenPelatihList.filter(a => a.sekolahId === selectedSekolahId);
 
+  // Load saved coach account signature
+  const getCoachAccountSignature = (coachId: string): string => {
+    return localStorage.getItem(`coach_sig_${coachId}`) || localStorage.getItem('coach_wet_signature_data') || '';
+  };
+
   const handleOpenAdd = () => {
     setEditingId(null);
-    setEditingAuthorId(null);
+    setEditingAuthorId(currentPelatihId);
     resetForm();
+    // Auto-populate signature from logged-in coach account if available
+    const savedSig = getCoachAccountSignature(currentPelatihId);
+    if (savedSig) {
+      setParafPelatihUrl(savedSig);
+    }
     setIsFormOpen(true);
   };
 
@@ -57,7 +67,7 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
     setMateriPokok(item.materiPokok || '');
     setPencapaianPercent(item.pencapaianPercent ?? 85);
     setFotoDokumentasiUrl(item.fotoDokumentasiUrl || '');
-    setParafPelatihUrl(item.parafPelatihUrl || '');
+    setParafPelatihUrl(item.parafPelatihUrl || getCoachAccountSignature(item.pelatihId));
     setCatatan(item.catatan || '');
     setShowSignaturePad(false);
     setIsFormOpen(true);
@@ -99,10 +109,17 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
 
     const targetId = editingId || `abp-${Date.now()}`;
     const targetAuthorId = editingAuthorId || currentPelatihId;
+    const authorUser = allUsers.find(u => u.id === targetAuthorId);
+
+    // Save author's signature to their coach account cache
+    if (compressedParaf) {
+      localStorage.setItem(`coach_sig_${targetAuthorId}`, compressedParaf);
+    }
 
     const record: AbsenPelatihItem = {
       id: targetId,
       pelatihId: targetAuthorId,
+      pelatihNama: authorUser?.name || currentPelatihName,
       sekolahId: selectedSekolahId,
       tahunAjaran: StorageService.getActiveTahunAjaran(),
       tanggal,
@@ -114,7 +131,12 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
       fotoDokumentasiUrl: compressedPhoto,
       parafPelatihUrl: compressedParaf,
       statusKepalaSekolah: 'Mengetahui',
-      catatan
+      catatan,
+      // Status verifikasi admin: menunggu verifikasi jika baru atau telah diedit
+      statusVerifikasiAdmin: 'menunggu',
+      diverifikasiOleh: undefined,
+      diverifikasiPada: undefined,
+      catatanAdmin: undefined
     };
 
     StorageService.saveAbsenPelatih(record);
@@ -245,7 +267,7 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
                           <span>Dilatih Oleh: <strong className="text-slate-800 font-bold">{authorName}</strong></span>
                           {isAuthorMe ? (
                             <span className="text-[10px] font-extrabold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
-                              Anda
+                              Akun Anda
                             </span>
                           ) : (
                             <span className="text-[10px] font-extrabold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
@@ -255,9 +277,47 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
                         </div>
                       );
                     })()}
-                    <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded">
-                      ✓ Status Laporan: {item.statusKepalaSekolah}
-                    </span>
+
+                    {/* Coach Signature Preview */}
+                    {item.parafPelatihUrl && (
+                      <div className="flex items-center gap-1.5 bg-white px-2 py-0.5 rounded border border-slate-200 text-[10px]">
+                        <span className="text-slate-400">Tanda Tangan Akun:</span>
+                        <img src={item.parafPelatihUrl} alt="Paraf" className="h-5 max-w-[45px] object-contain" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Admin Verification Status Alert / Badge */}
+                  <div className="pt-1">
+                    {item.statusVerifikasiAdmin === 'diverifikasi' ? (
+                      <div className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-300">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>Diverifikasi oleh Admin</span>
+                        {item.diverifikasiPada && (
+                          <span className="text-[10px] font-normal text-emerald-700">
+                            • {new Date(item.diverifikasiPada).toLocaleDateString('id-ID')}
+                          </span>
+                        )}
+                      </div>
+                    ) : item.statusVerifikasiAdmin === 'ditolak' ? (
+                      <div className="bg-rose-50 border border-rose-200 p-2.5 rounded-xl text-xs space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold text-rose-800">
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>Perlu Revisi dari Admin:</span>
+                        </div>
+                        <p className="text-rose-700 italic pl-5 text-[11px]">
+                          "{item.catatanAdmin || 'Mohon lengkapi foto dokumentasi atau materi pokok.'}"
+                        </p>
+                        <p className="text-[10px] text-rose-600 pl-5 font-semibold">
+                          ➔ Klik tombol "Edit" di kanan atas untuk merevisi laporan ini dan mengirimkan ulang ke Admin.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-300">
+                        <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>Menunggu Verifikasi Admin</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -284,13 +344,29 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
             </div>
 
             <form onSubmit={handleSave} className="p-4 space-y-3.5">
+              {/* Account Signature Association Banner */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <span className="text-[10px] text-slate-500 block">Tanda tangan dari akun pelatih:</span>
+                    <span className="font-bold text-slate-900">
+                      {editingAuthorId ? (allUsers.find(u => u.id === editingAuthorId)?.name || currentPelatihName) : currentPelatihName}
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-300">
+                  Resmi Terverifikasi
+                </span>
+              </div>
+
               {editingId && (
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between text-xs text-blue-900">
                   <div className="flex items-center gap-2">
                     <Edit2 className="w-4 h-4 text-blue-600 shrink-0" />
                     <div>
                       <span className="font-bold block">Mode Edit Absensi Pelatih</span>
-                      <span className="text-[11px] text-blue-700">Mengubah sesi tanggal {tanggal}</span>
+                      <span className="text-[11px] text-blue-700">Mengubah sesi tanggal {tanggal} (Akan diajukan kembali ke Admin)</span>
                     </div>
                   </div>
                   <button

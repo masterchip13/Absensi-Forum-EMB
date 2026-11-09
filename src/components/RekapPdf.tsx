@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useMemo } from 'react';
 import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
-import { Sekolah, AbsenPelatihItem, Anggota, AbsenSiswaEntry, EventLog, isSchoolCoach } from '../types';
+import { Sekolah, AbsenPelatihItem, Anggota, AbsenSiswaEntry, EventLog, isSchoolCoach, getSchoolCoachIds } from '../types';
 import { TutWuriLogo, MarchingBandLogo } from './Logos';
 import { FileText, Download, Printer, Filter, Sparkles, School, Calendar, CheckCircle2, UserCheck, Users, PenTool, X, RotateCcw, Image as ImageIcon, FileSpreadsheet } from 'lucide-react';
 import { StorageService } from '../data/storage';
@@ -83,17 +83,33 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
   }, [resolvedTemplate]);
 
   // Get coach info (prefer logged-in coach if they are lead or collaborator for this school)
+  const allUsers = useMemo(() => StorageService.getUsers(), []);
   const pelatihUser = useMemo(() => {
-    const users = StorageService.getUsers();
     const currentUser = StorageService.getCurrentUser();
     if (currentUser && selectedSekolah && isSchoolCoach(selectedSekolah, currentUser.id)) {
       return currentUser;
     }
-    return users.find(u => u.id === selectedSekolah?.pelatihId) || currentUser;
-  }, [selectedSekolah]);
+    return allUsers.find(u => u.id === selectedSekolah?.pelatihId) || currentUser;
+  }, [selectedSekolah, allUsers]);
 
   const pelatihName = pelatihUser?.name || 'Pelatih Ekstrakurikuler';
   const pelatihNip = pelatihUser?.nip || '';
+
+  // Multi-coach collaboration detection for this school
+  const schoolCoaches = useMemo(() => {
+    const coachIds = getSchoolCoachIds(selectedSekolah);
+    const coaches = coachIds.map(id => allUsers.find(u => u.id === id)).filter(Boolean);
+    if (coaches.length === 0 && pelatihUser) return [pelatihUser];
+    return coaches;
+  }, [selectedSekolah, allUsers, pelatihUser]);
+
+  const isCoachCollaboration = schoolCoaches.length > 1;
+  const leadCoach = schoolCoaches[0] || pelatihUser;
+  const partnerCoach = schoolCoaches[1] || null;
+  const leadCoachName = leadCoach?.name || pelatihName;
+  const leadCoachNip = leadCoach?.nip || pelatihNip;
+  const partnerCoachName = partnerCoach?.name || 'Pelatih Kolaborator';
+  const partnerCoachNip = partnerCoach?.nip || '';
 
   // Get headmaster & NIP info for the school
   const kepalaSekolahInfo = useMemo(() => {
@@ -312,9 +328,22 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
 
   // Get coach signature for a meeting or general
   const coachSignatureUrl = useMemo(() => {
-    const sessionWithSig = schoolAbsenPelatih.find(a => !!a.parafPelatihUrl);
-    return sessionWithSig?.parafPelatihUrl || '';
-  }, [schoolAbsenPelatih]);
+    const sessionWithSig = schoolAbsenPelatih.find(a => !leadCoach || a.pelatihId === leadCoach.id ? !!a.parafPelatihUrl : !!a.parafPelatihUrl);
+    if (sessionWithSig?.parafPelatihUrl) return sessionWithSig.parafPelatihUrl;
+    const customCoachSig = localStorage.getItem('coach_wet_signature_data');
+    if (customCoachSig) return customCoachSig;
+    return getStudentSignatureDataUrl(leadCoachName, 101);
+  }, [schoolAbsenPelatih, leadCoach, leadCoachName]);
+
+  // Get second coach signature when in collaborative mode
+  const coach2SignatureUrl = useMemo(() => {
+    if (!isCoachCollaboration) return '';
+    const sessionWithSig = schoolAbsenPelatih.find(a => partnerCoach && a.pelatihId === partnerCoach.id && !!a.parafPelatihUrl);
+    if (sessionWithSig?.parafPelatihUrl) return sessionWithSig.parafPelatihUrl;
+    const customCoach2Sig = localStorage.getItem('coach2_wet_signature_data');
+    if (customCoach2Sig) return customCoach2Sig;
+    return getStudentSignatureDataUrl(partnerCoachName, 102);
+  }, [schoolAbsenPelatih, isCoachCollaboration, partnerCoach, partnerCoachName]);
 
   // Assistant Coach States & Detection
   const [includeAsistenPelatih, setIncludeAsistenPelatih] = useState(false);
@@ -478,6 +507,91 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
     }
   };
 
+  const exportAttendanceCSV = () => {
+    try {
+      const schoolName = selectedSekolah?.namaSekolah || 'Sekolah';
+      const rows: string[][] = [
+        ['DAFTAR PRESENSI KEHADIRAN ANGGOTA EKSTRAKURIKULER MARCHING BAND'],
+        [`Sekolah: ${schoolName}`],
+        [`Bulan: ${filterBulan} | Tahun Pelajaran: ${filterTahunAjaran}`],
+        [`Pelatih Pembina: ${isCoachCollaboration ? `${leadCoachName} & ${partnerCoachName}` : pelatihName}`],
+        [`Tanggal Unduh: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`],
+        [],
+        ['No', 'Nama Anggota', 'Kelas', 'Divisi / Alat', 'Pertemuan 1', 'Pertemuan 2', 'Pertemuan 3', 'Pertemuan 4', 'Pertemuan 5', 'Total Hadir', 'Persentase Kehadiran']
+      ];
+
+      if (schoolAnggota.length === 0) {
+        rows.push(['-', 'Belum ada anggota terdaftar di sekolah ini', '-', '-', '-', '-', '-', '-', '-', '0', '0%']);
+      } else {
+        schoolAnggota.forEach((student, idx) => {
+          let totalHadir = 0;
+          const cols = [1, 2, 3, 4, 5].map(col => {
+            const status = getStudentAttendanceStatus(student, col);
+            if (status.isPresent) {
+              totalHadir++;
+              return 'Hadir';
+            }
+            return status.label || 'Alfa';
+          });
+          const pct = Math.round((totalHadir / 5) * 100);
+
+          rows.push([
+            String(idx + 1),
+            formatNamaKapital(student.nama),
+            formatKelasAngka(student.kelas) || '-',
+            student.divisiNama || '-',
+            cols[0],
+            cols[1],
+            cols[2],
+            cols[3],
+            cols[4],
+            String(totalHadir),
+            `${pct}%`
+          ]);
+        });
+      }
+
+      // Append signatures footer
+      rows.push([]);
+      rows.push([]);
+      if (isCoachCollaboration) {
+        rows.push(['', 'Mengetahui,', '', '', '', '', '', '', `Bogor, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`]);
+        rows.push(['', `Kepala Sekolah ${schoolName}`, '', '', '', '', '', 'Pelatih Utama', 'Pelatih Kolaborator']);
+        rows.push([]);
+        rows.push(['', selectedSekolah?.kepalaSekolah || 'Kepala Sekolah', '', '', '', '', '', leadCoachName, partnerCoachName]);
+        rows.push(['', `NIP. ${selectedSekolah?.nipKepalaSekolah || '-'}`, '', '', '', '', '', leadCoachNip ? `NIP. ${leadCoachNip}` : 'Pelatih Marching Band', partnerCoachNip ? `NIP. ${partnerCoachNip}` : 'Pelatih Marching Band']);
+      } else {
+        rows.push(['', 'Mengetahui,', '', '', '', '', '', '', `Bogor, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`]);
+        rows.push(['', `Kepala Sekolah ${schoolName}`, '', '', '', '', '', '', 'Pelatih Ekstrakurikuler']);
+        rows.push([]);
+        rows.push(['', selectedSekolah?.kepalaSekolah || 'Kepala Sekolah', '', '', '', '', '', '', pelatihName]);
+        rows.push(['', `NIP. ${selectedSekolah?.nipKepalaSekolah || '-'}`, '', '', '', '', '', '', pelatihNip ? `NIP. ${pelatihNip}` : 'Pelatih Pembina']);
+      }
+
+      const csvContent = '\ufeff' + rows.map(r => r.map(cell => {
+        const str = String(cell ?? '');
+        if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r') || str.includes(';')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      }).join(',')).join('\r\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const cleanSchoolName = namaSekolahFormatted.replace(/[^a-zA-Z0-9]/g, '_');
+      link.download = `Presensi-Anggota-${cleanSchoolName}-${filterBulan}-${filterTahunAjaran.replace('/', '-')}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch (err) {
+      console.error('Export CSV failed:', err);
+      alert('Terjadi kesalahan saat mengekspor file CSV.');
+    }
+  };
+
   const exportExcel = () => {
     try {
       const wb = XLSX.utils.book_new();
@@ -487,7 +601,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         ['LAPORAN AGENDA & JURNAL LATIHAN EKSTRAKURIKULER'],
         [`Sekolah: ${selectedSekolah?.namaSekolah || '-'}`],
         [`Bulan: ${filterBulan} | Tahun Pelajaran: ${filterTahunAjaran}`],
-        [`Pelatih: ${pelatihName}${pelatihNip ? ` (NIP: ${pelatihNip})` : ''}`],
+        [`Pelatih: ${isCoachCollaboration ? `${leadCoachName} & ${partnerCoachName}` : `${pelatihName}${pelatihNip ? ` (NIP: ${pelatihNip})` : ''}`}`],
         [],
         ['No', 'Hari & Tanggal', 'Waktu Latihan', 'Materi Pokok / Kegiatan', 'Pencapaian (%)', 'Status Pengesahan', 'Catatan / Evaluasi']
       ];
@@ -508,6 +622,25 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         });
       }
 
+      // Append signatures to Agenda Sheet
+      agendaData.push([]);
+      agendaData.push([]);
+      if (isCoachCollaboration) {
+        agendaData.push(['', 'Mengetahui,', '', '', '', `Bogor, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`]);
+        agendaData.push(['', `Kepala Sekolah ${selectedSekolah?.namaSekolah || ''}`, '', '', 'Pelatih Utama', 'Pelatih Kolaborator']);
+        agendaData.push([]);
+        agendaData.push([]);
+        agendaData.push(['', selectedSekolah?.kepalaSekolah || 'Kepala Sekolah', '', '', leadCoachName, partnerCoachName]);
+        agendaData.push(['', `NIP. ${selectedSekolah?.nipKepalaSekolah || '-'}`, '', '', leadCoachNip ? `NIP. ${leadCoachNip}` : 'Pelatih Marching Band', partnerCoachNip ? `NIP. ${partnerCoachNip}` : 'Pelatih Marching Band']);
+      } else {
+        agendaData.push(['', 'Mengetahui,', '', '', `Bogor, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`]);
+        agendaData.push(['', `Kepala Sekolah ${selectedSekolah?.namaSekolah || ''}`, '', '', 'Pelatih Ekstrakurikuler']);
+        agendaData.push([]);
+        agendaData.push([]);
+        agendaData.push(['', selectedSekolah?.kepalaSekolah || 'Kepala Sekolah', '', '', pelatihName]);
+        agendaData.push(['', `NIP. ${selectedSekolah?.nipKepalaSekolah || '-'}`, '', '', pelatihNip ? `NIP. ${pelatihNip}` : 'Pelatih Pembina']);
+      }
+
       const wsAgenda = XLSX.utils.aoa_to_sheet(agendaData);
       wsAgenda['!cols'] = [
         { wch: 6 },
@@ -525,6 +658,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         ['DAFTAR PRESENSI KEHADIRAN ANGGOTA MARCHING BAND'],
         [`Sekolah: ${selectedSekolah?.namaSekolah || '-'}`],
         [`Bulan: ${filterBulan} | Tahun Pelajaran: ${filterTahunAjaran}`],
+        [`Pelatih Pembina: ${isCoachCollaboration ? `${leadCoachName} & ${partnerCoachName}` : pelatihName}`],
         [],
         ['No', 'Nama Anggota', 'Kelas', 'Divisi / Alat', 'Pertemuan 1', 'Pertemuan 2', 'Pertemuan 3', 'Pertemuan 4', 'Pertemuan 5', 'Total Hadir', 'Persentase (%)']
       ];
@@ -558,6 +692,25 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
             `${pct}%`
           ]);
         });
+      }
+
+      // Append signatures to Attendance Sheet
+      attendanceData.push([]);
+      attendanceData.push([]);
+      if (isCoachCollaboration) {
+        attendanceData.push(['', 'Mengetahui,', '', '', '', '', '', '', `Bogor, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`]);
+        attendanceData.push(['', `Kepala Sekolah ${selectedSekolah?.namaSekolah || ''}`, '', '', '', '', '', 'Pelatih Utama', 'Pelatih Kolaborator']);
+        attendanceData.push([]);
+        attendanceData.push([]);
+        attendanceData.push(['', selectedSekolah?.kepalaSekolah || 'Kepala Sekolah', '', '', '', '', '', leadCoachName, partnerCoachName]);
+        attendanceData.push(['', `NIP. ${selectedSekolah?.nipKepalaSekolah || '-'}`, '', '', '', '', '', leadCoachNip ? `NIP. ${leadCoachNip}` : 'Pelatih Marching Band', partnerCoachNip ? `NIP. ${partnerCoachNip}` : 'Pelatih Marching Band']);
+      } else {
+        attendanceData.push(['', 'Mengetahui,', '', '', '', '', '', '', `Bogor, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`]);
+        attendanceData.push(['', `Kepala Sekolah ${selectedSekolah?.namaSekolah || ''}`, '', '', '', '', '', '', 'Pelatih Ekstrakurikuler']);
+        attendanceData.push([]);
+        attendanceData.push([]);
+        attendanceData.push(['', selectedSekolah?.kepalaSekolah || 'Kepala Sekolah', '', '', '', '', '', '', pelatihName]);
+        attendanceData.push(['', `NIP. ${selectedSekolah?.nipKepalaSekolah || '-'}`, '', '', '', '', '', '', pelatihNip ? `NIP. ${pelatihNip}` : 'Pelatih Pembina']);
       }
 
       const wsAttendance = XLSX.utils.aoa_to_sheet(attendanceData);
@@ -737,7 +890,30 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         `;
       }).join('');
 
-      const cigombongSignatureHtml = includeAsistenPelatih ? `
+      const cigombongSignatureHtml = isCoachCollaboration ? `
+        <div style="margin-top: 35px; text-align: right;">
+          <div style="margin-bottom: 8px; font-size: 9pt;">Cigombong, ................................</div>
+          <div style="display: inline-block; text-align: center;">
+            <div style="font-weight: bold; margin-bottom: 8px;">TIM PELATIH EKSTRAKURIKULER</div>
+            <table style="border: none; text-align: center; font-size: 9.5pt; width: auto; margin-left: auto;">
+              <tr>
+                <td style="width: 160px; vertical-align: top; border: none; padding-right: 25px;">
+                  <div><b>Pelatih Utama</b></div>
+                  <div style="height: 55px;"></div>
+                  <div><b>(${leadCoachName})</b></div>
+                  ${leadCoachNip ? `<div style="font-size: 8.5pt;">NIP/NUPTK. ${leadCoachNip}</div>` : ''}
+                </td>
+                <td style="width: 160px; vertical-align: top; border: none; padding-left: 25px;">
+                  <div><b>Pelatih Kolaborator</b></div>
+                  <div style="height: 55px;"></div>
+                  <div><b>(${partnerCoachName})</b></div>
+                  ${partnerCoachNip ? `<div style="font-size: 8.5pt;">NIP/NUPTK. ${partnerCoachNip}</div>` : ''}
+                </td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      ` : includeAsistenPelatih ? `
         <div style="margin-top: 35px; text-align: right;">
           <div style="margin-bottom: 8px; font-size: 9pt;">Cigombong, ................................</div>
           <div style="display: inline-block; text-align: center;">
@@ -882,7 +1058,38 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         </tr>
       `;
 
-      const sukaharjaSignatureHtml = includeAsistenPelatih ? `
+      const sukaharjaSignatureHtml = isCoachCollaboration ? `
+        <table style="width: 100%; margin-top: 18px; text-align: left; font-size: 9pt; border: none;">
+          <tr>
+            <td style="width: 45%; vertical-align: top; border: none;">
+              <div>MENGETAHUI,</div>
+              <div>KEPALA ${schoolTitle}</div>
+              <div style="height: 50px;"></div>
+              <div><u><b>${kepalaSekolahInfo.nama}</b></u></div>
+              <div>NIP. ${kepalaSekolahInfo.nip || '................................................'}</div>
+            </td>
+            <td style="width: 55%; vertical-align: top; border: none; text-align: center;">
+              <div><b>TIM PELATIH / PEMBIMBING</b></div>
+              <table style="width: 100%; border: none; margin-top: 4px;">
+                <tr>
+                  <td style="width: 50%; border: none; text-align: center; vertical-align: top;">
+                    <div style="font-size: 8.5pt; font-weight: bold;">Pelatih Utama</div>
+                    <div style="height: 44px;"></div>
+                    <div><b>(${leadCoachName})</b></div>
+                    <div style="margin-top: 2px; font-size: 8pt;">NIP/NUPTK. ${leadCoachNip || '....................'}</div>
+                  </td>
+                  <td style="width: 50%; border: none; text-align: center; vertical-align: top;">
+                    <div style="font-size: 8.5pt; font-weight: bold;">Pelatih Kolaborator</div>
+                    <div style="height: 44px;"></div>
+                    <div><b>(${partnerCoachName})</b></div>
+                    <div style="margin-top: 2px; font-size: 8pt;">NIP/NUPTK. ${partnerCoachNip || '....................'}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      ` : includeAsistenPelatih ? `
         <table style="width: 100%; margin-top: 18px; text-align: left; font-size: 9pt; border: none;">
           <tr>
             <td style="width: 45%; vertical-align: top; border: none;">
@@ -1085,6 +1292,15 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
             <span>Unduh Excel (.xlsx)</span>
+          </button>
+
+          <button
+            onClick={exportAttendanceCSV}
+            className="flex items-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-md transition cursor-pointer"
+            title="Ekspor daftar presensi anggota sekolah dan bulan aktif ke format CSV (.csv)"
+          >
+            <Download className="w-4 h-4 text-teal-200" />
+            <span>Unduh CSV (.csv)</span>
           </button>
 
           <button
@@ -1625,10 +1841,38 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                   <div className="text-center">
                     <div className="text-right mb-2 font-normal">Cigombong, ................................</div>
                     <div className="font-bold mb-1">
-                      {includeAsistenPelatih ? 'TIM PELATIH EKSTRAKURIKULER' : 'Pelatih Ekstrakurikuler'}
+                      {isCoachCollaboration || includeAsistenPelatih ? 'TIM PELATIH EKSTRAKURIKULER' : 'Pelatih Ekstrakurikuler'}
                     </div>
 
-                    {includeAsistenPelatih ? (
+                    {isCoachCollaboration ? (
+                      <div className="signature-row flex items-start gap-8 mt-2">
+                        {/* Pelatih Utama */}
+                        <div className="min-w-[130px] text-center">
+                          <div className="font-bold text-[11px]">Pelatih Utama</div>
+                          <div className="h-16 flex items-center justify-center my-1">
+                            {coachSignatureUrl && (
+                              <img src={coachSignatureUrl} alt="TTD Pelatih Utama" className="h-14 max-w-[120px] object-contain" />
+                            )}
+                          </div>
+                          <div className="border-b border-dotted border-black w-36 mx-auto"></div>
+                          <div className="font-bold mt-1">({leadCoachName})</div>
+                          {leadCoachNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {leadCoachNip}</div>}
+                        </div>
+
+                        {/* Pelatih Kolaborator */}
+                        <div className="min-w-[130px] text-center">
+                          <div className="font-bold text-[11px]">Pelatih Kolaborator</div>
+                          <div className="h-16 flex items-center justify-center my-1">
+                            {coach2SignatureUrl && (
+                              <img src={coach2SignatureUrl} alt="TTD Pelatih Kolaborator" className="h-14 max-w-[120px] object-contain" />
+                            )}
+                          </div>
+                          <div className="border-b border-dotted border-black w-36 mx-auto"></div>
+                          <div className="font-bold mt-1">({partnerCoachName})</div>
+                          {partnerCoachNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {partnerCoachNip}</div>}
+                        </div>
+                      </div>
+                    ) : includeAsistenPelatih ? (
                       <div className="signature-row flex items-start gap-8 mt-2">
                         {/* Pelatih Utama */}
                         <div className="min-w-[130px] text-center">
@@ -1756,15 +2000,43 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                       </table>
                     </div>
 
-                    {/* Footer Signature: Pelatih Utama & Asisten Pelatih disatukan */}
+                    {/* Footer Signature: Pelatih Utama & Pelatih Kolaborator jika kolaborasi */}
                     <div className="flex justify-end mt-6 mb-2 text-xs">
                       <div className="text-center">
                         <div className="text-right mb-2 font-normal">Cigombong, ......................................</div>
                         <div className="font-bold mb-1">
-                          {includeAsistenPelatih ? 'TIM PELATIH EKSTRAKURIKULER' : 'Pelatih Ekstrakurikuler'}
+                          {isCoachCollaboration || includeAsistenPelatih ? 'TIM PELATIH EKSTRAKURIKULER' : 'Pelatih Ekstrakurikuler'}
                         </div>
 
-                        {includeAsistenPelatih ? (
+                        {isCoachCollaboration ? (
+                          <div className="signature-row flex items-start gap-8 mt-2">
+                            {/* Pelatih Utama */}
+                            <div className="min-w-[130px] text-center">
+                              <div className="font-bold text-[11px]">Pelatih Utama</div>
+                              <div className="h-14 flex items-center justify-center my-1">
+                                {coachSignatureUrl && (
+                                  <img src={coachSignatureUrl} alt="TTD Pelatih Utama" className="h-12 max-w-[120px] object-contain" />
+                                )}
+                              </div>
+                              <div className="border-b border-dotted border-black w-36 mx-auto"></div>
+                              <div className="font-bold mt-1">({leadCoachName})</div>
+                              {leadCoachNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {leadCoachNip}</div>}
+                            </div>
+
+                            {/* Pelatih Kolaborator */}
+                            <div className="min-w-[130px] text-center">
+                              <div className="font-bold text-[11px]">Pelatih Kolaborator</div>
+                              <div className="h-14 flex items-center justify-center my-1">
+                                {coach2SignatureUrl && (
+                                  <img src={coach2SignatureUrl} alt="TTD Pelatih Kolaborator" className="h-12 max-w-[120px] object-contain" />
+                                )}
+                              </div>
+                              <div className="border-b border-dotted border-black w-36 mx-auto"></div>
+                              <div className="font-bold mt-1">({partnerCoachName})</div>
+                              {partnerCoachNip && <div className="text-[10px] text-slate-700">NIP/NUPTK. {partnerCoachNip}</div>}
+                            </div>
+                          </div>
+                        ) : includeAsistenPelatih ? (
                           <div className="signature-row flex items-start gap-8 mt-2">
                             {/* Pelatih Utama */}
                             <div className="min-w-[130px] text-center">
@@ -2115,10 +2387,42 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                       {/* Right: Tim Pelatih / Pembimbing */}
                       <div className="text-center">
                         <div className="font-normal mb-1">
-                          {includeAsistenPelatih ? 'TIM PELATIH / PEMBIMBING' : 'PEMBIMBING'}
+                          {isCoachCollaboration || includeAsistenPelatih ? 'TIM PELATIH / PEMBIMBING' : 'PEMBIMBING'}
                         </div>
 
-                        {includeAsistenPelatih ? (
+                        {isCoachCollaboration ? (
+                          <div className="signature-grid flex items-start gap-6">
+                            {/* Pelatih Utama */}
+                            <div className="text-center min-w-[130px]">
+                              <div className="font-semibold text-[11px]">Pelatih Utama</div>
+                              <div className="h-14 flex items-center justify-center">
+                                {coachSignatureUrl && (
+                                  <img src={coachSignatureUrl} alt="TTD Pelatih Utama" className="h-11 max-w-[110px] object-contain" />
+                                )}
+                              </div>
+                              <div className="border-b border-dotted border-black w-36 mx-auto"></div>
+                              <div className="font-bold text-xs mt-1">({leadCoachName})</div>
+                              <div className="font-normal text-[10px] mt-0.5">
+                                NIP/NUPTK. {leadCoachNip || '....................'}
+                              </div>
+                            </div>
+
+                            {/* Pelatih Kolaborator */}
+                            <div className="text-center min-w-[130px]">
+                              <div className="font-semibold text-[11px]">Pelatih Kolaborator</div>
+                              <div className="h-14 flex items-center justify-center">
+                                {coach2SignatureUrl && (
+                                  <img src={coach2SignatureUrl} alt="TTD Pelatih Kolaborator" className="h-11 max-w-[110px] object-contain" />
+                                )}
+                              </div>
+                              <div className="border-b border-dotted border-black w-36 mx-auto"></div>
+                              <div className="font-bold text-xs mt-1">({partnerCoachName})</div>
+                              <div className="font-normal text-[10px] mt-0.5">
+                                NIP/NUPTK. {partnerCoachNip || '....................'}
+                              </div>
+                            </div>
+                          </div>
+                        ) : includeAsistenPelatih ? (
                           <div className="signature-grid flex items-start gap-6">
                             {/* Pelatih Utama */}
                             <div className="text-center min-w-[130px]">

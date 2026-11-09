@@ -130,6 +130,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [filterAsistenBulan, setFilterAsistenBulan] = useState<string>('all');
   const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
 
+  // Coach Activity Report Verification States
+  const [filterVerifikasiPelatih, setFilterVerifikasiPelatih] = useState<'all' | 'menunggu' | 'diverifikasi' | 'ditolak'>('all');
+  const [rejectingAbsenItem, setRejectingAbsenItem] = useState<AbsenPelatihItem | null>(null);
+  const [revisiNote, setRevisiNote] = useState<string>('');
+
   const bulanList = BULAN_OPTIONS;
 
   const pelatihUsers = usersList.filter(u => u.role === 'pelatih');
@@ -217,9 +222,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         const m = bulanList[d.getMonth()];
         if (m !== filterAbsenBulan) return false;
       }
+      if (filterVerifikasiPelatih !== 'all') {
+        const status = item.statusVerifikasiAdmin || 'menunggu';
+        if (status !== filterVerifikasiPelatih) return false;
+      }
       return true;
     });
-  }, [absenPelatihList, filterAbsenSekolah, filterAbsenBulan, bulanList]);
+  }, [absenPelatihList, filterAbsenSekolah, filterAbsenBulan, filterVerifikasiPelatih, bulanList]);
 
   // Filtered Assistant Attendance List for Admin
   const filteredAbsenAsisten = useMemo(() => {
@@ -283,6 +292,136 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } catch (err) {
       console.error('Export failed:', err);
       alert('Terjadi kesalahan saat mengekspor Excel.');
+    }
+  };
+
+  // Export Filtered Student Attendance to CSV (.csv) with UTF-8 BOM
+  const handleExportAttendanceCSV = () => {
+    try {
+      const selectedSchoolName = filterAbsenSekolah === 'all' 
+        ? 'Semua Sekolah' 
+        : (sekolahList.find(s => s.id === filterAbsenSekolah)?.namaSekolah || 'Sekolah');
+      
+      const rows: string[][] = [
+        ['REKAP DAFTAR PRESENSI KEHADIRAN ANGGOTA MARCHING BAND'],
+        [`Tahun Pelajaran: ${activeTahunAjaran}`],
+        [`Filter Sekolah: ${selectedSchoolName}`],
+        [`Filter Bulan: ${filterAbsenBulan === 'all' ? 'Semua Bulan' : filterAbsenBulan}`],
+        [`Filter Status: ${filterAbsenStatus === 'all' ? 'Semua Status' : filterAbsenStatus}`],
+        [`Pencarian Nama: ${searchAnggotaText.trim() ? searchAnggotaText : 'Semua Anggota'}`],
+        [`Total Data: ${filteredAbsenSiswa.length} rekaman presensi`],
+        [`Tanggal Unduh: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`],
+        [],
+        ['No', 'Nama Siswa', 'Sekolah', 'Kelas', 'Divisi / Alat', 'Bulan', 'Pertemuan / Sesi', 'Tanggal', 'Status Kehadiran']
+      ];
+
+      filteredAbsenSiswa.forEach((item, idx) => {
+        const student = anggotaList.find(a => a.id === item.anggotaId);
+        const school = sekolahList.find(s => s.id === item.sekolahId);
+        rows.push([
+          String(idx + 1),
+          student?.nama ? formatNamaKapital(student.nama) : '-',
+          school?.namaSekolah || '-',
+          student?.kelas || '-',
+          student?.divisiNama || '-',
+          item.bulan || '-',
+          `Minggu Ke-${item.kolomIndex}`,
+          item.tanggal || '-',
+          item.status || '-'
+        ]);
+      });
+
+      // Format RFC 4180 CSV with UTF-8 BOM
+      const csvContent = '\ufeff' + rows.map(r => r.map(cell => {
+        const str = String(cell ?? '');
+        if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r') || str.includes(';')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      }).join(',')).join('\r\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const cleanSchool = selectedSchoolName.replace(/[^a-zA-Z0-9]/g, '_');
+      const cleanMonth = filterAbsenBulan === 'all' ? 'Semua_Bulan' : filterAbsenBulan;
+      link.download = `Rekap_Presensi_Siswa_${cleanSchool}_${cleanMonth}_${activeTahunAjaran.replace('/', '-')}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch (err) {
+      console.error('Export CSV failed:', err);
+      alert('Terjadi kesalahan saat mengekspor file CSV.');
+    }
+  };
+
+  // --- Admin Verification Handlers for Coach Practice Reports ---
+  const handleVerifyAbsenPelatih = (item: AbsenPelatihItem) => {
+    const updated: AbsenPelatihItem = {
+      ...item,
+      statusVerifikasiAdmin: 'diverifikasi',
+      diverifikasiOleh: 'Administrator',
+      diverifikasiPada: new Date().toISOString(),
+      catatanAdmin: undefined
+    };
+    StorageService.saveAbsenPelatih(updated);
+    onDataChanged();
+  };
+
+  const handleRevokeVerifyAbsenPelatih = (item: AbsenPelatihItem) => {
+    if (window.confirm('Batalkan status verifikasi laporan kegiatan ini menjadi "Menunggu"?')) {
+      const updated: AbsenPelatihItem = {
+        ...item,
+        statusVerifikasiAdmin: 'menunggu',
+        diverifikasiOleh: undefined,
+        diverifikasiPada: undefined,
+        catatanAdmin: undefined
+      };
+      StorageService.saveAbsenPelatih(updated);
+      onDataChanged();
+    }
+  };
+
+  const handleOpenRejectModal = (item: AbsenPelatihItem) => {
+    setRejectingAbsenItem(item);
+    setRevisiNote(item.catatanAdmin || '');
+  };
+
+  const handleConfirmReject = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rejectingAbsenItem) return;
+    const updated: AbsenPelatihItem = {
+      ...rejectingAbsenItem,
+      statusVerifikasiAdmin: 'ditolak',
+      diverifikasiOleh: 'Administrator',
+      diverifikasiPada: new Date().toISOString(),
+      catatanAdmin: revisiNote.trim() || 'Perlu perbaikan laporan latihan oleh pelatih'
+    };
+    StorageService.saveAbsenPelatih(updated);
+    setRejectingAbsenItem(null);
+    setRevisiNote('');
+    onDataChanged();
+  };
+
+  const handleBatchVerifyAbsenPelatih = () => {
+    const pendingItems = filteredAbsenPelatih.filter(item => (item.statusVerifikasiAdmin || 'menunggu') !== 'diverifikasi');
+    if (pendingItems.length === 0) {
+      alert('Semua laporan kegiatan pelatih pada filter ini sudah terverifikasi!');
+      return;
+    }
+    if (window.confirm(`Verifikasi sekaligus ${pendingItems.length} laporan kegiatan pelatih yang belum diverifikasi?`)) {
+      pendingItems.forEach(item => {
+        StorageService.saveAbsenPelatih({
+          ...item,
+          statusVerifikasiAdmin: 'diverifikasi',
+          diverifikasiOleh: 'Administrator',
+          diverifikasiPada: new Date().toISOString(),
+          catatanAdmin: undefined
+        });
+      });
+      onDataChanged();
     }
   };
 
@@ -940,6 +1079,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <FileSpreadsheet className="w-4 h-4 text-emerald-100" />
                     <span>Unduh Excel</span>
                   </button>
+
+                  <button
+                    onClick={handleExportAttendanceCSV}
+                    className="flex items-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer"
+                    title="Unduh rekaman presensi ke format CSV (.csv) sesuai filter aktif"
+                  >
+                    <Download className="w-4 h-4 text-teal-100" />
+                    <span>Unduh CSV</span>
+                  </button>
+                </div>
+              )}
+
+              {absensiSubTab === 'pelatih' && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={handleBatchVerifyAbsenPelatih}
+                    className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer"
+                    title="Verifikasi sekaligus seluruh laporan kegiatan pelatih pada filter ini"
+                  >
+                    <CheckCircle className="w-4 h-4 text-emerald-100" />
+                    <span>Verifikasi Semua</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -973,6 +1134,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   ))}
                 </select>
               </div>
+
+              {absensiSubTab === 'pelatih' && (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Status Verifikasi Admin:</label>
+                  <select
+                    value={filterVerifikasiPelatih}
+                    onChange={(e) => setFilterVerifikasiPelatih(e.target.value as any)}
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">Semua Status Verifikasi</option>
+                    <option value="menunggu">Menunggu Verifikasi</option>
+                    <option value="diverifikasi">Terverifikasi</option>
+                    <option value="ditolak">Perlu Revisi / Ditolak</option>
+                  </select>
+                </div>
+              )}
 
               {absensiSubTab === 'siswa' && (
                 <>
@@ -1197,7 +1374,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <table className="w-full text-left text-xs bg-white">
                       <thead className="bg-slate-100 text-slate-700 font-extrabold uppercase text-[10px] tracking-wider sticky top-0 border-b border-slate-200">
                         <tr>
-                          <th className="p-3 text-center w-12">No</th>
+                          <th className="p-3 text-center w-10">No</th>
                           <th className="p-3">Pelatih</th>
                           <th className="p-3">Sekolah</th>
                           <th className="p-3">Hari & Tanggal</th>
@@ -1205,17 +1382,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <th className="p-3">Materi Pokok / Kegiatan</th>
                           <th className="p-3 text-center">Capaian</th>
                           <th className="p-3 text-center">Foto Bukti</th>
-                          <th className="p-3 text-center">Paraf</th>
+                          <th className="p-3 text-center">Paraf Akun</th>
+                          <th className="p-3 text-center">Status Verifikasi</th>
+                          <th className="p-3 text-center">Aksi Verifikasi</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200">
                         {filteredAbsenPelatih.map((item, idx) => {
                           const coach = usersList.find(u => u.id === item.pelatihId);
                           const school = sekolahList.find(s => s.id === item.sekolahId);
+                          const verifStatus = item.statusVerifikasiAdmin || 'menunggu';
                           return (
                             <tr key={item.id} className="hover:bg-slate-50/80 transition">
                               <td className="p-3 text-center font-medium text-slate-500">{idx + 1}</td>
-                              <td className="p-3 font-bold text-blue-900">{coach?.name || 'Pelatih'}</td>
+                              <td className="p-3">
+                                <span className="font-bold text-blue-900 block">{coach?.name || item.pelatihNama || 'Pelatih'}</span>
+                                <span className="text-[10px] text-slate-500 font-mono">@{coach?.username || 'akun-pelatih'}</span>
+                              </td>
                               <td className="p-3 font-semibold text-slate-800">{school?.namaSekolah || '-'}</td>
                               <td className="p-3 text-slate-700">{item.hariTanggalFormat || item.tanggal}</td>
                               <td className="p-3 text-center text-slate-600 font-mono text-[11px]">{item.jamMulai} - {item.jamSelesai}</td>
@@ -1236,10 +1419,77 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </td>
                               <td className="p-3 text-center">
                                 {item.parafPelatihUrl ? (
-                                  <img src={item.parafPelatihUrl} alt="Paraf" className="h-6 max-w-[50px] object-contain mx-auto" />
+                                  <div className="flex flex-col items-center">
+                                    <img src={item.parafPelatihUrl} alt="Paraf" className="h-6 max-w-[50px] object-contain mx-auto" />
+                                    <span className="text-[9px] text-emerald-700 font-semibold mt-0.5">Akun Resmi</span>
+                                  </div>
                                 ) : (
-                                  <span className="text-slate-400">-</span>
+                                  <span className="text-slate-400 italic text-[10px]">Belum tanda tangan</span>
                                 )}
+                              </td>
+                              <td className="p-3 text-center">
+                                {verifStatus === 'diverifikasi' ? (
+                                  <div className="flex flex-col items-center">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                      Terverifikasi
+                                    </span>
+                                    {item.diverifikasiPada && (
+                                      <span className="text-[9px] text-slate-400 mt-0.5 font-mono">
+                                        {new Date(item.diverifikasiPada).toLocaleDateString('id-ID')}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : verifStatus === 'ditolak' ? (
+                                  <div className="flex flex-col items-center">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300">
+                                      <AlertCircle className="w-3 h-3 text-rose-600" />
+                                      Perlu Revisi
+                                    </span>
+                                    {item.catatanAdmin && (
+                                      <span className="text-[10px] text-rose-600 italic max-w-[130px] truncate mt-0.5" title={item.catatanAdmin}>
+                                        "{item.catatanAdmin}"
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">
+                                    <Clock className="w-3 h-3 text-amber-600" />
+                                    Menunggu
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  {verifStatus !== 'diverifikasi' ? (
+                                    <>
+                                      <button
+                                        onClick={() => handleVerifyAbsenPelatih(item)}
+                                        className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] px-2.5 py-1 rounded-lg transition shadow-2xs cursor-pointer"
+                                        title="Verifikasi laporan kegiatan ini"
+                                      >
+                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                        <span>Setujui</span>
+                                      </button>
+                                      <button
+                                        onClick={() => handleOpenRejectModal(item)}
+                                        className="flex items-center gap-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] px-2 py-1 rounded-lg transition border border-rose-200 cursor-pointer"
+                                        title="Tolak atau minta revisi"
+                                      >
+                                        <XCircle className="w-3.5 h-3.5" />
+                                        <span>Revisi</span>
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleRevokeVerifyAbsenPelatih(item)}
+                                      className="text-[10px] font-semibold text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                                      title="Batalkan status verifikasi laporan ini"
+                                    >
+                                      Batalkan
+                                    </button>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           );
@@ -1928,6 +2178,72 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 >
                   <Save className="w-4 h-4" />
                   <span>Simpan Presensi</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Penolakan / Permintaan Revisi Laporan Kegiatan Pelatih */}
+      {rejectingAbsenItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="p-4 bg-rose-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-rose-200" />
+                <h3 className="font-black text-sm">Minta Revisi / Tolak Laporan Pelatih</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRejectingAbsenItem(null)}
+                className="text-rose-100 hover:text-white p-1 rounded-lg hover:bg-white/10"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmReject} className="p-4 space-y-3.5">
+              <div className="bg-rose-50 border border-rose-200 p-3 rounded-xl text-xs space-y-1">
+                <p className="font-bold text-rose-900">
+                  {rejectingAbsenItem.hariTanggalFormat || rejectingAbsenItem.tanggal}
+                </p>
+                <p className="text-slate-700">
+                  Materi: <span className="font-semibold">{rejectingAbsenItem.materiPokok}</span>
+                </p>
+                <p className="text-slate-500 text-[11px]">
+                  Berikan catatan mengapa laporan latihan ini ditolak atau bagian mana yang perlu diperbaiki oleh pelatih.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Catatan Revisi dari Admin: <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  placeholder="Contoh: Foto dokumentasi kurang jelas, mohon upload foto latihan yang menampilkan barisan peserta..."
+                  value={revisiNote}
+                  onChange={(e) => setRevisiNote(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setRejectingAbsenItem(null)}
+                  className="flex-1 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  <span>Kirim Permintaan Revisi</span>
                 </button>
               </div>
             </form>
