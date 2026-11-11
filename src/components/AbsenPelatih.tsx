@@ -50,7 +50,24 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
 
   // Load saved coach account signature
   const getCoachAccountSignature = (coachId: string): string => {
-    return localStorage.getItem(`coach_sig_${coachId}`) || localStorage.getItem('coach_wet_signature_data') || '';
+    if (!coachId) return '';
+    // 1. Direct cache for coach
+    const accountSig = localStorage.getItem(`coach_sig_${coachId}`);
+    if (accountSig) return accountSig;
+    // 2. Look for any previously saved session signed by this coach
+    const sessionWithSig = absenPelatihList.find(a => 
+      (a.pelatihId === coachId && a.parafPelatihUrl) || 
+      (a.pelatih2Id === coachId && a.parafPelatih2Url)
+    );
+    if (sessionWithSig) {
+      if (sessionWithSig.pelatihId === coachId && sessionWithSig.parafPelatihUrl) return sessionWithSig.parafPelatihUrl;
+      if (sessionWithSig.pelatih2Id === coachId && sessionWithSig.parafPelatih2Url) return sessionWithSig.parafPelatih2Url;
+    }
+    // 3. Global wet signature backup if current user
+    if (coachId === currentPelatihId) {
+      return localStorage.getItem('coach_wet_signature_data') || '';
+    }
+    return '';
   };
 
   const handleOpenAdd = () => {
@@ -149,13 +166,15 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
     const authorUser = allUsers.find(u => u.id === targetAuthorId);
     const pelatih2User = includePelatih2 && pelatih2Id ? allUsers.find(u => u.id === pelatih2Id) : undefined;
 
-    // Save author's signature to their coach account cache
+    // Save author's signature to their coach account cache & global wet signature data
     if (compressedParaf) {
       localStorage.setItem(`coach_sig_${targetAuthorId}`, compressedParaf);
+      localStorage.setItem('coach_wet_signature_data', compressedParaf);
     }
-    // Save second coach signature to cache if provided
+    // Save second coach signature to cache & global coach 2 wet signature data if provided
     if (compressedParaf2 && pelatih2Id) {
       localStorage.setItem(`coach_sig_${pelatih2Id}`, compressedParaf2);
+      localStorage.setItem('coach2_wet_signature_data', compressedParaf2);
     }
 
     const record: AbsenPelatihItem = {

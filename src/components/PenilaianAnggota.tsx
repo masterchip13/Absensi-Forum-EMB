@@ -220,17 +220,42 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
   const tahunAjaranOptions = StorageService.getTahunAjaranList();
   const selectedSekolah = sekolahList.find(s => s.id === filterSekolahId) || sekolahList[0];
 
+  // Coach & Headmaster details (prefer logged-in coach if they train this school)
+  const pelatihUser = useMemo(() => {
+    const users = StorageService.getUsers();
+    const currentUser = StorageService.getCurrentUser();
+    if (currentUser && selectedSekolah && isSchoolCoach(selectedSekolah, currentUser.id)) {
+      return currentUser;
+    }
+    return users.find(u => u.id === selectedSekolah?.pelatihId) || currentUser;
+  }, [selectedSekolah]);
+
+  // Resolve all assigned coaches for collaboration in this school
+  const schoolCoaches = useMemo(() => {
+    const users = StorageService.getUsers();
+    const coachIds = getSchoolCoachIds(selectedSekolah);
+    const coaches = coachIds.map(id => users.find(u => u.id === id)).filter(Boolean);
+    if (coaches.length === 0 && pelatihUser) return [pelatihUser];
+    return coaches;
+  }, [selectedSekolah, pelatihUser]);
+
+  const isCollaborative = schoolCoaches.length > 1;
+  const leadCoach = schoolCoaches[0] || pelatihUser;
+  const partnerCoach = schoolCoaches[1] || null;
+
   // Load saved coach signatures from storage or profile if exists
   useEffect(() => {
-    const savedSig1 = localStorage.getItem('coach_wet_signature_data') || '';
+    const leadId = leadCoach?.id;
+    const partnerId = partnerCoach?.id;
+    const savedSig1 = (leadId && localStorage.getItem(`coach_sig_${leadId}`)) || localStorage.getItem('coach_wet_signature_data') || '';
     if (savedSig1) {
       setCustomCoachSignature(savedSig1);
     }
-    const savedSig2 = localStorage.getItem('coach2_wet_signature_data') || '';
+    const savedSig2 = (partnerId && localStorage.getItem(`coach_sig_${partnerId}`)) || localStorage.getItem('coach2_wet_signature_data') || '';
     if (savedSig2) {
       setCustomCoach2Signature(savedSig2);
     }
-  }, []);
+  }, [leadCoach, partnerCoach]);
 
   // Semester months definition:
   // Semester Ganjil: Juli, Agustus, September, Oktober, November, Desember
@@ -416,29 +441,6 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
       pctD: Math.round((countD / total) * 100)
     };
   }, [gradedStudents]);
-
-  // Coach & Headmaster details (prefer logged-in coach if they train this school)
-  const pelatihUser = useMemo(() => {
-    const users = StorageService.getUsers();
-    const currentUser = StorageService.getCurrentUser();
-    if (currentUser && selectedSekolah && isSchoolCoach(selectedSekolah, currentUser.id)) {
-      return currentUser;
-    }
-    return users.find(u => u.id === selectedSekolah?.pelatihId) || currentUser;
-  }, [selectedSekolah]);
-
-  // Resolve all assigned coaches for collaboration in this school
-  const schoolCoaches = useMemo(() => {
-    const users = StorageService.getUsers();
-    const coachIds = getSchoolCoachIds(selectedSekolah);
-    const coaches = coachIds.map(id => users.find(u => u.id === id)).filter(Boolean);
-    if (coaches.length === 0 && pelatihUser) return [pelatihUser];
-    return coaches;
-  }, [selectedSekolah, pelatihUser]);
-
-  const isCollaborative = schoolCoaches.length > 1;
-  const leadCoach = schoolCoaches[0] || pelatihUser;
-  const partnerCoach = schoolCoaches[1] || null;
 
   // Print Window Handler
   const handlePrint = () => {

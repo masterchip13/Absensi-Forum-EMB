@@ -134,6 +134,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [filterVerifikasiPelatih, setFilterVerifikasiPelatih] = useState<'all' | 'menunggu' | 'diverifikasi' | 'ditolak'>('all');
   const [rejectingAbsenItem, setRejectingAbsenItem] = useState<AbsenPelatihItem | null>(null);
   const [revisiNote, setRevisiNote] = useState<string>('');
+  const [selectedJurnalDetail, setSelectedJurnalDetail] = useState<AbsenPelatihItem | null>(null);
 
   const bulanList = BULAN_OPTIONS;
 
@@ -1406,7 +1407,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <td className="p-3 font-semibold text-slate-800">{school?.namaSekolah || '-'}</td>
                               <td className="p-3 text-slate-700">{item.hariTanggalFormat || item.tanggal}</td>
                               <td className="p-3 text-center text-slate-600 font-mono text-[11px]">{item.jamMulai} - {item.jamSelesai}</td>
-                              <td className="p-3 font-medium text-slate-800 max-w-xs">{item.materiPokok}</td>
+                              <td className="p-3 font-medium text-slate-800 max-w-xs">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedJurnalDetail(item)}
+                                  className="text-left hover:text-blue-600 hover:underline cursor-pointer group"
+                                  title="Klik untuk melihat detail lengkap jurnal"
+                                >
+                                  {item.materiPokok}
+                                </button>
+                              </td>
                               <td className="p-3 text-center font-bold text-emerald-700">{item.pencapaianPercent}%</td>
                               <td className="p-3 text-center">
                                 {item.fotoDokumentasiUrl ? (
@@ -1475,6 +1485,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </td>
                               <td className="p-3 text-center">
                                 <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedJurnalDetail(item)}
+                                    className="flex items-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[11px] px-2.5 py-1 rounded-lg transition border border-blue-200 cursor-pointer shadow-2xs"
+                                    title="Lihat detail lengkap jurnal kegiatan pelatih"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>Detail</span>
+                                  </button>
                                   {verifStatus !== 'diverifikasi' ? (
                                     <>
                                       <button
@@ -2264,6 +2283,295 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal Detail Jurnal Kegiatan Pelatih */}
+      {selectedJurnalDetail && (() => {
+        const coach1 = usersList.find(u => u.id === selectedJurnalDetail.pelatihId);
+        const coach2 = selectedJurnalDetail.pelatih2Id ? usersList.find(u => u.id === selectedJurnalDetail.pelatih2Id) : null;
+        const school = sekolahList.find(s => s.id === selectedJurnalDetail.sekolahId);
+        const verifStatus = selectedJurnalDetail.statusVerifikasiAdmin || 'menunggu';
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/75 backdrop-blur-xs animate-fade-in overflow-y-auto">
+            <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col">
+              {/* Modal Header */}
+              <div className="px-5 py-4 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-blue-600/80 rounded-xl text-white">
+                    <ClipboardList className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-base tracking-tight">Detail Jurnal Kegiatan Pelatih</h3>
+                    <p className="text-xs text-blue-200 font-medium mt-0.5">
+                      {school?.namaSekolah || 'Sekolah'} — {selectedJurnalDetail.hariTanggalFormat || selectedJurnalDetail.tanggal}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {verifStatus === 'diverifikasi' ? (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black bg-emerald-500 text-white shadow-xs">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Terverifikasi
+                    </span>
+                  ) : verifStatus === 'ditolak' ? (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black bg-rose-500 text-white shadow-xs">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      Perlu Revisi
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black bg-amber-400 text-slate-950 shadow-xs">
+                      <Clock className="w-3.5 h-3.5" />
+                      Menunggu Verifikasi
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedJurnalDetail(null)}
+                    className="text-slate-300 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-5 space-y-4 overflow-y-auto flex-1 text-slate-800">
+                {/* 1. Informasi Waktu & Sekolah */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
+                  <div className="flex items-start gap-2.5">
+                    <School className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Sekolah</span>
+                      <span className="font-bold text-slate-900 text-sm">{school?.namaSekolah || '-'}</span>
+                      <span className="text-[11px] text-slate-500 block">{school?.alamat || 'Kabupaten Bogor'}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5">
+                    <Calendar className="w-4 h-4 text-indigo-600 mt-0.5 shrink-0" />
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Waktu Latihan</span>
+                      <span className="font-bold text-slate-900">{selectedJurnalDetail.hariTanggalFormat || selectedJurnalDetail.tanggal}</span>
+                      <span className="text-[11px] font-mono font-semibold text-indigo-700 block mt-0.5">
+                        Pukul {selectedJurnalDetail.jamMulai} s/d {selectedJurnalDetail.jamSelesai} WIB
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Pelatih & Tanda Tangan Input */}
+                <div>
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-blue-600" />
+                    Tim Pelatih & Tanda Tangan (Paraf Asli Yang Diinput)
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Pelatih 1 */}
+                    <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
+                          Pelatih 1
+                        </span>
+                        <span className="text-[10px] text-slate-500">@{coach1?.username || 'pelatih'}</span>
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900 text-sm">
+                          {coach1?.name || selectedJurnalDetail.pelatihNama || 'Pelatih 1'}
+                        </div>
+                        <div className="text-[11px] text-slate-600 font-mono">
+                          {coach1?.nip ? `NIP. ${coach1.nip}` : 'Pelatih Marching Band'}
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-2 rounded-lg border border-blue-200 text-center">
+                        <span className="text-[9px] font-semibold text-slate-400 block mb-1">Paraf / Tanda Tangan Asli:</span>
+                        {selectedJurnalDetail.parafPelatihUrl ? (
+                          <div className="h-16 flex items-center justify-center">
+                            <img
+                              src={selectedJurnalDetail.parafPelatihUrl}
+                              alt="TTD Pelatih 1"
+                              className="h-14 max-w-[150px] object-contain mx-auto"
+                            />
+                          </div>
+                        ) : (
+                          <div className="h-16 flex items-center justify-center text-xs text-slate-400 italic">
+                            Belum ada paraf
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Pelatih 2 jika ada */}
+                    {selectedJurnalDetail.pelatih2Nama || selectedJurnalDetail.parafPelatih2Url ? (
+                      <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+                            Pelatih 2 (Kolaborator)
+                          </span>
+                          <span className="text-[10px] text-slate-500">@{coach2?.username || 'kolaborator'}</span>
+                        </div>
+                        <div>
+                          <div className="font-bold text-slate-900 text-sm">
+                            {coach2?.name || selectedJurnalDetail.pelatih2Nama || 'Pelatih 2'}
+                          </div>
+                          <div className="text-[11px] text-slate-600 font-mono">
+                            {coach2?.nip ? `NIP. ${coach2.nip}` : 'Pelatih Pendamping'}
+                          </div>
+                        </div>
+
+                        <div className="bg-white p-2 rounded-lg border border-indigo-200 text-center">
+                          <span className="text-[9px] font-semibold text-slate-400 block mb-1">Paraf / Tanda Tangan Asli:</span>
+                          {selectedJurnalDetail.parafPelatih2Url ? (
+                            <div className="h-16 flex items-center justify-center">
+                              <img
+                                src={selectedJurnalDetail.parafPelatih2Url}
+                                alt="TTD Pelatih 2"
+                                className="h-14 max-w-[150px] object-contain mx-auto"
+                              />
+                            </div>
+                          ) : (
+                            <div className="h-16 flex items-center justify-center text-xs text-slate-400 italic">
+                              Belum ada paraf
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-slate-50 border border-dashed border-slate-200 rounded-xl flex items-center justify-center text-xs text-slate-400 italic text-center">
+                        Tidak ada pelatih kolaborator pada pertemuan ini (Pelatih Tunggal).
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 3. Materi Pokok & Capaian */}
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      Materi Pokok / Agenda Latihan
+                    </span>
+                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-800 leading-relaxed whitespace-pre-wrap">
+                      {selectedJurnalDetail.materiPokok || '-'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between text-xs mb-1 font-bold">
+                      <span className="text-slate-600">Tingkat Capaian Target Materi:</span>
+                      <span className="text-emerald-700 text-sm font-extrabold">{selectedJurnalDetail.pencapaianPercent || 0}%</span>
+                    </div>
+                    <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                      <div
+                        className="bg-emerald-600 h-2.5 rounded-full transition-all duration-300"
+                        style={{ width: `${Math.min(100, Math.max(0, selectedJurnalDetail.pencapaianPercent || 0))}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Catatan / Evaluasi */}
+                {selectedJurnalDetail.catatan && (
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      Catatan & Evaluasi Latihan dari Pelatih
+                    </span>
+                    <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-xs text-amber-950 font-medium italic leading-relaxed">
+                      "{selectedJurnalDetail.catatan}"
+                    </div>
+                  </div>
+                )}
+
+                {/* 5. Foto Dokumentasi Kegiatan */}
+                {selectedJurnalDetail.fotoDokumentasiUrl && (
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
+                      Foto Bukti Dokumentasi Kegiatan Latihan
+                    </span>
+                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-950/5 p-1 text-center">
+                      <img
+                        src={selectedJurnalDetail.fotoDokumentasiUrl}
+                        alt="Dokumentasi Latihan"
+                        className="max-h-64 mx-auto object-contain rounded-lg cursor-pointer hover:opacity-95 transition"
+                        onClick={() => setPreviewPhotoUrl(selectedJurnalDetail.fotoDokumentasiUrl)}
+                        title="Klik untuk melihat foto ukuran penuh"
+                      />
+                      <span className="text-[10px] text-slate-400 block mt-1">
+                        Klik gambar untuk memperbesar resolusi penuh
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 6. Catatan Revisi Admin jika ada */}
+                {selectedJurnalDetail.catatanAdmin && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1">
+                    <span className="text-[10px] font-bold text-rose-700 uppercase tracking-wider flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                      Catatan Permintaan Revisi Admin:
+                    </span>
+                    <p className="text-xs text-rose-950 font-medium">
+                      "{selectedJurnalDetail.catatanAdmin}"
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer Actions */}
+              <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                <div className="flex items-center gap-2">
+                  {verifStatus !== 'diverifikasi' ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleVerifyAbsenPelatih(selectedJurnalDetail);
+                          setSelectedJurnalDetail(prev => prev ? { ...prev, statusVerifikasiAdmin: 'diverifikasi', diverifikasiOleh: 'Admin' } : null);
+                        }}
+                        className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition shadow-md cursor-pointer"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Setujui Laporan Ini</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = selectedJurnalDetail;
+                          setSelectedJurnalDetail(null);
+                          handleOpenRejectModal(target);
+                        }}
+                        className="flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs px-3 py-2 rounded-xl transition border border-rose-200 cursor-pointer"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        <span>Minta Revisi</span>
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleRevokeVerifyAbsenPelatih(selectedJurnalDetail);
+                        setSelectedJurnalDetail(prev => prev ? { ...prev, statusVerifikasiAdmin: 'menunggu' } : null);
+                      }}
+                      className="text-xs font-semibold text-slate-600 hover:text-slate-900 underline cursor-pointer px-2"
+                    >
+                      Batalkan Status Verifikasi
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedJurnalDetail(null)}
+                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl transition cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

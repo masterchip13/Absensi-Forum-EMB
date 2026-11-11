@@ -326,24 +326,50 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
     return status.label || null;
   };
 
-  // Get coach signature for a meeting or general
+  // Get coach signature for a meeting or general (ensures it is identical to inputted signature)
   const coachSignatureUrl = useMemo(() => {
-    const sessionWithSig = schoolAbsenPelatih.find(a => !leadCoach || a.pelatihId === leadCoach.id ? !!a.parafPelatihUrl : !!a.parafPelatihUrl);
+    // 1. Look for signature in current filtered school sessions
+    const sessionWithSig = schoolAbsenPelatih.find(a => (!leadCoach || a.pelatihId === leadCoach.id) && !!a.parafPelatihUrl)
+      || schoolAbsenPelatih.find(a => !!a.parafPelatihUrl)
+      || absenPelatihList.find(a => a.sekolahId === filterSekolahId && (!leadCoach || a.pelatihId === leadCoach.id) && !!a.parafPelatihUrl)
+      || absenPelatihList.find(a => a.sekolahId === filterSekolahId && !!a.parafPelatihUrl)
+      || absenPelatihList.find(a => (!leadCoach || a.pelatihId === leadCoach.id) && !!a.parafPelatihUrl);
     if (sessionWithSig?.parafPelatihUrl) return sessionWithSig.parafPelatihUrl;
+
+    // 2. Check coach specific account cache
+    if (leadCoach?.id) {
+      const cached = localStorage.getItem(`coach_sig_${leadCoach.id}`);
+      if (cached) return cached;
+    }
     const customCoachSig = localStorage.getItem('coach_wet_signature_data');
     if (customCoachSig) return customCoachSig;
-    return getStudentSignatureDataUrl(leadCoachName, 101);
-  }, [schoolAbsenPelatih, leadCoach, leadCoachName]);
 
-  // Get second coach signature when in collaborative mode
+    // 3. Do not return synthetic cursive signatures - must strictly be the inputted signature
+    return '';
+  }, [schoolAbsenPelatih, absenPelatihList, filterSekolahId, leadCoach]);
+
+  // Get second coach signature when in collaborative mode (ensures it is identical to inputted signature)
   const coach2SignatureUrl = useMemo(() => {
     if (!isCoachCollaboration) return '';
-    const sessionWithSig = schoolAbsenPelatih.find(a => partnerCoach && a.pelatihId === partnerCoach.id && !!a.parafPelatihUrl);
-    if (sessionWithSig?.parafPelatihUrl) return sessionWithSig.parafPelatihUrl;
+    // 1. Look for parafPelatih2Url in current sessions or all school sessions
+    const sessionWithSig2 = schoolAbsenPelatih.find(a => !!a.parafPelatih2Url)
+      || schoolAbsenPelatih.find(a => partnerCoach && a.pelatihId === partnerCoach.id && !!a.parafPelatihUrl)
+      || absenPelatihList.find(a => a.sekolahId === filterSekolahId && !!a.parafPelatih2Url)
+      || absenPelatihList.find(a => partnerCoach && a.pelatihId === partnerCoach.id && !!a.parafPelatihUrl);
+    if (sessionWithSig2?.parafPelatih2Url) return sessionWithSig2.parafPelatih2Url;
+    if (sessionWithSig2?.parafPelatihUrl && partnerCoach && sessionWithSig2.pelatihId === partnerCoach.id) return sessionWithSig2.parafPelatihUrl;
+
+    // 2. Check partner coach account cache
+    if (partnerCoach?.id) {
+      const cached = localStorage.getItem(`coach_sig_${partnerCoach.id}`);
+      if (cached) return cached;
+    }
     const customCoach2Sig = localStorage.getItem('coach2_wet_signature_data');
     if (customCoach2Sig) return customCoach2Sig;
-    return getStudentSignatureDataUrl(partnerCoachName, 102);
-  }, [schoolAbsenPelatih, isCoachCollaboration, partnerCoach, partnerCoachName]);
+
+    // 3. Do not return synthetic cursive signatures - must strictly be the inputted signature
+    return '';
+  }, [schoolAbsenPelatih, absenPelatihList, filterSekolahId, isCoachCollaboration, partnerCoach]);
 
   // Assistant Coach States & Detection
   const [includeAsistenPelatih, setIncludeAsistenPelatih] = useState(false);
@@ -930,13 +956,17 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
               <tr>
                 <td style="width: 160px; vertical-align: top; border: none; padding-right: 25px;">
                   <div><b>Pelatih</b></div>
-                  <div style="height: 55px;"></div>
+                  <div style="height: 55px; display: flex; align-items: center; justify-content: center;">
+                    ${coachSignatureUrl ? `<img src="${coachSignatureUrl}" height="45" style="max-height: 45px; object-fit: contain;" />` : ''}
+                  </div>
                   <div><b>(${leadCoachName})</b></div>
                   ${leadCoachNip ? `<div style="font-size: 8.5pt;">NIP/NUPTK. ${leadCoachNip}</div>` : ''}
                 </td>
                 <td style="width: 160px; vertical-align: top; border: none; padding-left: 25px;">
                   <div><b>Pelatih</b></div>
-                  <div style="height: 55px;"></div>
+                  <div style="height: 55px; display: flex; align-items: center; justify-content: center;">
+                    ${coach2SignatureUrl ? `<img src="${coach2SignatureUrl}" height="45" style="max-height: 45px; object-fit: contain;" />` : ''}
+                  </div>
                   <div><b>(${partnerCoachName})</b></div>
                   ${partnerCoachNip ? `<div style="font-size: 8.5pt;">NIP/NUPTK. ${partnerCoachNip}</div>` : ''}
                 </td>
@@ -953,13 +983,17 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
               <tr>
                 <td style="width: 160px; vertical-align: top; border: none; padding-right: 25px;">
                   <div><b>Pelatih</b></div>
-                  <div style="height: 55px;"></div>
+                  <div style="height: 55px; display: flex; align-items: center; justify-content: center;">
+                    ${coachSignatureUrl ? `<img src="${coachSignatureUrl}" height="45" style="max-height: 45px; object-fit: contain;" />` : ''}
+                  </div>
                   <div><b>(${pelatihName})</b></div>
                   ${pelatihNip ? `<div style="font-size: 8.5pt;">NIP/NUPTK. ${pelatihNip}</div>` : ''}
                 </td>
                 <td style="width: 160px; vertical-align: top; border: none; padding-left: 25px;">
                   <div><b>Asisten Pelatih</b></div>
-                  <div style="height: 55px;"></div>
+                  <div style="height: 55px; display: flex; align-items: center; justify-content: center;">
+                    ${customAsistenSig ? `<img src="${customAsistenSig}" height="45" style="max-height: 45px; object-fit: contain;" />` : ''}
+                  </div>
                   <div><b>(${asistenName})</b></div>
                   ${asistenNip ? `<div style="font-size: 8.5pt;">NIP/NUPTK. ${asistenNip}</div>` : ''}
                 </td>
@@ -971,7 +1005,9 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         <div style="text-align: right; margin-top: 40px; font-size: 9.5pt;">
           <div>Cigombong, ................................</div>
           <div>Pelatih Ekstrakurikuler</div>
-          <div style="height: 50px;"></div>
+          <div style="height: 50px; display: flex; align-items: center; justify-content: flex-end;">
+            ${coachSignatureUrl ? `<img src="${coachSignatureUrl}" height="45" style="max-height: 45px; object-fit: contain;" />` : ''}
+          </div>
           <div><b>${pelatihName}</b></div>
           ${pelatihNip ? `<div>NIP/NUPTK. ${pelatihNip}</div>` : ''}
         </div>

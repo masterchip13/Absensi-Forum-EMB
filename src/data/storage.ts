@@ -69,9 +69,6 @@ function setStoredItem<T>(key: string, value: T): void {
             if (newItem.signatureUrl && newItem.signatureUrl.length > 500) {
               newItem.signatureUrl = '';
             }
-            if (newItem.parafPelatihUrl && newItem.parafPelatihUrl.length > 500) {
-              newItem.parafPelatihUrl = '';
-            }
             return newItem;
           }
           return item;
