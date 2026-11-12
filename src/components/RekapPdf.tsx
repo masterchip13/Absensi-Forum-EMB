@@ -914,7 +914,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
           <tr style="height: 50px;">
             <td><b>${idx + 1}</b></td>
             <td>${row?.hariTanggalFormat || row?.tanggal || ''}</td>
-            <td class="text-left">${row?.materiPokok || ''}</td>
+            <td class="text-center" style="text-align: center;">${row?.materiPokok || ''}</td>
             <td>${parafHtml}</td>
           </tr>
         `;
@@ -1219,7 +1219,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         </div>
         <div class="materi-box" style="border: 1px solid #000; padding: 6px 8px; margin-bottom: 10px; min-height: 120px;">
           <div style="font-weight: normal; font-size: 9pt;">MATERI:</div>
-          <div style="font-size: 9pt; margin-top: 4px;">${meeting?.materiPokok || ''}</div>
+          <div style="font-size: 9pt; margin-top: 4px; text-align: center;">${meeting?.materiPokok || ''}</div>
         </div>
         <table style="width: 100%; border-collapse: collapse;">
           <tr>
@@ -1879,7 +1879,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                             <td className="border border-black p-2 align-middle text-xs font-medium">
                               {row?.hariTanggalFormat || row?.tanggal || ''}
                             </td>
-                            <td className="border border-black p-2.5 text-left align-middle text-xs leading-relaxed">
+                            <td className="border border-black p-2.5 text-center align-middle text-xs leading-relaxed">
                               {row?.materiPokok || ''}
                             </td>
                             <td className="border border-black p-1.5 align-middle">
@@ -2047,11 +2047,6 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                         <h1 className="text-base tracking-wide uppercase">DAFTAR HADIR PESERTA EKSTRAKURIKULER</h1>
                         <h2 className="text-base tracking-wide uppercase">SMP NEGERI 2 CIGOMBONG KABUPATEN BOGOR</h2>
                         <h3 className="text-base tracking-wide uppercase">TAHUN PELAJARAN {filterTahunAjaran}</h3>
-                        {anggotaPages.length > 1 && (
-                          <div className="text-xs font-normal text-slate-700 mt-1">
-                            (Lembar {pIdx + 1} dari {anggotaPages.length} — Nomor Urut {startNum} s/d {endNum})
-                          </div>
-                        )}
                       </div>
 
                       {/* Subheader: Bulan & Nama Ekstrakurikuler */}
@@ -2350,11 +2345,6 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                           <h3 className="text-sm sm:text-base tracking-wide uppercase font-bold mt-0.5">
                             TAHUN PELAJARAN {filterTahunAjaran}
                           </h3>
-                          {sukaharjaAnggotaPages.length > 1 && (
-                            <div className="text-xs font-normal text-slate-700 mt-1">
-                              (Lembar Presensi {sheetIdx + 1} dari {sukaharjaAnggotaPages.length} — Nomor Urut {sheet.startNo} s/d {sheet.startNo + 59})
-                            </div>
-                          )}
                         </div>
 
                         {/* Top Right Meta info with clean alignment */}
@@ -2378,7 +2368,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                         {/* MATERI Box */}
                         <div className="border border-black p-3 rounded-none mb-3.5 min-h-[110px]">
                           <div className="font-normal text-xs mb-1">MATERI:</div>
-                          <div className="text-xs leading-relaxed min-h-[70px]">
+                          <div className="text-xs text-center leading-relaxed min-h-[70px]">
                             {meeting.materiPokok || ''}
                           </div>
                         </div>
@@ -2770,7 +2760,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                             <td className="border border-black p-1 align-middle text-[8.5px]">
                               {row ? `${row.jamMulai} S/D ${row.jamSelesai}` : 'S/D'}
                             </td>
-                            <td className="border border-black p-1 text-left align-middle font-medium text-[9px]">
+                            <td className="border border-black p-1 text-center align-middle font-medium text-[9px]">
                               {row?.materiPokok || ''}
                             </td>
                             <td className="border border-black p-1 align-middle font-bold text-[9px]">

@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
-import { AbsenPelatihItem, Sekolah } from '../types';
+import { AbsenPelatihItem, Sekolah, JadwalLatihan } from '../types';
 import { StorageService } from '../data/storage';
 import { SignaturePad } from './SignaturePad';
-import { Camera, CheckCircle2, Image as ImageIcon, Plus, Calendar, Clock, Award, Trash2, Edit2, AlertCircle, ShieldCheck, Users, PenTool } from 'lucide-react';
+import { Camera, CheckCircle2, Image as ImageIcon, Plus, Calendar, Clock, Award, Trash2, Edit2, AlertCircle, ShieldCheck, Users, PenTool, Link2, MapPin } from 'lucide-react';
 
 import { compressImageDataUrl } from '../utils/imageCompressor';
 
@@ -12,6 +11,8 @@ interface AbsenPelatihProps {
   selectedSekolahId: string;
   sekolahList: Sekolah[];
   absenPelatihList: AbsenPelatihItem[];
+  jadwalList?: JadwalLatihan[];
+  initialJadwalId?: string;
   onDataChanged: () => void;
 }
 
@@ -21,11 +22,16 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
   selectedSekolahId,
   sekolahList,
   absenPelatihList,
+  jadwalList = [],
+  initialJadwalId,
   onDataChanged
 }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingAuthorId, setEditingAuthorId] = useState<string | null>(null);
+  const [selectedJadwalId, setSelectedJadwalId] = useState<string>(initialJadwalId || '');
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string>('');
 
   const [tanggal, setTanggal] = useState(new Date().toISOString().split('T')[0]);
   const [jamMulai, setJamMulai] = useState('15:00');
@@ -80,6 +86,18 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
       setParafPelatihUrl(savedSig);
     }
 
+    // If an initialJadwalId was passed, auto-link it
+    if (initialJadwalId) {
+      const matchJ = jadwalList.find(j => j.id === initialJadwalId);
+      if (matchJ) {
+        setSelectedJadwalId(matchJ.id);
+        if (matchJ.tanggal) setTanggal(matchJ.tanggal);
+        if (matchJ.jamMulai) setJamMulai(matchJ.jamMulai);
+        if (matchJ.jamSelesai) setJamSelesai(matchJ.jamSelesai);
+        if (matchJ.materiRencana) setMateriPokok(matchJ.materiRencana);
+      }
+    }
+
     // Auto-detect if school has collaborating partner coach
     const schoolCollabs = (activeSchool?.pelatihIds || []).filter(id => id && id !== currentPelatihId);
     if (schoolCollabs.length > 0) {
@@ -102,6 +120,7 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
   const handleOpenEdit = (item: AbsenPelatihItem) => {
     setEditingId(item.id);
     setEditingAuthorId(item.pelatihId);
+    setSelectedJadwalId(item.jadwalId || '');
     setTanggal(item.tanggal);
     setJamMulai(item.jamMulai || '15:00');
     setJamSelesai(item.jamSelesai || '17:30');
@@ -126,6 +145,24 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
     setIsFormOpen(true);
   };
 
+  const handleSelectJadwal = (jadwalId: string) => {
+    setSelectedJadwalId(jadwalId);
+    if (!jadwalId) return;
+    const match = jadwalList.find(j => j.id === jadwalId);
+    if (match) {
+      if (match.tanggal) setTanggal(match.tanggal);
+      if (match.jamMulai) setJamMulai(match.jamMulai);
+      if (match.jamSelesai) setJamSelesai(match.jamSelesai);
+      if (match.materiRencana && !materiPokok) setMateriPokok(match.materiRencana);
+      if (match.pelatih2Id) {
+        setIncludePelatih2(true);
+        setPelatih2Id(match.pelatih2Id);
+        const sig2 = getCoachAccountSignature(match.pelatih2Id);
+        if (sig2) setParafPelatih2Url(sig2);
+      }
+    }
+  };
+
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -141,12 +178,13 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
     if (!fotoDokumentasiUrl) {
-      alert('Dokumentasi foto Wajib diunggah sebagai bukti rekap latihan pelatih!');
+      setFormError('Dokumentasi foto Wajib diunggah sebagai bukti rekap latihan pelatih!');
       return;
     }
     if (!materiPokok) {
-      alert('Mohon isi Materi Pokok latihan!');
+      setFormError('Mohon isi Materi Pokok latihan!');
       return;
     }
 
@@ -196,6 +234,7 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
       parafPelatih2Url: includePelatih2 && compressedParaf2 ? compressedParaf2 : undefined,
       statusKepalaSekolah: 'Mengetahui',
       catatan,
+      jadwalId: selectedJadwalId || undefined,
       // Status verifikasi admin: menunggu verifikasi jika baru atau telah diedit
       statusVerifikasiAdmin: 'menunggu',
       diverifikasiOleh: undefined,
@@ -204,6 +243,19 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
     };
 
     StorageService.saveAbsenPelatih(record);
+
+    // If linked to a scheduled session, update the session status and link
+    if (selectedJadwalId) {
+      const matchJ = jadwalList.find(j => j.id === selectedJadwalId);
+      if (matchJ) {
+        StorageService.saveJadwal({
+          ...matchJ,
+          absenPelatihId: targetId,
+          status: 'selesai'
+        });
+      }
+    }
+
     setIsFormOpen(false);
     setEditingId(null);
     setEditingAuthorId(null);
@@ -214,6 +266,8 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
   const resetForm = () => {
     setEditingId(null);
     setEditingAuthorId(null);
+    setSelectedJadwalId('');
+    setFormError('');
     setTanggal(new Date().toISOString().split('T')[0]);
     setJamMulai('15:00');
     setJamSelesai('17:30');
@@ -230,8 +284,13 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Hapus rekap absensi pelatih ini?')) {
-      StorageService.deleteAbsenPelatih(id);
+    setDeleteConfirmId(id);
+  };
+
+  const confirmDeleteAbsen = () => {
+    if (deleteConfirmId) {
+      StorageService.deleteAbsenPelatih(deleteConfirmId);
+      setDeleteConfirmId(null);
       onDataChanged();
     }
   };
@@ -479,6 +538,35 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
                   >
                     Batal Edit (Baru)
                   </button>
+                </div>
+              )}
+
+              {formError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{formError}</span>
+                </div>
+              )}
+
+              {/* Link to Scheduled Session Selector */}
+              {jadwalList.filter(j => j.sekolahId === selectedSekolahId).length > 0 && (
+                <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs">
+                  <label className="block font-bold text-amber-900 mb-1 flex items-center gap-1.5">
+                    <Link2 className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Tautkan ke Jadwal Latihan Terdaftar:</span>
+                  </label>
+                  <select
+                    value={selectedJadwalId}
+                    onChange={(e) => handleSelectJadwal(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                  >
+                    <option value="">-- Entri Bebas / Tanpa Tautan Jadwal --</option>
+                    {jadwalList.filter(j => j.sekolahId === selectedSekolahId).map(j => (
+                      <option key={j.id} value={j.id}>
+                        {j.hariTanggalFormat || j.tanggal || j.hari} • {j.jamMulai}-{j.jamSelesai} {j.materiRencana ? `(${j.materiRencana})` : ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               )}
 
@@ -762,6 +850,37 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl border border-slate-200 text-center animate-fade-in">
+            <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="font-extrabold text-slate-900 text-sm">Hapus Rekap Absensi Pelatih?</h3>
+            <p className="text-xs text-slate-500 mt-1 mb-4">
+              Data jurnal dan dokumentasi kegiatan sesi ini akan dihapus secara permanen.
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmId(null)}
+                className="px-4 py-2 rounded-xl text-slate-700 font-bold bg-slate-100 hover:bg-slate-200 transition cursor-pointer text-xs"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteAbsen}
+                className="px-4 py-2 rounded-xl text-white font-bold bg-rose-600 hover:bg-rose-700 transition cursor-pointer text-xs shadow-xs"
+              >
+                Ya, Hapus
+              </button>
+            </div>
           </div>
         </div>
       )}

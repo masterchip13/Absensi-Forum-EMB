@@ -171,6 +171,7 @@ export default function App() {
             eventsList={eventsList}
             activeTahunAjaran={activeTahunAjaran}
             onOpenManageTahunAjaran={() => setIsTahunAjaranModalOpen(true)}
+            jadwalList={jadwalList}
             onDataChanged={loadAllData}
           />
         ) : currentUser.role === 'asisten_pelatih' ? (

@@ -68,19 +68,30 @@
     },
     "JadwalLatihan": {
       "title": "JadwalLatihan",
-      "description": "Weekly practice schedule",
+      "description": "Practice schedule sessions for schools",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "pelatihId": { "type": "string" },
+        "pelatihNama": { "type": "string" },
+        "pelatih2Id": { "type": "string" },
+        "pelatih2Nama": { "type": "string" },
         "sekolahId": { "type": "string" },
+        "sekolahNama": { "type": "string" },
         "hari": { "type": "string" },
+        "tanggal": { "type": "string" },
+        "hariTanggalFormat": { "type": "string" },
         "jamMulai": { "type": "string" },
         "jamSelesai": { "type": "string" },
+        "materiRencana": { "type": "string" },
+        "lokasiLatihan": { "type": "string" },
+        "status": { "type": "string" },
         "reminderEnabled": { "type": "boolean" },
-        "reminderMinutesBefore": { "type": "number" }
+        "reminderMinutesBefore": { "type": "number" },
+        "absenPelatihId": { "type": "string" },
+        "catatan": { "type": "string" }
       },
-      "required": ["id", "sekolahId", "hari"]
+      "required": ["id", "sekolahId", "tanggal"]
     },
     "AbsenPelatihItem": {
       "title": "AbsenPelatihItem",
@@ -103,7 +114,8 @@
         "pelatih2Nama": { "type": "string" },
         "parafPelatih2Url": { "type": "string" },
         "statusKepalaSekolah": { "type": "string" },
-        "catatan": { "type": "string" }
+        "catatan": { "type": "string" },
+        "jadwalId": { "type": "string" }
       },
       "required": ["id", "sekolahId", "tanggal"]
     },

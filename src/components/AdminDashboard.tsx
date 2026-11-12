@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { User, UserRole, Sekolah, AbsenPelatihItem, AbsenAsistenPelatihItem, Anggota, Divisi, AbsenSiswaEntry, EventLog, isSchoolCoach } from '../types';
+import { User, UserRole, Sekolah, AbsenPelatihItem, AbsenAsistenPelatihItem, Anggota, Divisi, AbsenSiswaEntry, EventLog, JadwalLatihan, isSchoolCoach } from '../types';
 import { StorageService } from '../data/storage';
 import { DokumentasiGaleri } from './DokumentasiGaleri';
 import { StatistikKehadiran } from './StatistikKehadiran';
@@ -9,6 +9,7 @@ import { PenilaianAnggota } from './PenilaianAnggota';
 import { SekolahManager } from './SekolahManager';
 import { RekapPdf } from './RekapPdf';
 import { AuditPresensi } from './AuditPresensi';
+import { JadwalManager } from './JadwalManager';
 import { formatNamaKapital } from '../utils/nameFormatter';
 import { BULAN_OPTIONS, getCurrentMonthName } from '../utils/dateUtils';
 import { 
@@ -62,6 +63,7 @@ interface AdminDashboardProps {
   divisiList?: Divisi[];
   absenSiswaList?: AbsenSiswaEntry[];
   eventsList?: EventLog[];
+  jadwalList?: JadwalLatihan[];
   activeTahunAjaran?: string;
   onOpenManageTahunAjaran?: () => void;
   onDataChanged: () => void;
@@ -76,12 +78,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   divisiList = [],
   absenSiswaList = [],
   eventsList = [],
+  jadwalList = [],
   activeTahunAjaran = '2024/2025',
   onOpenManageTahunAjaran,
   onDataChanged
 }) => {
   const [activeTab, setActiveTab] = useState<'pelatih' | 'sekolah' | 'absensi' | 'penilaian' | 'laporan' | 'audit' | 'statistik' | 'progres' | 'dokumentasi' | 'event'>('pelatih');
-  const [absensiSubTab, setAbsensiSubTab] = useState<'siswa' | 'pelatih' | 'asisten'>('siswa');
+  const [absensiSubTab, setAbsensiSubTab] = useState<'siswa' | 'pelatih' | 'asisten' | 'jadwal'>('siswa');
+  const [confirmDeleteJurnal, setConfirmDeleteJurnal] = useState<AbsenPelatihItem | null>(null);
   const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'pelatih' | 'asisten_pelatih'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -608,66 +612,76 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
       </div>
 
-      {/* Overview Stat Cards */}
+      {/* Overview Stat Cards - Simplified & Modern */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div 
           onClick={() => setActiveTab('pelatih')} 
-          className="p-3.5 bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-2xl shadow-xs cursor-pointer hover:scale-[1.02] transition"
+          className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs cursor-pointer hover:border-blue-400 hover:shadow-xs transition"
         >
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-semibold text-blue-100">Pelatih / Coach</span>
-            <Users className="w-4 h-4 text-blue-200" />
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-500">Pelatih</span>
+            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+              <Users className="w-3.5 h-3.5" />
+            </div>
           </div>
-          <p className="text-2xl font-black">{pelatihUsers.length}</p>
-          <span className="text-[10px] text-blue-200">Akun Pelatih Aktif</span>
+          <p className="text-2xl font-black text-slate-900">{pelatihUsers.length}</p>
+          <span className="text-[11px] text-slate-400 font-medium">Akun Aktif</span>
         </div>
 
         <div 
           onClick={() => setActiveTab('sekolah')} 
-          className="p-3.5 bg-gradient-to-br from-indigo-600 to-violet-700 text-white rounded-2xl shadow-xs cursor-pointer hover:scale-[1.02] transition"
+          className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs cursor-pointer hover:border-indigo-400 hover:shadow-xs transition"
         >
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-semibold text-indigo-100">Sekolah Binaan</span>
-            <School className="w-4 h-4 text-indigo-200" />
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-500">Sekolah</span>
+            <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <School className="w-3.5 h-3.5" />
+            </div>
           </div>
-          <p className="text-2xl font-black">{sekolahList.length}</p>
-          <span className="text-[10px] text-indigo-200">Kelola & Penugasan</span>
+          <p className="text-2xl font-black text-slate-900">{sekolahList.length}</p>
+          <span className="text-[11px] text-slate-400 font-medium">Sekolah Binaan</span>
+        </div>
+
+        <div 
+          onClick={() => { setActiveTab('absensi'); setAbsensiSubTab('siswa'); }} 
+          className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs cursor-pointer hover:border-teal-400 hover:shadow-xs transition"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-500">Presensi Siswa</span>
+            <div className="w-7 h-7 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center">
+              <ClipboardList className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <p className="text-2xl font-black text-slate-900">{absenSiswaList.length}</p>
+          <span className="text-[11px] text-slate-400 font-medium">Data Kehadiran</span>
+        </div>
+
+        <div 
+          onClick={() => { setActiveTab('absensi'); setAbsensiSubTab('pelatih'); }} 
+          className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs cursor-pointer hover:border-amber-400 hover:shadow-xs transition"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-500">Jurnal Pelatih</span>
+            <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+              <Calendar className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <p className="text-2xl font-black text-slate-900">{absenPelatihList.length}</p>
+          <span className="text-[11px] text-slate-400 font-medium">Sesi Terisi</span>
         </div>
 
         <div 
           onClick={() => setActiveTab('absensi')} 
-          className="p-3.5 bg-gradient-to-br from-teal-600 to-emerald-700 text-white rounded-2xl shadow-xs cursor-pointer hover:scale-[1.02] transition"
+          className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs col-span-2 sm:col-span-1 cursor-pointer hover:border-emerald-400 hover:shadow-xs transition"
         >
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-semibold text-teal-100">Presensi Siswa</span>
-            <ClipboardList className="w-4 h-4 text-teal-200" />
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-500">Anggota</span>
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <UserCheck className="w-3.5 h-3.5" />
+            </div>
           </div>
-          <p className="text-2xl font-black">{absenSiswaList.length}</p>
-          <span className="text-[10px] text-teal-200">Log Seluruh Sekolah</span>
-        </div>
-
-        <div 
-          onClick={() => setActiveTab('absensi')} 
-          className="p-3.5 bg-gradient-to-br from-amber-600 to-orange-700 text-white rounded-2xl shadow-xs cursor-pointer hover:scale-[1.02] transition"
-        >
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-semibold text-amber-100">Jurnal Pelatih</span>
-            <Calendar className="w-4 h-4 text-amber-200" />
-          </div>
-          <p className="text-2xl font-black">{absenPelatihList.length}</p>
-          <span className="text-[10px] text-amber-200">Sesi Latihan Terisi</span>
-        </div>
-
-        <div 
-          onClick={() => setActiveTab('absensi')} 
-          className="p-3.5 bg-gradient-to-br from-emerald-600 to-cyan-700 text-white rounded-2xl shadow-xs col-span-2 sm:col-span-1 cursor-pointer hover:scale-[1.02] transition"
-        >
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-semibold text-emerald-100">Total Anggota</span>
-            <UserCheck className="w-4 h-4 text-emerald-200" />
-          </div>
-          <p className="text-2xl font-black">{anggotaList.length}</p>
-          <span className="text-[10px] text-emerald-200">Anggota Terdaftar</span>
+          <p className="text-2xl font-black text-slate-900">{anggotaList.length}</p>
+          <span className="text-[11px] text-slate-400 font-medium">Total Anggota</span>
         </div>
       </div>
 
@@ -1049,6 +1063,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 >
                   <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Log Asisten Pelatih ({absenAsistenList.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAbsensiSubTab('jadwal')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                    absensiSubTab === 'jadwal' ? 'bg-white text-amber-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Jadwal Latihan ({jadwalList.length})</span>
                 </button>
               </div>
 
@@ -1522,6 +1547,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                       Batalkan
                                     </button>
                                   )}
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDeleteJurnal(item)}
+                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                                    title="Hapus Jurnal Pelatih Ini"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
                                 </div>
                               </td>
                             </tr>
@@ -1611,6 +1644,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 )}
               </div>
             )}
+
+            {/* Sub-view 4: Practice Schedule Management */}
+            {absensiSubTab === 'jadwal' && (
+              <div className="pt-2">
+                <JadwalManager
+                  currentPelatihId="u-admin"
+                  selectedSekolahId={filterAbsenSekolah === 'all' ? (sekolahList[0]?.id || '') : filterAbsenSekolah}
+                  sekolahList={sekolahList}
+                  jadwalList={jadwalList}
+                  absenPelatihList={absenPelatihList}
+                  onDataChanged={onDataChanged}
+                  onViewJurnal={(absenId) => {
+                    const item = absenPelatihList.find(a => a.id === absenId);
+                    if (item) {
+                      setSelectedJurnalDetail(item);
+                    }
+                  }}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -1685,6 +1738,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               absenPelatihList={absenPelatihList}
               eventsList={eventsList}
               sekolahList={sekolahList}
+              isAdmin={true}
+              onDataChanged={onDataChanged}
             />
           </div>
         )}
@@ -2560,18 +2615,69 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   )}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setSelectedJurnalDetail(null)}
-                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl transition cursor-pointer"
-                >
-                  Tutup
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = selectedJurnalDetail;
+                      setSelectedJurnalDetail(null);
+                      setConfirmDeleteJurnal(target);
+                    }}
+                    className="flex items-center gap-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 px-3 py-2 rounded-xl transition border border-rose-200 cursor-pointer"
+                    title="Hapus Jurnal Pelatih Ini"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Hapus Jurnal</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedJurnalDetail(null)}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                  >
+                    Tutup
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         );
       })()}
+
+      {/* Admin Coach Journal Delete Confirmation Modal */}
+      {confirmDeleteJurnal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-5 shadow-2xl border border-slate-200 text-center animate-fade-in">
+            <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="font-extrabold text-slate-900 text-base">Hapus Jurnal Pelatih?</h3>
+            <p className="text-xs text-slate-500 mt-1 mb-4 leading-relaxed">
+              Jurnal latihan sesi {confirmDeleteJurnal.hariTanggalFormat || confirmDeleteJurnal.tanggal} oleh {confirmDeleteJurnal.pelatihNama || 'Pelatih'} akan dihapus secara permanen dari basis data.
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteJurnal(null)}
+                className="px-4 py-2 rounded-xl text-slate-700 font-bold bg-slate-100 hover:bg-slate-200 transition cursor-pointer text-xs"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  StorageService.deleteAbsenPelatih(confirmDeleteJurnal.id);
+                  setConfirmDeleteJurnal(null);
+                  onDataChanged();
+                }}
+                className="px-4 py-2 rounded-xl text-white font-bold bg-rose-600 hover:bg-rose-700 transition cursor-pointer text-xs shadow-xs"
+              >
+                Ya, Hapus Jurnal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

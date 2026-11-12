@@ -66,6 +66,15 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
   onOpenManageTahunAjaran
 }) => {
   const [activeTab, setActiveTab] = useState<'beranda' | 'anggota' | 'absen_pelatih' | 'penilaian' | 'rekap_pdf' | 'jadwal' | 'divisi' | 'statistik' | 'event' | 'galeri_foto'>('beranda');
+  const [selectedJadwalForAttendance, setSelectedJadwalForAttendance] = useState<string | undefined>(undefined);
+
+  const handleStartAttendanceFromJadwal = (jadwal: JadwalLatihan) => {
+    if (jadwal.sekolahId) {
+      onSelectSekolah(jadwal.sekolahId);
+    }
+    setSelectedJadwalForAttendance(jadwal.id);
+    setActiveTab('absen_pelatih');
+  };
 
   // RBAC Constraint: Coach ONLY manages their assigned or collaborative schools
   const userSekolahList = sekolahList.filter(s => isSchoolCoach(s, currentUser.id));
@@ -120,6 +129,7 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
         onSelectSekolah={onSelectSekolah}
         onOpenQrScanner={onOpenQrScanner}
         onNavigateToJadwal={() => setActiveTab('jadwal')}
+        onStartAttendance={handleStartAttendanceFromJadwal}
       />
 
       {/* Navigation Bar for Coach */}
@@ -535,7 +545,11 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
           selectedSekolahId={selectedSekolahId}
           sekolahList={userSekolahList}
           jadwalList={userJadwalList}
+          absenPelatihList={userAbsenPelatihList}
+          currentUser={currentUser}
           onDataChanged={onDataChanged}
+          onStartAttendance={handleStartAttendanceFromJadwal}
+          onViewJurnal={() => setActiveTab('absen_pelatih')}
         />
       )}
 
@@ -547,7 +561,12 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
           selectedSekolahId={selectedSekolahId}
           sekolahList={userSekolahList}
           absenPelatihList={userAbsenPelatihList}
-          onDataChanged={onDataChanged}
+          jadwalList={userJadwalList}
+          initialJadwalId={selectedJadwalForAttendance}
+          onDataChanged={() => {
+            setSelectedJadwalForAttendance(undefined);
+            onDataChanged();
+          }}
         />
       )}
 
@@ -558,6 +577,9 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
           sekolahList={userSekolahList}
           selectedSekolahId={selectedSekolahId}
           onSelectSekolah={onSelectSekolah}
+          currentUser={currentUser}
+          isAdmin={false}
+          onDataChanged={onDataChanged}
         />
       )}
 

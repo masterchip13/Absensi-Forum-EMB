@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { AbsenPelatihItem, EventLog, Sekolah, User } from '../types';
-import { Camera, Search, Filter, Calendar, School, User as UserIcon, Award, Download, X, Maximize2, Sparkles, CheckCircle2, Clock, FileText, Trophy, MapPin } from 'lucide-react';
+import { StorageService } from '../data/storage';
+import { Camera, Search, Filter, Calendar, School, User as UserIcon, Award, Download, X, Maximize2, Sparkles, CheckCircle2, Clock, FileText, Trophy, MapPin, Trash2 } from 'lucide-react';
 
 interface DokumentasiGaleriProps {
   absenPelatihList: AbsenPelatihItem[];
@@ -9,6 +10,9 @@ interface DokumentasiGaleriProps {
   usersList?: User[];
   selectedSekolahId?: string;
   onSelectSekolah?: (id: string) => void;
+  currentUser?: User;
+  isAdmin?: boolean;
+  onDataChanged?: () => void;
 }
 
 export type PhotoItemType = 
@@ -21,13 +25,19 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
   sekolahList,
   usersList = [],
   selectedSekolahId,
-  onSelectSekolah
+  onSelectSekolah,
+  currentUser,
+  isAdmin = false,
+  onDataChanged
 }) => {
   const [filterSekolahId, setFilterSekolahId] = useState<string>(selectedSekolahId || 'ALL');
   const [filterCategory, setFilterCategory] = useState<'ALL' | 'LATIHAN' | 'EVENT'>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortOption, setSortOption] = useState<'newest' | 'oldest'>('newest');
   const [selectedItemForLightbox, setSelectedItemForLightbox] = useState<PhotoItemType | null>(null);
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<PhotoItemType | null>(null);
+
+  const userIsAdmin = isAdmin || currentUser?.role === 'admin';
 
   // Sync state if prop changes
   React.useEffect(() => {
@@ -427,13 +437,25 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
                       )}
                     </span>
 
-                    <button
-                      onClick={() => handleDownloadImage(item)}
-                      className="p-1 text-slate-400 hover:text-blue-600 transition"
-                      title="Unduh Foto"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleDownloadImage(item)}
+                        className="p-1 text-slate-400 hover:text-blue-600 transition cursor-pointer"
+                        title="Unduh Foto"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                      {userIsAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => setDeleteConfirmItem(item)}
+                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                          title="Hapus Foto dari Galeri"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -484,13 +506,25 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
                   className="max-h-[400px] w-auto object-contain"
                 />
 
-                <button
-                  onClick={() => handleDownloadImage(selectedItemForLightbox)}
-                  className="absolute bottom-3 right-3 bg-slate-900/90 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow border border-slate-700 hover:bg-blue-600 transition flex items-center gap-1.5"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Unduh Foto Asli</span>
-                </button>
+                <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                  <button
+                    onClick={() => handleDownloadImage(selectedItemForLightbox)}
+                    className="bg-slate-900/90 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow border border-slate-700 hover:bg-blue-600 transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Unduh Foto</span>
+                  </button>
+                  {userIsAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => setDeleteConfirmItem(selectedItemForLightbox)}
+                      className="bg-rose-600/90 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow border border-rose-500 hover:bg-rose-700 transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Hapus Foto</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Details for Event or Training */}
@@ -562,6 +596,76 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
                 className="px-4 py-2 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-800 transition"
               >
                 Tutup Galeri
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Photo Delete Confirmation Modal */}
+      {deleteConfirmItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl w-full max-w-md p-5 shadow-2xl border border-slate-200 text-center animate-fade-in">
+            <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <h3 className="font-extrabold text-slate-900 text-base">Hapus Foto dari Galeri?</h3>
+            <p className="text-xs text-slate-500 mt-1 mb-4 leading-relaxed">
+              Anda login sebagai Admin. Anda dapat menghapus foto dokumentasi ini dari galeri.
+            </p>
+
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (deleteConfirmItem.kind === 'latihan') {
+                    StorageService.saveAbsenPelatih({
+                      ...deleteConfirmItem.data,
+                      fotoDokumentasiUrl: ''
+                    });
+                  } else if (deleteConfirmItem.kind === 'event') {
+                    StorageService.saveEvent({
+                      ...deleteConfirmItem.data,
+                      fotoUrl: ''
+                    });
+                  }
+                  if (selectedItemForLightbox?.id === deleteConfirmItem.id) {
+                    setSelectedItemForLightbox(null);
+                  }
+                  setDeleteConfirmItem(null);
+                  onDataChanged?.();
+                }}
+                className="w-full py-2.5 px-4 rounded-xl text-white font-bold text-xs bg-rose-600 hover:bg-rose-700 transition shadow-xs cursor-pointer"
+              >
+                Hapus Foto Saja (Pertahankan Catatan Jurnal)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (deleteConfirmItem.kind === 'latihan') {
+                    StorageService.deleteAbsenPelatih(deleteConfirmItem.data.id);
+                  } else if (deleteConfirmItem.kind === 'event') {
+                    StorageService.deleteEvent(deleteConfirmItem.data.id);
+                  }
+                  if (selectedItemForLightbox?.id === deleteConfirmItem.id) {
+                    setSelectedItemForLightbox(null);
+                  }
+                  setDeleteConfirmItem(null);
+                  onDataChanged?.();
+                }}
+                className="w-full py-2.5 px-4 rounded-xl text-rose-700 font-bold text-xs bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer"
+              >
+                Hapus Seluruh Rekaman ({deleteConfirmItem.kind === 'latihan' ? 'Jurnal Pelatih' : 'Event'})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmItem(null)}
+                className="w-full py-2 px-4 rounded-xl text-slate-600 font-semibold text-xs hover:bg-slate-100 transition cursor-pointer mt-1"
+              >
+                Batal
               </button>
             </div>
           </div>

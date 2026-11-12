@@ -68,12 +68,24 @@ export interface Anggota {
 export interface JadwalLatihan {
   id: string;
   pelatihId: string;
+  pelatihNama?: string;
+  pelatih2Id?: string;
+  pelatih2Nama?: string;
   sekolahId: string;
-  hari: string; // e.g., "Senin", "Rabu", "Sabtu"
-  jamMulai: string; // e.g., "14:00"
-  jamSelesai: string; // e.g., "16:30"
+  sekolahNama?: string;
+  hari?: string; // e.g., "Senin", "Rabu", "Sabtu"
+  tanggal: string; // YYYY-MM-DD
+  hariTanggalFormat?: string; // e.g., "Senin, 15 Ags 2026"
+  jamMulai: string; // e.g., "15:00"
+  jamSelesai: string; // e.g., "17:30"
+  materiRencana?: string;
+  lokasiLatihan?: string;
+  status?: 'terjadwal' | 'berlangsung' | 'selesai' | 'dibatalkan';
   reminderEnabled: boolean;
-  reminderMinutesBefore: number;
+  reminderMinutesBefore: number; // e.g. 15, 30, 60, 120
+  absenPelatihId?: string; // Link to AbsenPelatihItem
+  catatan?: string;
+  createdAt?: string;
 }
 
 export interface AbsenPelatihItem {
@@ -95,6 +107,7 @@ export interface AbsenPelatihItem {
   parafPelatih2Url?: string; // Tanda tangan Pelatih 2
   statusKepalaSekolah: 'Mengetahui' | 'Menunggu';
   catatan?: string;
+  jadwalId?: string; // Link to JadwalLatihan
   // Status Verifikasi oleh Admin
   statusVerifikasiAdmin?: 'menunggu' | 'diverifikasi' | 'ditolak';
   diverifikasiOleh?: string;

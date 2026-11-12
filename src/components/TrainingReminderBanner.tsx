@@ -11,6 +11,7 @@ interface TrainingReminderBannerProps {
   onSelectSekolah: (id: string) => void;
   onOpenQrScanner: () => void;
   onNavigateToJadwal?: () => void;
+  onStartAttendance?: (jadwal: JadwalLatihan) => void;
 }
 
 export const TrainingReminderBanner: React.FC<TrainingReminderBannerProps> = ({
@@ -20,7 +21,8 @@ export const TrainingReminderBanner: React.FC<TrainingReminderBannerProps> = ({
   selectedSekolahId,
   onSelectSekolah,
   onOpenQrScanner,
-  onNavigateToJadwal
+  onNavigateToJadwal,
+  onStartAttendance
 }) => {
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [urgentItems, setUrgentItems] = useState<ScheduleReminderItem[]>([]);
@@ -84,6 +86,22 @@ export const TrainingReminderBanner: React.FC<TrainingReminderBannerProps> = ({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+          {onStartAttendance && (
+            <button
+              type="button"
+              onClick={() => {
+                if (primaryItem.sekolah) {
+                  onSelectSekolah(primaryItem.sekolah.id);
+                }
+                onStartAttendance(primaryItem.jadwal);
+              }}
+              className="flex items-center gap-1.5 bg-white text-slate-900 hover:bg-slate-100 font-extrabold text-xs px-3.5 py-2.5 rounded-xl shadow-md transition transform active:scale-95 cursor-pointer"
+            >
+              <Clock className="w-4 h-4 text-amber-600" />
+              <span>Isi Presensi Sesi</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => {

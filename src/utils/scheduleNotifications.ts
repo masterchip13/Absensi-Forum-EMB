@@ -40,15 +40,16 @@ export function getScheduleReminders(
   }
 
   const todayName = getIndonesianDayName(currentDate);
+  const todayDateStr = currentDate.toISOString().split('T')[0];
   const currentMinutes = currentDate.getHours() * 60 + currentDate.getMinutes();
 
   // Filter schedules relevant to this user
   const userSekolahIds = currentUser.role === 'admin'
     ? sekolahList.map(s => s.id)
-    : sekolahList.filter(s => s.pelatihId === currentUser.id).map(s => s.id);
+    : sekolahList.filter(s => s.pelatihId === currentUser.id || (s.pelatihIds || []).includes(currentUser.id)).map(s => s.id);
 
   const relevantJadwal = jadwalList.filter(j => 
-    (currentUser.role === 'admin' || j.pelatihId === currentUser.id || userSekolahIds.includes(j.sekolahId))
+    (currentUser.role === 'admin' || j.pelatihId === currentUser.id || j.pelatih2Id === currentUser.id || userSekolahIds.includes(j.sekolahId))
   );
 
   const startingSoonList: ScheduleReminderItem[] = [];
@@ -56,26 +57,30 @@ export function getScheduleReminders(
   const allActiveReminders: ScheduleReminderItem[] = [];
 
   for (const j of relevantJadwal) {
+    if (j.status === 'dibatalkan') continue;
+
     const sekolah = sekolahList.find(s => s.id === j.sekolahId);
     const startMin = timeStringToMinutes(j.jamMulai);
     const endMin = timeStringToMinutes(j.jamSelesai);
     const diff = startMin - currentMinutes;
 
-    const isToday = j.hari.trim().toLowerCase() === todayName.toLowerCase();
+    // A session is for today if j.tanggal matches today OR (if no j.tanggal is specified) j.hari matches today
+    const isToday = j.tanggal ? (j.tanggal === todayDateStr) : (j.hari?.trim().toLowerCase() === todayName.toLowerCase());
 
     if (isToday) {
+      const reminderThreshold = j.reminderMinutesBefore || 60;
       let status: 'starting_soon' | 'in_progress' | 'upcoming_today' = 'upcoming_today';
       let timeRemainingText = '';
 
-      if (diff > 0 && diff <= 60) {
-        // Less than or equal to 60 minutes before start!
+      if (diff > 0 && diff <= reminderThreshold) {
+        // Within the configured reminder window before start
         status = 'starting_soon';
         timeRemainingText = `Dimulai dalam ${diff} menit`;
       } else if (diff <= 0 && (endMin - currentMinutes) > 0) {
         // Currently ongoing
         status = 'in_progress';
         timeRemainingText = `Sedang berlangsung (hingga ${j.jamSelesai})`;
-      } else if (diff > 60) {
+      } else if (diff > reminderThreshold) {
         const hours = Math.floor(diff / 60);
         const mins = diff % 60;
         timeRemainingText = `Mulai dalam ${hours} jam ${mins > 0 ? `${mins} mnt` : ''}`;
@@ -89,14 +94,14 @@ export function getScheduleReminders(
         status,
         minutesUntilStart: diff,
         timeRemainingText,
-        hari: j.hari,
+        hari: j.hari || todayName,
         jamMulai: j.jamMulai,
         jamSelesai: j.jamSelesai
       };
 
       todayList.push(item);
 
-      if (status === 'starting_soon' || status === 'in_progress') {
+      if ((status === 'starting_soon' || status === 'in_progress') && j.reminderEnabled !== false) {
         startingSoonList.push(item);
         allActiveReminders.push(item);
       }
