@@ -2,24 +2,27 @@ import React, { useRef, useState, useEffect, useMemo } from 'react';
 import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
-import { Sekolah, AbsenPelatihItem, Anggota, AbsenSiswaEntry, EventLog, isSchoolCoach, getSchoolCoachIds } from '../types';
+import { Sekolah, AbsenPelatihItem, AbsenAsistenPelatihItem, Anggota, AbsenSiswaEntry, EventLog, User, isSchoolCoach, getSchoolCoachIds } from '../types';
 import { TutWuriLogo, MarchingBandLogo } from './Logos';
 import { FileText, Download, Printer, Filter, Sparkles, School, Calendar, CheckCircle2, UserCheck, Users, PenTool, X, RotateCcw, Image as ImageIcon, FileSpreadsheet } from 'lucide-react';
 import { StorageService } from '../data/storage';
 import { StudentWetSignature, getStudentSignatureDataUrl } from '../utils/studentSignature';
 import { formatNamaKapital, formatKelasAngka } from '../utils/nameFormatter';
 import { SignaturePad } from './SignaturePad';
+import { BULAN_OPTIONS, MONTH_SHORT_MAP, getCurrentMonthName, parseLocalDate } from '../utils/dateUtils';
+import { showToast } from '../utils/uiDialogs';
 
 interface RekapPdfProps {
   sekolahList: Sekolah[];
   selectedSekolahId: string;
   absenPelatihList: AbsenPelatihItem[];
+  absenAsistenList?: AbsenAsistenPelatihItem[];
+  usersList?: User[];
   anggotaList: Anggota[];
   absenSiswaList: AbsenSiswaEntry[];
   eventsList: EventLog[];
+  activeTahunAjaran?: string;
 }
-
-import { BULAN_OPTIONS, MONTH_SHORT_MAP, getCurrentMonthName } from '../utils/dateUtils';
 
 export type TemplateType = 'AUTO' | 'SMPN2_CIGOMBONG' | 'SDN_SUKAHARJA_01' | 'SDN_SUKAHARJA_03' | 'STANDARD';
 
@@ -27,9 +30,12 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
   sekolahList,
   selectedSekolahId,
   absenPelatihList,
+  absenAsistenList,
+  usersList,
   anggotaList,
   absenSiswaList,
-  eventsList
+  eventsList,
+  activeTahunAjaran
 }) => {
   const [filterSekolahId, setFilterSekolahId] = useState(selectedSekolahId);
   // Default to current ongoing month
@@ -49,6 +55,12 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
       setFilterSekolahId(selectedSekolahId);
     }
   }, [selectedSekolahId]);
+
+  useEffect(() => {
+    if (activeTahunAjaran) {
+      setFilterTahunAjaran(activeTahunAjaran);
+    }
+  }, [activeTahunAjaran]);
 
   const tahunAjaranOptions = StorageService.getTahunAjaranList();
   const pdfContainerRef = useRef<HTMLDivElement>(null);
@@ -83,7 +95,10 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
   }, [resolvedTemplate]);
 
   // Get coach info (prefer logged-in coach if they are lead or collaborator for this school)
-  const allUsers = useMemo(() => StorageService.getUsers(), []);
+  const allUsers = useMemo(
+    () => (usersList && usersList.length > 0 ? usersList : StorageService.getUsers()),
+    [usersList]
+  );
   const pelatihUser = useMemo(() => {
     const currentUser = StorageService.getCurrentUser();
     if (currentUser && selectedSekolah && isSchoolCoach(selectedSekolah, currentUser.id)) {
@@ -186,15 +201,19 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
 
   // Filter Absen Pelatih by selected school, year, and month
   const selectedMonthShort = MONTH_SHORT_MAP[filterBulan] || filterBulan.substring(0, 3);
+  const targetMonthIndex = BULAN_OPTIONS.indexOf(filterBulan);
   const schoolAbsenPelatih = absenPelatihList.filter(a => {
     if (a.sekolahId !== filterSekolahId) return false;
     if (a.tahunAjaran && filterTahunAjaran && a.tahunAjaran !== filterTahunAjaran) return false;
     if (filterBulan) {
+      if (a.tanggal) {
+        const parsed = parseLocalDate(a.tanggal);
+        if (!isNaN(parsed.getTime())) {
+          return parsed.getMonth() === targetMonthIndex;
+        }
+      }
       const formattedMatch = a.hariTanggalFormat ? a.hariTanggalFormat.toLowerCase().includes(selectedMonthShort.toLowerCase()) : true;
-      const dateMatch = a.tanggal ? (
-        new Date(a.tanggal).getMonth() === BULAN_OPTIONS.indexOf(filterBulan)
-      ) : true;
-      return formattedMatch || dateMatch;
+      return formattedMatch;
     }
     return true;
   });
@@ -211,9 +230,9 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
     if (!e.fotoUrl) return false;
     if (!filterBulan) return true;
     if (!e.tanggal) return true;
-    const m = new Date(e.tanggal).getMonth();
+    const m = parseLocalDate(e.tanggal).getMonth();
     if (isNaN(m)) return true;
-    return m === BULAN_OPTIONS.indexOf(filterBulan);
+    return m === targetMonthIndex;
   });
   const allSchoolEventPhotos = schoolEvents.filter(e => !!e.fotoUrl);
   // Prioritize active month event photos, fallback to all school event photos if none in selected month
@@ -380,15 +399,16 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
 
   // Registered assistant users from database
   const registeredAssistants = useMemo(() => {
-    const users = StorageService.getUsers();
-    return users.filter(u => u.role === 'asisten_pelatih');
-  }, []);
+    return allUsers.filter(u => u.role === 'asisten_pelatih');
+  }, [allUsers]);
 
   // Check if assistant coach has attendance logs in the selected school
   const detectedAsistenLog = useMemo(() => {
-    const absenAsisten = StorageService.getAbsenAsisten();
+    const absenAsisten = absenAsistenList && absenAsistenList.length > 0
+      ? absenAsistenList
+      : StorageService.getAbsenAsisten();
     return absenAsisten.find(a => a.sekolahId === filterSekolahId) || null;
-  }, [filterSekolahId]);
+  }, [filterSekolahId, absenAsistenList]);
 
   // Set default assistant info when switching school or list updates
   useEffect(() => {
@@ -463,7 +483,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
       setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
     } catch (err) {
       console.error('PDF Export failed:', err);
-      alert('Gagal mengekspor PDF otomatis. Anda dapat menggunakan tombol Cetak Langsung Browser.');
+      showToast('Gagal mengekspor PDF otomatis. Silakan gunakan tombol Cetak Langsung Browser.', 'error');
       window.print();
     } finally {
       setIsGeneratingPdf(false);
@@ -487,7 +507,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
       const pages = container.querySelectorAll<HTMLElement>('.pdf-page');
 
       if (pages.length === 0) {
-        alert('Tidak ada halaman laporan untuk diekspor ke gambar.');
+        showToast('Tidak ada halaman laporan untuk diekspor ke gambar.', 'warning');
         return;
       }
 
@@ -526,7 +546,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
       }
     } catch (err) {
       console.error('Image Export failed:', err);
-      alert(`Gagal mengekspor berkas ${formatLabel}.`);
+      showToast(`Gagal mengekspor berkas ${formatLabel}.`, 'error');
     } finally {
       setIsGeneratingImage(false);
       setImageProgressText('');
@@ -614,7 +634,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
       setTimeout(() => URL.revokeObjectURL(url), 2000);
     } catch (err) {
       console.error('Export CSV failed:', err);
-      alert('Terjadi kesalahan saat mengekspor file CSV.');
+      showToast('Terjadi kesalahan saat mengekspor file CSV.', 'error');
     }
   };
 
@@ -799,7 +819,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
       XLSX.writeFile(wb, fileName);
     } catch (err) {
       console.error('Export Excel failed:', err);
-      alert('Terjadi kesalahan saat mengekspor Excel.');
+      showToast('Terjadi kesalahan saat mengekspor Excel.', 'error');
     }
   };
 
@@ -887,34 +907,36 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
 
     if (resolvedTemplate === 'SMPN2_CIGOMBONG') {
       const agendaRows = padded5AgendaRows.map((row, idx) => {
+        const rowSig1 = row?.parafPelatihUrl || (row ? coachSignatureUrl : '');
+        const rowSig2 = row?.parafPelatih2Url || (isCoachCollaboration && row ? coach2SignatureUrl : '');
         let parafHtml = '';
-        if (row?.parafPelatih2Url && row?.parafPelatihUrl) {
+        if (rowSig1 && rowSig2) {
           parafHtml = `
             <table style="border: none; width: 100%; margin: 0 auto; text-align: center;">
               <tr>
                 <td style="border: none; padding: 0 4px; text-align: center; vertical-align: middle;">
-                  <img src="${row.parafPelatihUrl}" height="28" style="max-height: 28px;" />
-                  <div style="font-size: 7pt; color: #444; font-weight: bold;">${row.pelatihNama || 'Pelatih 1'}</div>
+                  <img src="${rowSig1}" height="28" style="max-height: 28px; object-fit: contain;" />
+                  <div style="font-size: 7pt; color: #444; font-weight: bold;">${row?.pelatihNama || leadCoachName}</div>
                 </td>
                 <td style="border: none; width: 6px; color: #999; font-size: 8pt; vertical-align: middle;">|</td>
                 <td style="border: none; padding: 0 4px; text-align: center; vertical-align: middle;">
-                  <img src="${row.parafPelatih2Url}" height="28" style="max-height: 28px;" />
-                  <div style="font-size: 7pt; color: #444; font-weight: bold;">${row.pelatih2Nama || 'Pelatih 2'}</div>
+                  <img src="${rowSig2}" height="28" style="max-height: 28px; object-fit: contain;" />
+                  <div style="font-size: 7pt; color: #444; font-weight: bold;">${row?.pelatih2Nama || partnerCoachName}</div>
                 </td>
               </tr>
             </table>
           `;
-        } else if (row?.parafPelatihUrl) {
-          parafHtml = `<img src="${row.parafPelatihUrl}" height="32" />`;
-        } else if (row?.parafPelatih2Url) {
-          parafHtml = `<img src="${row.parafPelatih2Url}" height="32" />`;
+        } else if (rowSig1) {
+          parafHtml = `<img src="${rowSig1}" height="32" style="max-height: 32px; object-fit: contain;" />`;
+        } else if (rowSig2) {
+          parafHtml = `<img src="${rowSig2}" height="32" style="max-height: 32px; object-fit: contain;" />`;
         }
 
         return `
           <tr style="height: 50px;">
             <td><b>${idx + 1}</b></td>
             <td>${row?.hariTanggalFormat || row?.tanggal || ''}</td>
-            <td class="text-center" style="text-align: center;">${row?.materiPokok || ''}</td>
+            <td style="text-align: center;">${row?.materiPokok || ''}</td>
             <td>${parafHtml}</td>
           </tr>
         `;
@@ -928,7 +950,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
           const status = getStudentAttendanceStatus(student, col);
           if (status.isPresent) {
             const sigUrl = status.customSig || getStudentSignatureDataUrl(student.nama, col);
-            return `<img src="${sigUrl}" height="24" style="max-height: 24px; object-contain: contain;" />`;
+            return `<img src="${sigUrl}" height="24" style="max-height: 24px; object-fit: contain;" />`;
           }
           return status.label || '';
         });
@@ -992,7 +1014,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                 <td style="width: 160px; vertical-align: top; border: none; padding-left: 25px;">
                   <div><b>Asisten Pelatih</b></div>
                   <div style="height: 55px; display: flex; align-items: center; justify-content: center;">
-                    ${customAsistenSig ? `<img src="${customAsistenSig}" height="45" style="max-height: 45px; object-fit: contain;" />` : ''}
+                    ${asistenSignatureUrl ? `<img src="${asistenSignatureUrl}" height="45" style="max-height: 45px; object-fit: contain;" />` : ''}
                   </div>
                   <div><b>(${asistenName})</b></div>
                   ${asistenNip ? `<div style="font-size: 8.5pt;">NIP/NUPTK. ${asistenNip}</div>` : ''}
@@ -1074,7 +1096,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
           const status = getStudentAttendanceStatus(student, 1);
           if (status.isPresent) {
             const sigUrl = status.customSig || getStudentSignatureDataUrl(student.nama, 1);
-            ttdHtml = `<img src="${sigUrl}" height="22" style="max-height: 22px; object-contain: contain;" />`;
+            ttdHtml = `<img src="${sigUrl}" height="22" style="max-height: 22px; object-fit: contain;" />`;
           } else {
             ttdHtml = status.label || '';
           }
@@ -1100,7 +1122,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
           const status = getStudentAttendanceStatus(student, 1);
           if (status.isPresent) {
             const sigUrl = status.customSig || getStudentSignatureDataUrl(student.nama, 1);
-            ttdHtml = `<img src="${sigUrl}" height="22" style="max-height: 22px; object-contain: contain;" />`;
+            ttdHtml = `<img src="${sigUrl}" height="22" style="max-height: 22px; object-fit: contain;" />`;
           } else {
             ttdHtml = status.label || '';
           }
@@ -1141,13 +1163,17 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                 <tr>
                   <td style="width: 50%; border: none; text-align: center; vertical-align: top;">
                     <div style="font-size: 8.5pt; font-weight: bold;">Pelatih</div>
-                    <div style="height: 44px;"></div>
+                    <div style="height: 44px; display: flex; align-items: center; justify-content: center;">
+                      ${coachSignatureUrl ? `<img src="${coachSignatureUrl}" height="40" style="max-height: 40px; object-fit: contain;" />` : ''}
+                    </div>
                     <div><b>(${leadCoachName})</b></div>
                     <div style="margin-top: 2px; font-size: 8pt;">NIP/NUPTK. ${leadCoachNip || '....................'}</div>
                   </td>
                   <td style="width: 50%; border: none; text-align: center; vertical-align: top;">
                     <div style="font-size: 8.5pt; font-weight: bold;">Pelatih</div>
-                    <div style="height: 44px;"></div>
+                    <div style="height: 44px; display: flex; align-items: center; justify-content: center;">
+                      ${coach2SignatureUrl ? `<img src="${coach2SignatureUrl}" height="40" style="max-height: 40px; object-fit: contain;" />` : ''}
+                    </div>
                     <div><b>(${partnerCoachName})</b></div>
                     <div style="margin-top: 2px; font-size: 8pt;">NIP/NUPTK. ${partnerCoachNip || '....................'}</div>
                   </td>
@@ -1172,13 +1198,17 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                 <tr>
                   <td style="width: 50%; border: none; text-align: center; vertical-align: top;">
                     <div style="font-size: 8.5pt; font-weight: bold;">Pelatih</div>
-                    <div style="height: 44px;"></div>
+                    <div style="height: 44px; display: flex; align-items: center; justify-content: center;">
+                      ${coachSignatureUrl ? `<img src="${coachSignatureUrl}" height="40" style="max-height: 40px; object-fit: contain;" />` : ''}
+                    </div>
                     <div><b>(${pelatihName})</b></div>
                     <div style="margin-top: 2px; font-size: 8pt;">NIP/NUPTK. ${pelatihNip || '....................'}</div>
                   </td>
                   <td style="width: 50%; border: none; text-align: center; vertical-align: top;">
                     <div style="font-size: 8.5pt; font-weight: bold;">Asisten Pelatih</div>
-                    <div style="height: 44px;"></div>
+                    <div style="height: 44px; display: flex; align-items: center; justify-content: center;">
+                      ${asistenSignatureUrl ? `<img src="${asistenSignatureUrl}" height="40" style="max-height: 40px; object-fit: contain;" />` : ''}
+                    </div>
                     <div><b>(${asistenName})</b></div>
                     <div style="margin-top: 2px; font-size: 8pt;">NIP/NUPTK. ${asistenNip || '....................'}</div>
                   </td>
@@ -1199,8 +1229,10 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
             </td>
             <td style="width: 45%; vertical-align: top; border: none;">
               <div>PEMBIMBING</div>
-              <div style="height: 50px;"></div>
-              <div>.........................................................................</div>
+              <div style="height: 50px; display: flex; align-items: center; justify-content: flex-start;">
+                ${coachSignatureUrl ? `<img src="${coachSignatureUrl}" height="42" style="max-height: 42px; object-fit: contain;" />` : ''}
+              </div>
+              <div><u><b>${pelatihName}</b></u></div>
               <div style="margin-top: 2px;">NIP/NUPTK. ${pelatihNip || ''}</div>
             </td>
           </tr>
@@ -1214,8 +1246,8 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
           <div style="font-size: 11pt; font-weight: bold; margin-top: 2px;">TAHUN PELAJARAN ${filterTahunAjaran}</div>
         </div>
         <div style="text-align: right; font-size: 9pt; margin-bottom: 8px; font-weight: normal;">
-          <div>HARI / TANGGAL &nbsp;&nbsp;: ......... / ......... / ................</div>
-          <div>WAKTU &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: ................ S/D .................</div>
+          <div>HARI / TANGGAL &nbsp;&nbsp;: ${meeting?.hariTanggalFormat || '......... / ......... / ................'}</div>
+          <div>WAKTU &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: ${meeting?.jamMulai ? `${meeting.jamMulai} S/D ${meeting.jamSelesai}` : '................ S/D .................'}</div>
         </div>
         <div class="materi-box" style="border: 1px solid #000; padding: 6px 8px; margin-bottom: 10px; min-height: 120px;">
           <div style="font-weight: normal; font-size: 9pt;">MATERI:</div>
@@ -1240,8 +1272,193 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
         ${sukaharjaSignatureHtml}
       `;
     } else {
-      // Standard template export
-      bodyContent = `<div class="header-box"><div class="header-title">LAPORAN RESMI MARCHING BAND</div><div class="header-subtitle">${namaSekolahFormatted}</div></div>`;
+      // Standard Forum Marching Band template export
+      const standardAgendaRows = padded7AgendaRows.map((row) => {
+        const rowSig1 = row?.parafPelatihUrl || (row ? coachSignatureUrl : '');
+        const rowSig2 = row?.parafPelatih2Url || (isCoachCollaboration && row ? coach2SignatureUrl : '');
+        let parafHtml = '';
+        if (rowSig1 && rowSig2) {
+          parafHtml = `
+            <table style="border: none; width: 100%; margin: 0 auto; text-align: center;">
+              <tr>
+                <td style="border: none; padding: 0 3px; text-align: center;">
+                  <img src="${rowSig1}" height="24" style="max-height: 24px; object-fit: contain;" />
+                  <div style="font-size: 7pt; font-weight: bold;">${row?.pelatihNama || leadCoachName}</div>
+                </td>
+                <td style="border: none; padding: 0 3px; text-align: center;">
+                  <img src="${rowSig2}" height="24" style="max-height: 24px; object-fit: contain;" />
+                  <div style="font-size: 7pt; font-weight: bold;">${row?.pelatih2Nama || partnerCoachName}</div>
+                </td>
+              </tr>
+            </table>
+          `;
+        } else if (rowSig1) {
+          parafHtml = `<img src="${rowSig1}" height="28" style="max-height: 28px; object-fit: contain;" />`;
+        }
+
+        return `
+          <tr style="height: 44px;">
+            <td>${row?.hariTanggalFormat || row?.tanggal || ''}</td>
+            <td>${row ? `${row.jamMulai} S/D ${row.jamSelesai}` : 'S/D'}</td>
+            <td style="text-align: center;">${row?.materiPokok || ''}</td>
+            <td>${row ? `${row.pencapaianPercent}%` : ''}</td>
+            <td>${parafHtml}</td>
+            <td></td>
+          </tr>
+        `;
+      }).join('');
+
+      const standardEventRows = schoolEvents.length === 0
+        ? `<tr><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>&nbsp;</td><td>&nbsp;</td></tr>`
+        : schoolEvents.map(evt => `
+            <tr>
+              <td>${evt.tanggal}</td>
+              <td style="text-align: left;"><b>${evt.namaEvent}</b>${evt.lokasi ? ` — Lokasi: ${evt.lokasi}` : ''}</td>
+            </tr>
+          `).join('');
+
+      const allMembersToExport = schoolAnggota.length > 0 ? schoolAnggota : paddedPage1to30Rows;
+      const standardStudentRows = allMembersToExport.map((student, idx) => {
+        const sigCols = [1, 2, 3, 4, 5].map(col => {
+          if (!student) return '';
+          const status = getStudentAttendanceStatus(student, col);
+          if (status.isPresent) {
+            const sigUrl = status.customSig || getStudentSignatureDataUrl(student.nama, col);
+            return `<img src="${sigUrl}" height="22" style="max-height: 22px; object-fit: contain;" />`;
+          }
+          return status.label || '';
+        });
+
+        return `
+          <tr style="height: 26px;">
+            <td>${student ? idx + 1 : ''}</td>
+            <td style="text-align: center;">${formatNamaKapital(student?.nama) || ''}</td>
+            <td>${student?.kelas ? formatKelasAngka(student.kelas) : ''}</td>
+            <td style="text-align: left;">${student?.divisiNama || ''}</td>
+            <td>${sigCols[0]}</td>
+            <td>${sigCols[1]}</td>
+            <td>${sigCols[2]}</td>
+            <td>${sigCols[3]}</td>
+            <td>${sigCols[4]}</td>
+          </tr>
+        `;
+      }).join('');
+
+      const standardSignatureHtml = isCoachCollaboration ? `
+        <table style="width: 100%; margin-top: 24px; font-size: 9pt; border: none;">
+          <tr>
+            <td style="width: 45%; vertical-align: top; border: none; text-align: left;">
+              <div>Mengetahui,</div>
+              <div>Kepala ${namaSekolahFormatted}</div>
+              <div style="height: 50px;"></div>
+              <div><u><b>${kepalaSekolahInfo.nama || 'Kepala Sekolah'}</b></u></div>
+              <div>NIP. ${kepalaSekolahInfo.nip || '........................................'}</div>
+            </td>
+            <td style="width: 55%; vertical-align: top; border: none; text-align: center;">
+              <div><b>TIM PELATIH EKSTRAKURIKULER</b></div>
+              <table style="width: 100%; border: none; margin-top: 4px;">
+                <tr>
+                  <td style="width: 50%; border: none; text-align: center; vertical-align: top;">
+                    <div><b>Pelatih</b></div>
+                    <div style="height: 45px; display: flex; align-items: center; justify-content: center;">
+                      ${coachSignatureUrl ? `<img src="${coachSignatureUrl}" height="40" style="max-height: 40px; object-fit: contain;" />` : ''}
+                    </div>
+                    <div><b>(${leadCoachName})</b></div>
+                    ${leadCoachNip ? `<div style="font-size: 8pt;">NIP/NUPTK. ${leadCoachNip}</div>` : ''}
+                  </td>
+                  <td style="width: 50%; border: none; text-align: center; vertical-align: top;">
+                    <div><b>Pelatih</b></div>
+                    <div style="height: 45px; display: flex; align-items: center; justify-content: center;">
+                      ${coach2SignatureUrl ? `<img src="${coach2SignatureUrl}" height="40" style="max-height: 40px; object-fit: contain;" />` : ''}
+                    </div>
+                    <div><b>(${partnerCoachName})</b></div>
+                    ${partnerCoachNip ? `<div style="font-size: 8pt;">NIP/NUPTK. ${partnerCoachNip}</div>` : ''}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      ` : `
+        <table style="width: 100%; margin-top: 24px; font-size: 9pt; border: none;">
+          <tr>
+            <td style="width: 55%; vertical-align: top; border: none; text-align: left;">
+              <div>Mengetahui,</div>
+              <div>Kepala ${namaSekolahFormatted}</div>
+              <div style="height: 50px;"></div>
+              <div><u><b>${kepalaSekolahInfo.nama || 'Kepala Sekolah'}</b></u></div>
+              <div>NIP. ${kepalaSekolahInfo.nip || '........................................'}</div>
+            </td>
+            <td style="width: 45%; vertical-align: top; border: none; text-align: center;">
+              <div>Pelatih Ekstrakurikuler</div>
+              <div style="height: 50px; display: flex; align-items: center; justify-content: center;">
+                ${coachSignatureUrl ? `<img src="${coachSignatureUrl}" height="42" style="max-height: 42px; object-fit: contain;" />` : ''}
+              </div>
+              <div><b>${pelatihName}</b></div>
+              ${pelatihNip ? `<div style="font-size: 8pt;">NIP/NUPTK. ${pelatihNip}</div>` : ''}
+            </td>
+          </tr>
+        </table>
+      `;
+
+      bodyContent = `
+        <div class="header-box">
+          <div class="header-title">AGENDA KEGIATAN PROGRAM LATIHAN REGULER</div>
+          <div class="header-subtitle">EKSTRAKURIKULER ${namaEkskul} (${namaSekolahFormatted})</div>
+          <div class="header-subtitle">TAHUN PELAJARAN ${filterTahunAjaran}</div>
+        </div>
+        <div style="font-weight: bold; margin-bottom: 8px;">BULAN : ${filterBulan.toUpperCase()}</div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width: 16%;">HARI, TANGGAL</th>
+              <th style="width: 14%;">WAKTU</th>
+              <th>MATERI POKOK</th>
+              <th style="width: 12%;">PENCAPAIAN %</th>
+              <th style="width: 22%;">PARAF / TTD PELATIH</th>
+              <th style="width: 14%;">MENGETAHUI KEPALA SEKOLAH</th>
+            </tr>
+          </thead>
+          <tbody>${standardAgendaRows}</tbody>
+        </table>
+
+        <div style="font-weight: bold; margin-top: 16px; margin-bottom: 6px; font-size: 9.5pt;">AGENDA EVENT &amp; KEGIATAN UNGGULAN SEKOLAH:</div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width: 24%;">HARI TANGGAL</th>
+              <th>NAMA EVENT / KEGIATAN &amp; LOKASI</th>
+            </tr>
+          </thead>
+          <tbody>${standardEventRows}</tbody>
+        </table>
+        ${standardSignatureHtml}
+
+        <div class="page-break"></div>
+
+        <div class="header-box">
+          <div class="header-title">DAFTAR HADIR ANGGOTA EKSTRAKURIKULER ${namaEkskul}</div>
+          <div class="header-subtitle">${namaSekolahFormatted} — TAHUN PELAJARAN ${filterTahunAjaran}</div>
+        </div>
+        <div style="font-weight: bold; margin-bottom: 8px;">BULAN : ${filterBulan.toUpperCase()}</div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width: 5%;">NO</th>
+              <th style="width: 32%;">NAMA ANGGOTA</th>
+              <th style="width: 10%;">KELAS</th>
+              <th style="width: 18%;">DIVISI</th>
+              <th style="width: 7%;">1</th>
+              <th style="width: 7%;">2</th>
+              <th style="width: 7%;">3</th>
+              <th style="width: 7%;">4</th>
+              <th style="width: 7%;">5</th>
+            </tr>
+          </thead>
+          <tbody>${standardStudentRows}</tbody>
+        </table>
+        ${standardSignatureHtml}
+      `;
     }
 
     const eventPhotosWordHtml = activeEventPhotos.length > 0 ? `
@@ -2368,7 +2585,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                         {/* MATERI Box */}
                         <div className="border border-black p-3 rounded-none mb-3.5 min-h-[110px]">
                           <div className="font-normal text-xs mb-1">MATERI:</div>
-                          <div className="text-xs text-center leading-relaxed min-h-[70px]">
+                          <div className="text-xs leading-relaxed min-h-[70px] text-center">
                             {meeting.materiPokok || ''}
                           </div>
                         </div>
@@ -2840,7 +3057,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                 </div>
 
                 <div className="text-[8.5px] text-slate-500 text-right mt-4 pt-2 border-t border-slate-200">
-                  Halaman 1 / 4 — Laporan Resmi Ekstrakurikuler Marching Band {namaSekolahFormatted}
+                  Halaman 1 / {1 + anggotaPages.length + 1} — Laporan Resmi Ekstrakurikuler Marching Band {namaSekolahFormatted}
                 </div>
               </div>
 
@@ -2848,7 +3065,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
               {anggotaPages.map((page, pIdx) => {
                 const startNo = page.startNo;
                 const endNo = page.startNo + 29;
-                const totalPages = 1 + anggotaPages.length + (activeEventPhotos.length > 0 || documentationItems.length > 0 ? 1 : 0);
+                const totalPages = 1 + anggotaPages.length + 1;
                 return (
                   <div
                     key={`standard-presensi-page-${pIdx}`}
@@ -2863,7 +3080,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                         <div className="text-center font-bold leading-tight">
                           <h1 className="text-xs sm:text-sm tracking-wide uppercase">AGENDA KEGIATAN PROGRAM LATIHAN REGULER</h1>
                           <h2 className="text-xs tracking-wide uppercase">
-                            EKSTRAKURIKULER MARCHING BAND — PRESENSI ANGGOTA (NO {startNo} - {endNo})
+                            EKSTRAKURIKULER MARCHING BAND — PRESENSI ANGGOTA
                           </h2>
                           <h3 className="text-xs tracking-wide uppercase">({namaSekolahFormatted})</h3>
                           <h4 className="text-xs tracking-wide font-normal">({filterTahunAjaran})</h4>
@@ -3069,7 +3286,7 @@ export const RekapPdf: React.FC<RekapPdfProps> = ({
                 </div>
 
                 <div className="text-[8.5px] text-slate-500 text-right mt-4 pt-2 border-t border-slate-200">
-                  Halaman 4 / 4 — Lampiran Foto Dokumentasi Kegiatan & Event — {namaSekolahFormatted}
+                  Halaman {1 + anggotaPages.length + 1} / {1 + anggotaPages.length + 1} — Lampiran Foto Dokumentasi Kegiatan & Event — {namaSekolahFormatted}
                 </div>
               </div>
             </>

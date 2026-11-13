@@ -68,30 +68,21 @@
     },
     "JadwalLatihan": {
       "title": "JadwalLatihan",
-      "description": "Practice schedule sessions for schools",
+      "description": "Practice session schedule with date, time, and reminder settings",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "pelatihId": { "type": "string" },
-        "pelatihNama": { "type": "string" },
-        "pelatih2Id": { "type": "string" },
-        "pelatih2Nama": { "type": "string" },
         "sekolahId": { "type": "string" },
-        "sekolahNama": { "type": "string" },
         "hari": { "type": "string" },
         "tanggal": { "type": "string" },
-        "hariTanggalFormat": { "type": "string" },
         "jamMulai": { "type": "string" },
         "jamSelesai": { "type": "string" },
-        "materiRencana": { "type": "string" },
-        "lokasiLatihan": { "type": "string" },
-        "status": { "type": "string" },
+        "catatan": { "type": "string" },
         "reminderEnabled": { "type": "boolean" },
-        "reminderMinutesBefore": { "type": "number" },
-        "absenPelatihId": { "type": "string" },
-        "catatan": { "type": "string" }
+        "reminderMinutesBefore": { "type": "number" }
       },
-      "required": ["id", "sekolahId", "tanggal"]
+      "required": ["id", "sekolahId", "hari"]
     },
     "AbsenPelatihItem": {
       "title": "AbsenPelatihItem",
@@ -101,6 +92,7 @@
         "id": { "type": "string" },
         "pelatihId": { "type": "string" },
         "sekolahId": { "type": "string" },
+        "jadwalId": { "type": "string" },
         "tahunAjaran": { "type": "string" },
         "tanggal": { "type": "string" },
         "hariTanggalFormat": { "type": "string" },
@@ -114,8 +106,7 @@
         "pelatih2Nama": { "type": "string" },
         "parafPelatih2Url": { "type": "string" },
         "statusKepalaSekolah": { "type": "string" },
-        "catatan": { "type": "string" },
-        "jadwalId": { "type": "string" }
+        "catatan": { "type": "string" }
       },
       "required": ["id", "sekolahId", "tanggal"]
     },
@@ -145,6 +136,7 @@
         "id": { "type": "string" },
         "sekolahId": { "type": "string" },
         "anggotaId": { "type": "string" },
+        "jadwalId": { "type": "string" },
         "bulan": { "type": "string" },
         "tahunAjaran": { "type": "string" },
         "kolomIndex": { "type": "number" },

@@ -10,6 +10,7 @@ import {
   CARD_BACK_TEMPLATE_SRC
 } from '../utils/cardCanvasRenderer';
 import jsPDF from 'jspdf';
+import { showToast } from '../utils/uiDialogs';
 
 interface MemberIdCardProps {
   member: Anggota;
@@ -118,7 +119,7 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
       }, 'image/png');
     } catch (err) {
       console.error('Back canvas export failed:', err);
-      alert('Gagal mengunduh halaman belakang.');
+      showToast('Gagal mengunduh halaman belakang.', 'error');
       setDownloading(false);
     }
   };
@@ -163,7 +164,7 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
       setDownloadingPdf(false);
     } catch (err) {
       console.error('Failed to generate single card PDF:', err);
-      alert('Gagal membuat file PDF kartu. Silakan unduh format PNG.');
+      showToast('Gagal membuat file PDF kartu. Silakan unduh format PNG.', 'error');
       setDownloadingPdf(false);
     }
   };

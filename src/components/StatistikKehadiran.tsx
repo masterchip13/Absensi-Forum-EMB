@@ -20,7 +20,7 @@ import {
   PieChart as PieChartIcon
 } from 'lucide-react';
 import { StorageService } from '../data/storage';
-import { BULAN_OPTIONS, getCurrentMonthName } from '../utils/dateUtils';
+import { BULAN_OPTIONS, getCurrentMonthName, getLocalDateString, formatIndonesianDate } from '../utils/dateUtils';
 
 interface StatistikKehadiranProps {
   sekolahList: Sekolah[];
@@ -124,54 +124,59 @@ export const StatistikKehadiran: React.FC<StatistikKehadiranProps> = ({
       const totalHadir = studentLogs.filter((l) => l.status === 'Hadir').length;
       const totalSakit = studentLogs.filter((l) => l.status === 'Sakit').length;
       const totalIzin = studentLogs.filter((l) => l.status === 'Izin').length;
-      const totalAlpa = studentLogs.filter((l) => l.status === 'Alpa').length;
+      const totalAlpa = studentLogs.filter((l) => l.status === 'Alfa' || (l.status as string) === 'Alpa').length;
       const totalRecorded = studentLogs.length;
 
       // Rate calculation
-      let ratePercent = 0;
-      if (totalRecorded > 0) {
-        ratePercent = Math.round((totalHadir / totalRecorded) * 100);
-      } else {
-        // If no records logged yet for this period, default to 100% if active, or 0%
-        ratePercent = 100;
-      }
+      const ratePercent = totalRecorded > 0
+        ? Math.round((totalHadir / totalRecorded) * 100)
+        : 0;
 
       // Status Badge
       let statusBadge = {
-        label: 'Sempurna (100%)',
-        color: 'text-emerald-700',
-        bg: 'bg-emerald-50',
-        border: 'border-emerald-200'
+        label: 'Belum Ada Presensi',
+        color: 'text-slate-600',
+        bg: 'bg-slate-100',
+        border: 'border-slate-300'
       };
 
-      if (ratePercent >= 90 && ratePercent < 100) {
-        statusBadge = {
-          label: 'Sangat Baik (≥90%)',
-          color: 'text-teal-700',
-          bg: 'bg-teal-50',
-          border: 'border-teal-200'
-        };
-      } else if (ratePercent >= 75 && ratePercent < 90) {
-        statusBadge = {
-          label: 'Baik (75-89%)',
-          color: 'text-blue-700',
-          bg: 'bg-blue-50',
-          border: 'border-blue-200'
-        };
-      } else if (ratePercent >= 60 && ratePercent < 75) {
-        statusBadge = {
-          label: 'Cukup (60-74%)',
-          color: 'text-amber-700',
-          bg: 'bg-amber-50',
-          border: 'border-amber-200'
-        };
-      } else if (ratePercent < 60) {
-        statusBadge = {
-          label: 'Perlu Perhatian (<60%)',
-          color: 'text-rose-700',
-          bg: 'bg-rose-50',
-          border: 'border-rose-200'
-        };
+      if (totalRecorded > 0) {
+        if (ratePercent === 100) {
+          statusBadge = {
+            label: 'Sempurna (100%)',
+            color: 'text-emerald-700',
+            bg: 'bg-emerald-50',
+            border: 'border-emerald-200'
+          };
+        } else if (ratePercent >= 90) {
+          statusBadge = {
+            label: 'Sangat Baik (≥90%)',
+            color: 'text-teal-700',
+            bg: 'bg-teal-50',
+            border: 'border-teal-200'
+          };
+        } else if (ratePercent >= 75) {
+          statusBadge = {
+            label: 'Baik (75-89%)',
+            color: 'text-blue-700',
+            bg: 'bg-blue-50',
+            border: 'border-blue-200'
+          };
+        } else if (ratePercent >= 60) {
+          statusBadge = {
+            label: 'Cukup (60-74%)',
+            color: 'text-amber-700',
+            bg: 'bg-amber-50',
+            border: 'border-amber-200'
+          };
+        } else {
+          statusBadge = {
+            label: 'Perlu Perhatian (<60%)',
+            color: 'text-rose-700',
+            bg: 'bg-rose-50',
+            border: 'border-rose-200'
+          };
+        }
       }
 
       return {
@@ -242,10 +247,11 @@ export const StatistikKehadiran: React.FC<StatistikKehadiranProps> = ({
       };
     }
 
-    const sumRates = studentStats.reduce((acc, curr) => acc + curr.ratePercent, 0);
-    const averageRate = Math.round(sumRates / totalCount);
-    const highAttendingCount = studentStats.filter((s) => s.ratePercent >= 85).length;
-    const needAttentionCount = studentStats.filter((s) => s.ratePercent < 75).length;
+    const recordedStudents = studentStats.filter((s) => s.totalRecorded > 0);
+    const sumRates = recordedStudents.reduce((acc, curr) => acc + curr.ratePercent, 0);
+    const averageRate = recordedStudents.length > 0 ? Math.round(sumRates / recordedStudents.length) : 0;
+    const highAttendingCount = recordedStudents.filter((s) => s.ratePercent >= 85).length;
+    const needAttentionCount = recordedStudents.filter((s) => s.ratePercent < 75).length;
     const totalHadirLogs = studentStats.reduce((acc, curr) => acc + curr.totalHadir, 0);
 
     return {
@@ -260,6 +266,7 @@ export const StatistikKehadiran: React.FC<StatistikKehadiranProps> = ({
   // Top 5 Students Leaderboard (Most Diligent)
   const topStudents = useMemo(() => {
     return [...studentStats]
+      .filter((s) => s.totalRecorded > 0 && s.totalHadir > 0)
       .sort((a, b) => {
         if (b.ratePercent !== a.ratePercent) return b.ratePercent - a.ratePercent;
         return b.totalHadir - a.totalHadir;
@@ -274,11 +281,13 @@ export const StatistikKehadiran: React.FC<StatistikKehadiranProps> = ({
       { label: 'Sangat Baik (90-99%)', count: 0, color: '#0D9488', bg: 'bg-teal-500' },
       { label: 'Baik (75-89%)', count: 0, color: '#2563EB', bg: 'bg-blue-500' },
       { label: 'Cukup (60-74%)', count: 0, color: '#D97706', bg: 'bg-amber-500' },
-      { label: 'Perlu Perhatian (<60%)', count: 0, color: '#DC2626', bg: 'bg-rose-500' }
+      { label: 'Perlu Perhatian (<60%)', count: 0, color: '#DC2626', bg: 'bg-rose-500' },
+      { label: 'Belum Ada Presensi', count: 0, color: '#94A3B8', bg: 'bg-slate-400' }
     ];
 
     studentStats.forEach((s) => {
-      if (s.ratePercent === 100) categories[0].count++;
+      if (s.totalRecorded === 0) categories[5].count++;
+      else if (s.ratePercent === 100) categories[0].count++;
       else if (s.ratePercent >= 90) categories[1].count++;
       else if (s.ratePercent >= 75) categories[2].count++;
       else if (s.ratePercent >= 60) categories[3].count++;
@@ -321,10 +330,11 @@ export const StatistikKehadiran: React.FC<StatistikKehadiranProps> = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `Statistik_Kehadiran_Siswa_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `Statistik_Kehadiran_Siswa_${getLocalDateString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
   };
 
   const activeSchoolName = sekolahList.find((s) => s.id === filterSekolahId)?.namaSekolah || 'Seluruh Sekolah Binaan';
@@ -938,6 +948,14 @@ export const StatistikKehadiran: React.FC<StatistikKehadiranProps> = ({
                 ) : (
                   <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                     {selectedStudentDetail.logs.map((log, lIdx) => {
+                      const badgeStyles: Record<string, string> = {
+                        Hadir: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                        Izin: 'bg-amber-50 text-amber-700 border-amber-200',
+                        Sakit: 'bg-sky-50 text-sky-700 border-sky-200',
+                        Alfa: 'bg-rose-50 text-rose-700 border-rose-200',
+                        Alpa: 'bg-rose-50 text-rose-700 border-rose-200'
+                      };
+                      const displayStatus = (log.status as string) === 'Alpa' ? 'Alfa' : log.status;
                       return (
                         <div
                           key={log.id || lIdx}
@@ -945,14 +963,14 @@ export const StatistikKehadiran: React.FC<StatistikKehadiranProps> = ({
                         >
                           <div>
                             <span className="font-bold text-slate-800">
-                              Pertemuan {log.kolomMinggu || 1} • {log.bulan} {log.tahunAjaran ? `(${log.tahunAjaran})` : ''}
+                              Pertemuan {log.kolomIndex || 1} • {log.bulan} {log.tahunAjaran ? `(${log.tahunAjaran})` : ''}
                             </span>
-                            {log.keterangan && (
-                              <p className="text-[10px] text-slate-400">{log.keterangan}</p>
+                            {log.tanggal && (
+                              <p className="text-[10px] text-slate-400">{formatIndonesianDate(log.tanggal)}</p>
                             )}
                           </div>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-emerald-50 text-emerald-700 border-emerald-200">
-                            Terkonfirmasi
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${badgeStyles[log.status] || 'bg-slate-50 text-slate-700 border-slate-200'}`}>
+                            {displayStatus}
                           </span>
                         </div>
                       );

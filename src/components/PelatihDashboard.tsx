@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Sekolah, Divisi, Anggota, JadwalLatihan, AbsenPelatihItem, AbsenSiswaEntry, EventLog, isSchoolCoach, getSchoolCoachIds } from '../types';
+import { User, Sekolah, Divisi, Anggota, JadwalLatihan, AbsenPelatihItem, AbsenAsistenPelatihItem, AbsenSiswaEntry, EventLog, isSchoolCoach, getSchoolCoachIds } from '../types';
 import { DivisiManager } from './DivisiManager';
 import { JadwalManager } from './JadwalManager';
 import { AbsenPelatih } from './AbsenPelatih';
@@ -11,25 +11,20 @@ import { EventManager } from './EventManager';
 import { PenilaianAnggota } from './PenilaianAnggota';
 import { TrainingReminderBanner } from './TrainingReminderBanner';
 import { StorageService } from '../data/storage';
-import { 
-  School, 
-  Layers, 
-  Clock, 
-  Camera, 
-  Users, 
-  FileText, 
-  QrCode, 
-  Bell, 
-  Plus, 
-  Calendar, 
-  ArrowRight, 
-  CheckCircle2, 
-  BarChart3, 
-  Award, 
-  ChevronDown, 
-  UserCheck, 
-  Sparkles,
-  FileSpreadsheet
+import { formatIndonesianDate, getLocalDateString } from '../utils/dateUtils';
+import {
+  School,
+  Layers,
+  Clock,
+  Camera,
+  Users,
+  FileText,
+  QrCode,
+  Calendar,
+  ArrowRight,
+  BarChart3,
+  Award,
+  Sparkles
 } from 'lucide-react';
 
 interface PelatihDashboardProps {
@@ -37,17 +32,31 @@ interface PelatihDashboardProps {
   sekolahList: Sekolah[];
   selectedSekolahId: string;
   onSelectSekolah: (id: string) => void;
-  onOpenQrScanner: () => void;
+  onOpenQrScanner: (jadwalId?: string) => void;
   onDataChanged: () => void;
+  usersList?: User[];
   divisiList: Divisi[];
   jadwalList: JadwalLatihan[];
   anggotaList: Anggota[];
   absenPelatihList: AbsenPelatihItem[];
+  absenAsistenList?: AbsenAsistenPelatihItem[];
   absenSiswaList: AbsenSiswaEntry[];
   eventsList: EventLog[];
   activeTahunAjaran?: string;
   onOpenManageTahunAjaran?: () => void;
 }
+
+type PelatihTab =
+  | 'beranda'
+  | 'anggota'
+  | 'jadwal'
+  | 'absen_pelatih'
+  | 'penilaian'
+  | 'rekap_pdf'
+  | 'divisi'
+  | 'statistik'
+  | 'event'
+  | 'galeri_foto';
 
 export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
   currentUser,
@@ -56,35 +65,25 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
   onSelectSekolah,
   onOpenQrScanner,
   onDataChanged,
+  usersList,
   divisiList,
   jadwalList,
   anggotaList,
   absenPelatihList,
+  absenAsistenList,
   absenSiswaList,
   eventsList,
-  activeTahunAjaran = '2024/2025',
-  onOpenManageTahunAjaran
+  activeTahunAjaran = '2024/2025'
 }) => {
-  const [activeTab, setActiveTab] = useState<'beranda' | 'anggota' | 'absen_pelatih' | 'penilaian' | 'rekap_pdf' | 'jadwal' | 'divisi' | 'statistik' | 'event' | 'galeri_foto'>('beranda');
-  const [selectedJadwalForAttendance, setSelectedJadwalForAttendance] = useState<string | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState<PelatihTab>('beranda');
 
-  const handleStartAttendanceFromJadwal = (jadwal: JadwalLatihan) => {
-    if (jadwal.sekolahId) {
-      onSelectSekolah(jadwal.sekolahId);
-    }
-    setSelectedJadwalForAttendance(jadwal.id);
-    setActiveTab('absen_pelatih');
-  };
-
-  // RBAC Constraint: Coach ONLY manages their assigned or collaborative schools
   const userSekolahList = sekolahList.filter(s => isSchoolCoach(s, currentUser.id));
   const activeSchool = userSekolahList.find(s => s.id === selectedSekolahId) || userSekolahList[0];
   const pelatihSchoolIds = userSekolahList.map(s => s.id);
-  const userDivisiList = divisiList.filter(d => d.pelatihId === currentUser.id || pelatihSchoolIds.includes(d.sekolahId));
+  const userDivisiList = divisiList.filter(d => d.pelatihId === currentUser.id || (d.sekolahId && pelatihSchoolIds.includes(d.sekolahId)));
 
   const userAnggotaList = anggotaList.filter(a => a.pelatihId === currentUser.id || pelatihSchoolIds.includes(a.sekolahId));
   const userJadwalList = jadwalList.filter(j => j.pelatihId === currentUser.id || pelatihSchoolIds.includes(j.sekolahId));
-  // In a collaborative school, collaborating coaches share journals and attendance records
   const userAbsenPelatihList = absenPelatihList.filter(a => pelatihSchoolIds.includes(a.sekolahId));
   const userAbsenSiswaList = absenSiswaList.filter(a => pelatihSchoolIds.includes(a.sekolahId));
   const userEventsList = eventsList.filter(e => pelatihSchoolIds.includes(e.sekolahId));
@@ -93,34 +92,47 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
   const schoolJadwal = userJadwalList.filter(j => j.sekolahId === selectedSekolahId);
   const schoolAbsenPelatih = userAbsenPelatihList.filter(a => a.sekolahId === selectedSekolahId);
 
-  // Collaborating coach info for the currently active school
-  const allUsers = StorageService.getUsers();
+  const allUsers = usersList && usersList.length > 0 ? usersList : StorageService.getUsers();
   const activeCoachIds = activeSchool ? getSchoolCoachIds(activeSchool) : [];
   const activeSchoolCoaches = allUsers.filter(u => activeCoachIds.includes(u.id));
-  const isCollaborative = activeCoachIds.length > 1;
-  const isLeadCoach = activeSchool?.pelatihId === currentUser.id;
+  const todayStr = getLocalDateString();
 
-  // If coach has no schools assigned yet
+  const sortedSchoolJadwal = [...schoolJadwal].sort((a, b) => {
+    const aPast = a.tanggal ? a.tanggal < todayStr : false;
+    const bPast = b.tanggal ? b.tanggal < todayStr : false;
+    if (aPast !== bPast) return aPast ? 1 : -1;
+    return (a.tanggal || '').localeCompare(b.tanggal || '') || a.jamMulai.localeCompare(b.jamMulai);
+  });
+
   if (userSekolahList.length === 0) {
     return (
-      <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm text-center max-w-xl mx-auto my-12">
-        <div className="w-16 h-16 bg-amber-100 text-amber-700 rounded-3xl flex items-center justify-center mx-auto mb-4">
-          <School className="w-8 h-8" />
+      <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center max-w-lg mx-auto my-12">
+        <div className="w-12 h-12 bg-amber-50 text-amber-700 rounded-xl flex items-center justify-center mx-auto mb-3 border border-amber-200">
+          <School className="w-6 h-6" />
         </div>
-        <h3 className="text-lg font-black text-slate-900">Belum Ada Sekolah yang Ditugaskan</h3>
-        <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-          Akun Coach <strong>{currentUser.name}</strong> belum memiliki penugasan sekolah binaan di sistem. Silakan hubungi <strong>Administrator</strong> untuk menugaskan sekolah ke akun Anda.
+        <h3 className="text-base font-bold text-slate-900">Belum Ada Sekolah Ditugaskan</h3>
+        <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+          Akun <strong>{currentUser.name}</strong> belum ditugaskan ke sekolah binaan. Hubungi Administrator untuk penugasan sekolah.
         </p>
-        <div className="mt-5 p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-600 font-mono">
-          ID Pelatih: {currentUser.id} • Username: {currentUser.username}
-        </div>
       </div>
     );
   }
 
+  const navItems: { id: PelatihTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'beranda', label: 'Beranda', icon: <School className="w-3.5 h-3.5" /> },
+    { id: 'jadwal', label: `Jadwal (${schoolJadwal.length})`, icon: <Calendar className="w-3.5 h-3.5" /> },
+    { id: 'anggota', label: `Anggota (${schoolAnggota.length})`, icon: <Users className="w-3.5 h-3.5" /> },
+    { id: 'absen_pelatih', label: `Jurnal (${schoolAbsenPelatih.length})`, icon: <Camera className="w-3.5 h-3.5" /> },
+    { id: 'penilaian', label: 'Nilai', icon: <Award className="w-3.5 h-3.5" /> },
+    { id: 'rekap_pdf', label: 'Laporan', icon: <FileText className="w-3.5 h-3.5" /> },
+    { id: 'divisi', label: 'Divisi', icon: <Layers className="w-3.5 h-3.5" /> },
+    { id: 'statistik', label: 'Statistik', icon: <BarChart3 className="w-3.5 h-3.5" /> },
+    { id: 'event', label: 'Event', icon: <Sparkles className="w-3.5 h-3.5" /> },
+    { id: 'galeri_foto', label: 'Galeri', icon: <Camera className="w-3.5 h-3.5" /> }
+  ];
+
   return (
     <div className="space-y-4">
-      {/* Active Training Reminder Banner (< 1 Hour alert) */}
       <TrainingReminderBanner
         currentUser={currentUser}
         jadwalList={userJadwalList}
@@ -129,385 +141,205 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
         onSelectSekolah={onSelectSekolah}
         onOpenQrScanner={onOpenQrScanner}
         onNavigateToJadwal={() => setActiveTab('jadwal')}
-        onStartAttendance={handleStartAttendanceFromJadwal}
       />
 
-      {/* Navigation Bar for Coach */}
-      <div className="bg-white p-3.5 rounded-3xl shadow-sm border border-slate-200">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-2.5">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">
-                <UserCheck className="w-4 h-4" />
-              </span>
-              <span className="text-xs font-bold text-slate-700">
-                Sekolah Binaan Aktif: <strong className="text-blue-700">{activeSchool?.namaSekolah}</strong>
-              </span>
-              {isCollaborative && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-800 border border-purple-300">
-                  🤝 Kolaborasi {activeSchoolCoaches.length} Pelatih
-                </span>
+      {/* Clean Single-Surface Navigation Header */}
+      <div className="bg-white rounded-2xl border border-slate-200 px-4 pt-3.5 pb-2 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
+            <h2 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+              {activeSchool?.namaSekolah}
+            </h2>
+            <p className="text-xs text-slate-500">
+              {currentUser.name} • TA {activeTahunAjaran}
+              {activeSchoolCoaches.length > 1 && (
+                <span> • Tim: {activeSchoolCoaches.map(c => c.name.split(' ')[0]).join(', ')}</span>
               )}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onOpenQrScanner()}
+              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3 py-1.5 rounded-xl transition cursor-pointer"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              <span>Scan Absen</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('absen_pelatih')}
+              className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs px-3 py-1.5 rounded-xl transition cursor-pointer"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>Isi Jurnal</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Tab Select */}
+        <div className="lg:hidden pb-1">
+          <select
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value as PelatihTab)}
+            className="w-full bg-slate-50 font-semibold text-slate-800 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 cursor-pointer"
+          >
+            {navItems.map((tab) => (
+              <option key={tab.id} value={tab.id}>
+                {tab.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Desktop Clean Tab Strip */}
+        <div className="hidden lg:flex items-center gap-1 overflow-x-auto border-t border-slate-100 pt-2">
+          {navItems.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                  isActive
+                    ? 'bg-slate-900 text-white'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                {tab.icon}
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* BERANDA */}
+      {activeTab === 'beranda' && (
+        <div className="space-y-4">
+          {/* Compact Metrics Strip */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <button
+              type="button"
+              onClick={() => setActiveTab('anggota')}
+              className="text-left p-4 bg-white rounded-2xl border border-slate-200 hover:border-slate-300 transition cursor-pointer"
+            >
+              <span className="text-xs text-slate-500 font-medium block">Anggota Aktif</span>
+              <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{schoolAnggota.length}</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('jadwal')}
+              className="text-left p-4 bg-white rounded-2xl border border-slate-200 hover:border-slate-300 transition cursor-pointer"
+            >
+              <span className="text-xs text-slate-500 font-medium block">Sesi Terjadwal</span>
+              <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{schoolJadwal.length}</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('absen_pelatih')}
+              className="text-left p-4 bg-white rounded-2xl border border-slate-200 hover:border-slate-300 transition cursor-pointer"
+            >
+              <span className="text-xs text-slate-500 font-medium block">Jurnal Terisi</span>
+              <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{schoolAbsenPelatih.length}</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('rekap_pdf')}
+              className="text-left p-4 bg-white rounded-2xl border border-slate-200 hover:border-slate-300 transition cursor-pointer"
+            >
+              <span className="text-xs text-slate-500 font-medium block">Laporan & Cetak</span>
+              <p className="text-sm font-bold text-blue-700 mt-2 flex items-center gap-1">
+                <span>Buka Rekap</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </p>
+            </button>
+          </div>
+
+          {/* Scheduled Sessions Preview */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-200">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-600" />
+                <span>Jadwal Sesi Latihan</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setActiveTab('jadwal')}
+                className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
+              >
+                Kelola Jadwal
+              </button>
             </div>
 
-            {isCollaborative && (
-              <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600 pl-8">
-                <span className="text-slate-500 font-medium">Tim Pelatih:</span>
-                {activeSchoolCoaches.map((c) => {
-                  const isCurrent = c.id === currentUser.id;
-                  const isLead = c.id === activeSchool?.pelatihId;
+            {sortedSchoolJadwal.length === 0 ? (
+              <p className="text-xs text-slate-500 py-2">
+                Belum ada sesi latihan terjadwal. Klik <button type="button" onClick={() => setActiveTab('jadwal')} className="text-blue-600 font-semibold hover:underline cursor-pointer">Kelola Jadwal</button> untuk menambahkan tanggal dan jam latihan.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {sortedSchoolJadwal.slice(0, 6).map((j) => {
+                  const linkedCount = new Set(
+                    userAbsenSiswaList
+                      .filter(a => a.sekolahId === j.sekolahId && a.status === 'Hadir' && (a.jadwalId === j.id || (j.tanggal && a.tanggal === j.tanggal)))
+                      .map(a => a.anggotaId)
+                  ).size;
+
                   return (
-                    <span 
-                      key={c.id} 
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold text-[10px] ${
-                        isCurrent 
-                          ? 'bg-blue-100 text-blue-800 border border-blue-300' 
-                          : 'bg-slate-100 text-slate-700 border border-slate-200'
-                      }`}
-                    >
-                      <span>{c.name}</span>
-                      <span className="text-[9px] opacity-75">
-                        ({isLead ? 'Utama' : 'Kolaborator'}{isCurrent ? ' • Anda' : ''})
-                      </span>
-                    </span>
+                    <div key={j.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-900 block truncate">
+                          {j.tanggal ? formatIndonesianDate(j.tanggal) : `Hari ${j.hari}`}
+                        </span>
+                        <span className="text-xs text-slate-600 tabular-nums block">
+                          {j.jamMulai} - {j.jamSelesai} • {linkedCount} hadir
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onOpenQrScanner(j.id)}
+                        className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold text-xs transition shrink-0 cursor-pointer"
+                      >
+                        Scan
+                      </button>
+                    </div>
                   );
                 })}
               </div>
             )}
           </div>
 
-          {/* Quick Select for Mobile */}
-          <div className="lg:hidden relative">
-            <select
-              value={activeTab}
-              onChange={(e) => setActiveTab(e.target.value as any)}
-              className="appearance-none bg-slate-100 font-bold text-slate-800 border border-slate-300 rounded-xl px-3.5 py-1.5 pr-8 text-xs focus:ring-2 focus:ring-blue-500 cursor-pointer"
-            >
-              <option value="beranda">🏠 Beranda & Ringkasan</option>
-              <option value="anggota">👥 Data Anggota & Barcode</option>
-              <option value="absen_pelatih">📷 Absensi Pelatih (Jurnal)</option>
-              <option value="penilaian">🎖️ Nilai Anggota & Raport</option>
-              <option value="rekap_pdf">📄 Unduh Laporan Kegiatan</option>
-              <option value="jadwal">⏰ Jadwal Latihan</option>
-              <option value="divisi">🎺 Divisi / Alat Musik</option>
-              <option value="statistik">📊 Statistik Kehadiran</option>
-              <option value="event">🏆 Event & Prestasi</option>
-              <option value="galeri_foto">🖼️ Galeri Dokumentasi</option>
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
-              <ChevronDown className="w-3.5 h-3.5" />
-            </div>
-          </div>
-        </div>
-
-        {/* Desktop Tab Pills */}
-        <div className="hidden lg:flex flex-wrap gap-1.5 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80">
-          <button
-            type="button"
-            onClick={() => setActiveTab('beranda')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeTab === 'beranda'
-                ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-          >
-            <span>Beranda</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('anggota')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeTab === 'anggota'
-                ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>Data Anggota & Barcode ({schoolAnggota.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('absen_pelatih')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeTab === 'absen_pelatih'
-                ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-          >
-            <Camera className="w-3.5 h-3.5" />
-            <span>Absensi Pelatih ({schoolAbsenPelatih.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('penilaian')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeTab === 'penilaian'
-                ? 'bg-white text-amber-700 shadow-sm border border-slate-200'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-          >
-            <Award className="w-3.5 h-3.5" />
-            <span>Nilai Anggota (Raport)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('rekap_pdf')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeTab === 'rekap_pdf'
-                ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>Cetak Laporan Kegiatan</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('jadwal')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeTab === 'jadwal'
-                ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5" />
-            <span>Jadwal ({schoolJadwal.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('divisi')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeTab === 'divisi'
-                ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Divisi</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('statistik')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeTab === 'statistik'
-                ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-          >
-            <BarChart3 className="w-3.5 h-3.5" />
-            <span>Statistik</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('event')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeTab === 'event'
-                ? 'bg-white text-purple-700 shadow-sm border border-slate-200'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Event ({userEventsList.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('galeri_foto')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeTab === 'galeri_foto'
-                ? 'bg-white text-emerald-700 shadow-sm border border-slate-200'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-          >
-            <Camera className="w-3.5 h-3.5" />
-            <span>Galeri Foto</span>
-          </button>
-        </div>
-      </div>
-
-      {/* BERANDA HUB VIEW */}
-      {activeTab === 'beranda' && (
-        <div className="space-y-4">
-          {/* Welcome Banner */}
-          <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-3xl p-5 shadow-sm relative overflow-hidden">
-            <div className="relative z-10">
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase tracking-widest bg-blue-500/30 text-blue-200 px-3 py-1 rounded-full border border-blue-400/30 inline-block mb-1">
-                    Portal Coach Marching Band
-                  </span>
-                  <h2 className="text-xl sm:text-2xl font-black tracking-tight">
-                    Selamat Datang, {currentUser.name}!
-                  </h2>
-                  <p className="text-xs text-blue-200 mt-0.5">
-                    Sekolah Aktif: <strong>{activeSchool?.namaSekolah}</strong> ({activeTahunAjaran})
-                  </p>
-                </div>
-
-                <div className="text-right hidden sm:block">
-                  <span className="text-xs text-blue-300 font-medium block">Total Sekolah Binaan Anda:</span>
-                  <span className="text-2xl font-black text-amber-300">{userSekolahList.length} Sekolah</span>
-                </div>
-              </div>
-
-              {/* Quick Actions Bar */}
-              <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-blue-800/80">
-                <button
-                  onClick={onOpenQrScanner}
-                  className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-extrabold text-xs px-3.5 py-2.5 rounded-xl shadow-md transition cursor-pointer"
-                >
-                  <QrCode className="w-4 h-4" />
-                  <span>Scan QR Presensi Anggota</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('absen_pelatih')}
-                  className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition border border-white/20 cursor-pointer"
-                >
-                  <Camera className="w-4 h-4 text-emerald-300" />
-                  <span>Isi Jurnal & Foto Melatih</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('anggota')}
-                  className="flex items-center gap-1.5 bg-blue-600/80 hover:bg-blue-600 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition border border-blue-400/30 cursor-pointer"
-                >
-                  <Users className="w-4 h-4 text-blue-200" />
-                  <span>Kelola Anggota & Kartu QR</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('penilaian')}
-                  className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs px-3.5 py-2.5 rounded-xl transition cursor-pointer"
-                >
-                  <Award className="w-4 h-4" />
-                  <span>Rekap Nilai Anggota</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('rekap_pdf')}
-                  className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition cursor-pointer"
-                >
-                  <FileText className="w-4 h-4 text-white" />
-                  <span>Cetak / Unduh Laporan</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Metrics */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div 
-              onClick={() => setActiveTab('anggota')}
-              className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-blue-300 transition"
-            >
-              <span className="text-[11px] text-slate-400 font-semibold block">Anggota Sekolah Ini</span>
-              <p className="text-xl font-black text-slate-900 mt-0.5">{schoolAnggota.length} Anggota</p>
-            </div>
-            <div 
-              onClick={() => setActiveTab('jadwal')}
-              className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-blue-300 transition"
-            >
-              <span className="text-[11px] text-slate-400 font-semibold block">Jadwal Rutin</span>
-              <p className="text-xl font-black text-slate-900 mt-0.5">{schoolJadwal.length} Sesi / Minggu</p>
-            </div>
-            <div 
-              onClick={() => setActiveTab('absen_pelatih')}
-              className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-blue-300 transition"
-            >
-              <span className="text-[11px] text-slate-400 font-semibold block">Jurnal Latihan Terisi</span>
-              <p className="text-xl font-black text-slate-900 mt-0.5">{schoolAbsenPelatih.length} Pertemuan</p>
-            </div>
-            <div 
-              onClick={() => setActiveTab('divisi')}
-              className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-blue-300 transition"
-            >
-              <span className="text-[11px] text-slate-400 font-semibold block">Divisi Terdaftar</span>
-              <p className="text-xl font-black text-slate-900 mt-0.5">{userDivisiList.length} Divisi</p>
-            </div>
-          </div>
-
-          {/* Schedule & Reminder Countdown Card */}
-          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
+          {/* Quick Member Preview */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-200">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                <Bell className="w-4 h-4 text-amber-500" />
-                Jadwal Latihan Sekolah: {activeSchool?.namaSekolah}
-              </h3>
-              <button
-                onClick={() => setActiveTab('jadwal')}
-                className="text-xs text-blue-600 font-bold hover:underline cursor-pointer"
-              >
-                + Kelola Jadwal
-              </button>
-            </div>
-
-            {schoolJadwal.length === 0 ? (
-              <p className="text-xs text-slate-500 italic py-2">
-                Belum ada jadwal latihan rutin yang ditambahkan untuk sekolah ini.
-              </p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-                {schoolJadwal.map((j) => (
-                  <div key={j.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-slate-900 block">{j.hari}</span>
-                      <span className="text-xs font-mono text-blue-700 font-bold">
-                        {j.jamMulai} - {j.jamSelesai}
-                      </span>
-                    </div>
-                    <button
-                      onClick={onOpenQrScanner}
-                      className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg font-bold text-xs shadow-xs hover:bg-emerald-700 transition cursor-pointer"
-                      title="Mulai Scan Absen Anggota"
-                    >
-                      Scan QR
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Quick Member List Preview */}
-          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                 <Users className="w-4 h-4 text-blue-600" />
-                Daftar Anggota ({schoolAnggota.length})
+                <span>Anggota ({schoolAnggota.length})</span>
               </h3>
               <button
+                type="button"
                 onClick={() => setActiveTab('anggota')}
-                className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
               >
-                <span>Lihat Semua & Cetak Kartu Barcode</span>
+                <span>Lihat Semua</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
 
             {schoolAnggota.length === 0 ? (
-              <div className="text-center py-6 text-slate-400 text-xs">
-                Belum ada data anggota. Klik <button onClick={() => setActiveTab('anggota')} className="text-blue-600 underline font-bold">Kelola Anggota</button> untuk menambahkan data atau import dari Excel.
-              </div>
+              <p className="text-xs text-slate-500 py-2">
+                Belum ada anggota terdaftar untuk sekolah ini.
+              </p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {schoolAnggota.slice(0, 6).map((student) => (
                   <div key={student.id} className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-bold text-slate-800">{student.nama}</p>
-                      <p className="text-[10px] text-slate-500">{student.kelas} • {student.divisiNama}</p>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-900 truncate">{student.nama}</p>
+                      <p className="text-[11px] text-slate-500 truncate">{student.kelas} • {student.divisiNama}</p>
                     </div>
-                    <span className="text-[10px] font-mono bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">
-                      QR Ready
-                    </span>
                   </div>
                 ))}
               </div>
@@ -516,7 +348,6 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
         </div>
       )}
 
-      {/* STATISTIK KEHADIRAN VIEW */}
       {activeTab === 'statistik' && (
         <StatistikKehadiran
           sekolahList={userSekolahList}
@@ -529,7 +360,6 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
         />
       )}
 
-      {/* DIVISI MANAGER VIEW */}
       {activeTab === 'divisi' && (
         <DivisiManager
           currentPelatihId={currentUser.id}
@@ -538,52 +368,42 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
         />
       )}
 
-      {/* JADWAL MANAGER VIEW */}
       {activeTab === 'jadwal' && (
         <JadwalManager
           currentPelatihId={currentUser.id}
           selectedSekolahId={selectedSekolahId}
           sekolahList={userSekolahList}
           jadwalList={userJadwalList}
+          absenSiswaList={userAbsenSiswaList}
           absenPelatihList={userAbsenPelatihList}
-          currentUser={currentUser}
+          onOpenQrScanner={onOpenQrScanner}
           onDataChanged={onDataChanged}
-          onStartAttendance={handleStartAttendanceFromJadwal}
-          onViewJurnal={() => setActiveTab('absen_pelatih')}
         />
       )}
 
-      {/* ABSEN PELATIH & DOKUMENTASI VIEW */}
       {activeTab === 'absen_pelatih' && (
         <AbsenPelatih
           currentPelatihId={currentUser.id}
           currentPelatihName={currentUser.name}
           selectedSekolahId={selectedSekolahId}
           sekolahList={userSekolahList}
-          absenPelatihList={userAbsenPelatihList}
+          usersList={allUsers}
           jadwalList={userJadwalList}
-          initialJadwalId={selectedJadwalForAttendance}
-          onDataChanged={() => {
-            setSelectedJadwalForAttendance(undefined);
-            onDataChanged();
-          }}
-        />
-      )}
-
-      {/* GALERI DOKUMENTASI FOTO VIEW */}
-      {activeTab === 'galeri_foto' && (
-        <DokumentasiGaleri
           absenPelatihList={userAbsenPelatihList}
-          sekolahList={userSekolahList}
-          selectedSekolahId={selectedSekolahId}
-          onSelectSekolah={onSelectSekolah}
-          currentUser={currentUser}
-          isAdmin={false}
           onDataChanged={onDataChanged}
         />
       )}
 
-      {/* ANGGOTA MANAGER VIEW */}
+      {activeTab === 'galeri_foto' && (
+        <DokumentasiGaleri
+          absenPelatihList={userAbsenPelatihList}
+          eventsList={userEventsList}
+          sekolahList={userSekolahList}
+          selectedSekolahId={selectedSekolahId}
+          onSelectSekolah={onSelectSekolah}
+        />
+      )}
+
       {activeTab === 'anggota' && (
         <AnggotaManager
           currentPelatihId={currentUser.id}
@@ -595,7 +415,6 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
         />
       )}
 
-      {/* EVENT MANAGER VIEW */}
       {activeTab === 'event' && (
         <EventManager
           sekolahList={userSekolahList}
@@ -608,25 +427,28 @@ export const PelatihDashboard: React.FC<PelatihDashboardProps> = ({
         />
       )}
 
-      {/* PENILAIAN ANGGOTA VIEW */}
       {activeTab === 'penilaian' && (
         <PenilaianAnggota
           sekolahList={userSekolahList}
           selectedSekolahId={selectedSekolahId}
           anggotaList={userAnggotaList}
           absenSiswaList={userAbsenSiswaList}
+          absenPelatihList={userAbsenPelatihList}
+          usersList={allUsers}
         />
       )}
 
-      {/* REKAP PDF VIEW */}
       {activeTab === 'rekap_pdf' && (
         <RekapPdf
           sekolahList={userSekolahList}
           selectedSekolahId={selectedSekolahId}
           absenPelatihList={userAbsenPelatihList}
+          absenAsistenList={absenAsistenList}
+          usersList={allUsers}
           anggotaList={userAnggotaList}
           absenSiswaList={userAbsenSiswaList}
           eventsList={userEventsList}
+          activeTahunAjaran={activeTahunAjaran}
         />
       )}
     </div>

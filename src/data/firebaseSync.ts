@@ -31,7 +31,7 @@ import {
   INITIAL_EVENTS,
   INITIAL_ABSEN_SISWA
 } from './initialData';
-import { StorageService } from './storage';
+import { StorageService, STORAGE_KEYS, setStoredItem } from './storage';
 
 // Firestore collection names
 export const COLLECTIONS = {
@@ -67,6 +67,16 @@ function updateSyncStatus(newStatus: SyncStatus) {
   statusListeners.forEach(cb => cb(newStatus));
 }
 
+function stripUndefined<T extends Record<string, any>>(obj: T): T {
+  const cleaned: Record<string, any> = {};
+  Object.keys(obj).forEach((key) => {
+    if (obj[key] !== undefined) {
+      cleaned[key] = obj[key];
+    }
+  });
+  return cleaned as T;
+}
+
 export const FirebaseSync = {
   getStatus: () => currentSyncStatus,
 
@@ -91,7 +101,7 @@ export const FirebaseSync = {
         if (!snapshot.empty) {
           const users: User[] = [];
           snapshot.forEach(docSnap => users.push(docSnap.data() as User));
-          localStorage.setItem('fmb_users_v1', JSON.stringify(users));
+          setStoredItem(STORAGE_KEYS.USERS, users);
           onDataUpdate?.();
         }
       }, err => console.warn('Users listener error:', err));
@@ -99,93 +109,77 @@ export const FirebaseSync = {
 
       // 2. Sekolah
       const unsubSekolah = onSnapshot(collection(db, COLLECTIONS.SEKOLAH), snapshot => {
-        if (!snapshot.empty) {
-          const list: Sekolah[] = [];
-          snapshot.forEach(docSnap => list.push(docSnap.data() as Sekolah));
-          localStorage.setItem('fmb_sekolah_v1', JSON.stringify(list));
-          onDataUpdate?.();
-        }
+        const list: Sekolah[] = [];
+        snapshot.forEach(docSnap => list.push(docSnap.data() as Sekolah));
+        setStoredItem(STORAGE_KEYS.SEKOLAH, list);
+        onDataUpdate?.();
       }, err => console.warn('Sekolah listener error:', err));
       syncListeners.push(unsubSekolah);
 
       // 3. Divisi
       const unsubDivisi = onSnapshot(collection(db, COLLECTIONS.DIVISI), snapshot => {
-        if (!snapshot.empty) {
-          const list: Divisi[] = [];
-          snapshot.forEach(docSnap => list.push(docSnap.data() as Divisi));
-          localStorage.setItem('fmb_divisi_v1', JSON.stringify(list));
-          onDataUpdate?.();
-        }
+        const list: Divisi[] = [];
+        snapshot.forEach(docSnap => list.push(docSnap.data() as Divisi));
+        setStoredItem(STORAGE_KEYS.DIVISI, list);
+        onDataUpdate?.();
       }, err => console.warn('Divisi listener error:', err));
       syncListeners.push(unsubDivisi);
 
       // 4. Jadwal
       const unsubJadwal = onSnapshot(collection(db, COLLECTIONS.JADWAL), snapshot => {
-        if (!snapshot.empty) {
-          const list: JadwalLatihan[] = [];
-          snapshot.forEach(docSnap => list.push(docSnap.data() as JadwalLatihan));
-          localStorage.setItem('fmb_jadwal_v1', JSON.stringify(list));
-          onDataUpdate?.();
-        }
+        const list: JadwalLatihan[] = [];
+        snapshot.forEach(docSnap => list.push(docSnap.data() as JadwalLatihan));
+        setStoredItem(STORAGE_KEYS.JADWAL, list);
+        onDataUpdate?.();
       }, err => console.warn('Jadwal listener error:', err));
       syncListeners.push(unsubJadwal);
 
       // 5. Anggota
       const unsubAnggota = onSnapshot(collection(db, COLLECTIONS.ANGGOTA), snapshot => {
-        if (!snapshot.empty) {
-          const list: Anggota[] = [];
-          snapshot.forEach(docSnap => list.push(docSnap.data() as Anggota));
-          localStorage.setItem('fmb_anggota_v1', JSON.stringify(list));
-          onDataUpdate?.();
-        }
+        const list: Anggota[] = [];
+        snapshot.forEach(docSnap => list.push(docSnap.data() as Anggota));
+        setStoredItem(STORAGE_KEYS.ANGGOTA, list);
+        onDataUpdate?.();
       }, err => console.warn('Anggota listener error:', err));
       syncListeners.push(unsubAnggota);
 
       // 6. Absen Pelatih
       const unsubAbsenPelatih = onSnapshot(collection(db, COLLECTIONS.ABSEN_PELATIH), snapshot => {
-        if (!snapshot.empty) {
-          const list: AbsenPelatihItem[] = [];
-          snapshot.forEach(docSnap => list.push(docSnap.data() as AbsenPelatihItem));
-          // Sort newest first
-          list.sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
-          localStorage.setItem('fmb_absen_pelatih_v1', JSON.stringify(list));
-          onDataUpdate?.();
-        }
+        const list: AbsenPelatihItem[] = [];
+        snapshot.forEach(docSnap => list.push(docSnap.data() as AbsenPelatihItem));
+        // Sort newest first
+        list.sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
+        setStoredItem(STORAGE_KEYS.ABSEN_PELATIH, list);
+        onDataUpdate?.();
       }, err => console.warn('AbsenPelatih listener error:', err));
       syncListeners.push(unsubAbsenPelatih);
 
       // 6b. Absen Asisten Pelatih
       const unsubAbsenAsisten = onSnapshot(collection(db, COLLECTIONS.ABSEN_ASISTEN), snapshot => {
-        if (!snapshot.empty) {
-          const list: AbsenAsistenPelatihItem[] = [];
-          snapshot.forEach(docSnap => list.push(docSnap.data() as AbsenAsistenPelatihItem));
-          list.sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
-          localStorage.setItem('fmb_absen_asisten_v1', JSON.stringify(list));
-          onDataUpdate?.();
-        }
+        const list: AbsenAsistenPelatihItem[] = [];
+        snapshot.forEach(docSnap => list.push(docSnap.data() as AbsenAsistenPelatihItem));
+        list.sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
+        setStoredItem(STORAGE_KEYS.ABSEN_ASISTEN, list);
+        onDataUpdate?.();
       }, err => console.warn('AbsenAsisten listener error:', err));
       syncListeners.push(unsubAbsenAsisten);
 
       // 7. Events
       const unsubEvents = onSnapshot(collection(db, COLLECTIONS.EVENTS), snapshot => {
-        if (!snapshot.empty) {
-          const list: EventLog[] = [];
-          snapshot.forEach(docSnap => list.push(docSnap.data() as EventLog));
-          list.sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
-          localStorage.setItem('fmb_events_v1', JSON.stringify(list));
-          onDataUpdate?.();
-        }
+        const list: EventLog[] = [];
+        snapshot.forEach(docSnap => list.push(docSnap.data() as EventLog));
+        list.sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
+        setStoredItem(STORAGE_KEYS.EVENTS, list);
+        onDataUpdate?.();
       }, err => console.warn('Events listener error:', err));
       syncListeners.push(unsubEvents);
 
       // 8. Absen Siswa
       const unsubAbsenSiswa = onSnapshot(collection(db, COLLECTIONS.ABSEN_SISWA), snapshot => {
-        if (!snapshot.empty) {
-          const list: AbsenSiswaEntry[] = [];
-          snapshot.forEach(docSnap => list.push(docSnap.data() as AbsenSiswaEntry));
-          localStorage.setItem('fmb_absen_siswa_v1', JSON.stringify(list));
-          onDataUpdate?.();
-        }
+        const list: AbsenSiswaEntry[] = [];
+        snapshot.forEach(docSnap => list.push(docSnap.data() as AbsenSiswaEntry));
+        setStoredItem(STORAGE_KEYS.ABSEN_SISWA, list);
+        onDataUpdate?.();
       }, err => console.warn('AbsenSiswa listener error:', err));
       syncListeners.push(unsubAbsenSiswa);
 
@@ -194,10 +188,10 @@ export const FirebaseSync = {
         if (docSnap.exists()) {
           const data = docSnap.data();
           if (data.activeTahunAjaran) {
-            localStorage.setItem('fmb_active_tahun_ajaran_v1', JSON.stringify(data.activeTahunAjaran));
+            setStoredItem(STORAGE_KEYS.ACTIVE_TAHUN_AJARAN, data.activeTahunAjaran);
           }
           if (Array.isArray(data.tahunAjaranList)) {
-            localStorage.setItem('fmb_tahun_ajaran_list_v1', JSON.stringify(data.tahunAjaranList));
+            setStoredItem(STORAGE_KEYS.TAHUN_AJARAN_LIST, data.tahunAjaranList);
           }
           onDataUpdate?.();
         }
@@ -214,7 +208,7 @@ export const FirebaseSync = {
   // Push individual items to Firestore
   saveUser: async (user: User) => {
     try {
-      await setDoc(doc(db, COLLECTIONS.USERS, user.id), user);
+      await setDoc(doc(db, COLLECTIONS.USERS, user.id), stripUndefined(user));
     } catch (e) {
       console.warn('Failed to save user to Firebase:', e);
     }
@@ -230,7 +224,7 @@ export const FirebaseSync = {
 
   saveSekolah: async (sekolah: Sekolah) => {
     try {
-      await setDoc(doc(db, COLLECTIONS.SEKOLAH, sekolah.id), sekolah);
+      await setDoc(doc(db, COLLECTIONS.SEKOLAH, sekolah.id), stripUndefined(sekolah));
     } catch (e) {
       console.warn('Failed to save sekolah to Firebase:', e);
     }
@@ -244,9 +238,45 @@ export const FirebaseSync = {
     }
   },
 
+  deleteSekolahWithCascade: async (
+    sekolahId: string,
+    related: {
+      anggotaIds: string[];
+      jadwalIds: string[];
+      absenPelatihIds: string[];
+      absenAsistenIds: string[];
+      eventIds: string[];
+      absenSiswaIds: string[];
+    }
+  ) => {
+    try {
+      const targets: Array<{ col: string; id: string }> = [
+        { col: COLLECTIONS.SEKOLAH, id: sekolahId },
+        ...related.anggotaIds.map(id => ({ col: COLLECTIONS.ANGGOTA, id })),
+        ...related.jadwalIds.map(id => ({ col: COLLECTIONS.JADWAL, id })),
+        ...related.absenPelatihIds.map(id => ({ col: COLLECTIONS.ABSEN_PELATIH, id })),
+        ...related.absenAsistenIds.map(id => ({ col: COLLECTIONS.ABSEN_ASISTEN, id })),
+        ...related.eventIds.map(id => ({ col: COLLECTIONS.EVENTS, id })),
+        ...related.absenSiswaIds.map(id => ({ col: COLLECTIONS.ABSEN_SISWA, id }))
+      ];
+
+      const CHUNK_SIZE = 400;
+      for (let i = 0; i < targets.length; i += CHUNK_SIZE) {
+        const chunk = targets.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach(item => {
+          batch.delete(doc(db, item.col, item.id));
+        });
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn('Failed to cascade delete sekolah from Firebase:', e);
+    }
+  },
+
   saveDivisi: async (divisi: Divisi) => {
     try {
-      await setDoc(doc(db, COLLECTIONS.DIVISI, divisi.id), divisi);
+      await setDoc(doc(db, COLLECTIONS.DIVISI, divisi.id), stripUndefined(divisi));
     } catch (e) {
       console.warn('Failed to save divisi to Firebase:', e);
     }
@@ -262,7 +292,7 @@ export const FirebaseSync = {
 
   saveJadwal: async (jadwal: JadwalLatihan) => {
     try {
-      await setDoc(doc(db, COLLECTIONS.JADWAL, jadwal.id), jadwal);
+      await setDoc(doc(db, COLLECTIONS.JADWAL, jadwal.id), stripUndefined(jadwal));
     } catch (e) {
       console.warn('Failed to save jadwal to Firebase:', e);
     }
@@ -278,7 +308,7 @@ export const FirebaseSync = {
 
   saveAnggota: async (anggota: Anggota) => {
     try {
-      await setDoc(doc(db, COLLECTIONS.ANGGOTA, anggota.id), anggota);
+      await setDoc(doc(db, COLLECTIONS.ANGGOTA, anggota.id), stripUndefined(anggota));
     } catch (e) {
       console.warn('Failed to save anggota to Firebase:', e);
     }
@@ -294,7 +324,7 @@ export const FirebaseSync = {
 
   saveAbsenPelatih: async (item: AbsenPelatihItem) => {
     try {
-      await setDoc(doc(db, COLLECTIONS.ABSEN_PELATIH, item.id), item);
+      await setDoc(doc(db, COLLECTIONS.ABSEN_PELATIH, item.id), stripUndefined(item));
     } catch (e) {
       console.warn('Failed to save absenPelatih to Firebase:', e);
     }
@@ -310,7 +340,7 @@ export const FirebaseSync = {
 
   saveAbsenAsisten: async (item: AbsenAsistenPelatihItem) => {
     try {
-      await setDoc(doc(db, COLLECTIONS.ABSEN_ASISTEN, item.id), item);
+      await setDoc(doc(db, COLLECTIONS.ABSEN_ASISTEN, item.id), stripUndefined(item));
     } catch (e) {
       console.warn('Failed to save absenAsisten to Firebase:', e);
     }
@@ -326,7 +356,7 @@ export const FirebaseSync = {
 
   saveEvent: async (evt: EventLog) => {
     try {
-      await setDoc(doc(db, COLLECTIONS.EVENTS, evt.id), evt);
+      await setDoc(doc(db, COLLECTIONS.EVENTS, evt.id), stripUndefined(evt));
     } catch (e) {
       console.warn('Failed to save event to Firebase:', e);
     }
@@ -342,7 +372,7 @@ export const FirebaseSync = {
 
   saveAbsenSiswa: async (entry: AbsenSiswaEntry) => {
     try {
-      await setDoc(doc(db, COLLECTIONS.ABSEN_SISWA, entry.id), entry);
+      await setDoc(doc(db, COLLECTIONS.ABSEN_SISWA, entry.id), stripUndefined(entry));
     } catch (e) {
       console.warn('Failed to save absenSiswa to Firebase:', e);
     }
@@ -359,11 +389,15 @@ export const FirebaseSync = {
   deleteMultipleAbsenSiswa: async (ids: string[]) => {
     try {
       if (ids.length === 0) return;
-      const batch = writeBatch(db);
-      ids.forEach(id => {
-        batch.delete(doc(db, COLLECTIONS.ABSEN_SISWA, id));
-      });
-      await batch.commit();
+      const CHUNK_SIZE = 400;
+      for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+        const chunk = ids.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach(id => {
+          batch.delete(doc(db, COLLECTIONS.ABSEN_SISWA, id));
+        });
+        await batch.commit();
+      }
     } catch (e) {
       console.warn('Failed to delete multiple absenSiswa from Firebase:', e);
     }
@@ -377,46 +411,83 @@ export const FirebaseSync = {
     }
   },
 
-  // Bulk push local data into Firebase Firestore
+  // Bulk push local data into Firebase Firestore (chunked by op count & payload size)
   pushAllLocalToFirebase: async () => {
     try {
       updateSyncStatus('syncing');
-      const batch = writeBatch(db);
+
+      const pendingOps: Array<{ col: string; id: string; data: Record<string, any>; merge?: boolean }> = [];
+
+      const enqueue = (col: string, items: Array<{ id: string } & Record<string, any>>) => {
+        items.forEach(item => {
+          pendingOps.push({ col, id: item.id, data: stripUndefined(item) });
+        });
+      };
 
       const users = StorageService.getUsers().length > 0 ? StorageService.getUsers() : INITIAL_USERS;
-      users.forEach(u => batch.set(doc(db, COLLECTIONS.USERS, u.id), u));
+      enqueue(COLLECTIONS.USERS, users);
 
       const sekolah = StorageService.getSekolah().length > 0 ? StorageService.getSekolah() : INITIAL_SEKOLAH;
-      sekolah.forEach(s => batch.set(doc(db, COLLECTIONS.SEKOLAH, s.id), s));
+      enqueue(COLLECTIONS.SEKOLAH, sekolah);
 
       const divisi = StorageService.getDivisi().length > 0 ? StorageService.getDivisi() : INITIAL_DIVISI;
-      divisi.forEach(d => batch.set(doc(db, COLLECTIONS.DIVISI, d.id), d));
+      enqueue(COLLECTIONS.DIVISI, divisi);
 
       const jadwal = StorageService.getJadwal().length > 0 ? StorageService.getJadwal() : INITIAL_JADWAL;
-      jadwal.forEach(j => batch.set(doc(db, COLLECTIONS.JADWAL, j.id), j));
+      enqueue(COLLECTIONS.JADWAL, jadwal);
 
       const anggota = StorageService.getAnggota().length > 0 ? StorageService.getAnggota() : INITIAL_ANGGOTA;
-      anggota.forEach(a => batch.set(doc(db, COLLECTIONS.ANGGOTA, a.id), a));
+      enqueue(COLLECTIONS.ANGGOTA, anggota);
 
       const absenPelatih = StorageService.getAbsenPelatih().length > 0 ? StorageService.getAbsenPelatih() : INITIAL_ABSEN_PELATIH;
-      absenPelatih.forEach(ap => batch.set(doc(db, COLLECTIONS.ABSEN_PELATIH, ap.id), ap));
+      enqueue(COLLECTIONS.ABSEN_PELATIH, absenPelatih);
 
       const absenAsisten = StorageService.getAbsenAsisten().length > 0 ? StorageService.getAbsenAsisten() : INITIAL_ABSEN_ASISTEN;
-      absenAsisten.forEach(aa => batch.set(doc(db, COLLECTIONS.ABSEN_ASISTEN, aa.id), aa));
+      enqueue(COLLECTIONS.ABSEN_ASISTEN, absenAsisten);
 
       const events = StorageService.getEvents().length > 0 ? StorageService.getEvents() : INITIAL_EVENTS;
-      events.forEach(ev => batch.set(doc(db, COLLECTIONS.EVENTS, ev.id), ev));
+      enqueue(COLLECTIONS.EVENTS, events);
 
       const absenSiswa = StorageService.getAbsenSiswa().length > 0 ? StorageService.getAbsenSiswa() : INITIAL_ABSEN_SISWA;
-      absenSiswa.forEach(as => batch.set(doc(db, COLLECTIONS.ABSEN_SISWA, as.id), as));
+      enqueue(COLLECTIONS.ABSEN_SISWA, absenSiswa);
 
-      batch.set(doc(db, COLLECTIONS.SETTINGS, 'app_config'), {
-        activeTahunAjaran: StorageService.getActiveTahunAjaran(),
-        tahunAjaranList: StorageService.getTahunAjaranList(),
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+      pendingOps.push({
+        col: COLLECTIONS.SETTINGS,
+        id: 'app_config',
+        data: {
+          activeTahunAjaran: StorageService.getActiveTahunAjaran(),
+          tahunAjaranList: StorageService.getTahunAjaranList(),
+          updatedAt: new Date().toISOString()
+        },
+        merge: true
+      });
 
-      await batch.commit();
+      let batch = writeBatch(db);
+      let opCount = 0;
+      let approxBytes = 0;
+
+      for (const op of pendingOps) {
+        const serializedSize = JSON.stringify(op.data).length;
+        if (opCount >= 150 || (opCount > 0 && approxBytes + serializedSize > 3_500_000)) {
+          await batch.commit();
+          batch = writeBatch(db);
+          opCount = 0;
+          approxBytes = 0;
+        }
+        const ref = doc(db, op.col, op.id);
+        if (op.merge) {
+          batch.set(ref, op.data, { merge: true });
+        } else {
+          batch.set(ref, op.data);
+        }
+        opCount++;
+        approxBytes += serializedSize;
+      }
+
+      if (opCount > 0) {
+        await batch.commit();
+      }
+
       updateSyncStatus('connected');
       console.log('Local data successfully pushed to Firebase Firestore!');
       return true;

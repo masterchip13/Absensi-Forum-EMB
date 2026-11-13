@@ -48,6 +48,7 @@ export function getSchoolCoachIds(school: Sekolah | undefined | null): string[] 
 export interface Divisi {
   id: string;
   pelatihId: string;
+  sekolahId?: string;
   namaDivisi: string;
   deskripsi?: string;
 }
@@ -68,24 +69,14 @@ export interface Anggota {
 export interface JadwalLatihan {
   id: string;
   pelatihId: string;
-  pelatihNama?: string;
-  pelatih2Id?: string;
-  pelatih2Nama?: string;
   sekolahId: string;
-  sekolahNama?: string;
-  hari?: string; // e.g., "Senin", "Rabu", "Sabtu"
-  tanggal: string; // YYYY-MM-DD
-  hariTanggalFormat?: string; // e.g., "Senin, 15 Ags 2026"
-  jamMulai: string; // e.g., "15:00"
-  jamSelesai: string; // e.g., "17:30"
-  materiRencana?: string;
-  lokasiLatihan?: string;
-  status?: 'terjadwal' | 'berlangsung' | 'selesai' | 'dibatalkan';
+  hari: string; // e.g., "Senin", "Rabu", "Sabtu"
+  tanggal?: string; // YYYY-MM-DD (tanggal sesi latihan terjadwal)
+  jamMulai: string; // e.g., "14:00"
+  jamSelesai: string; // e.g., "16:30"
+  catatan?: string; // Opsional topik / rencana sesi latihan
   reminderEnabled: boolean;
-  reminderMinutesBefore: number; // e.g. 15, 30, 60, 120
-  absenPelatihId?: string; // Link to AbsenPelatihItem
-  catatan?: string;
-  createdAt?: string;
+  reminderMinutesBefore: number;
 }
 
 export interface AbsenPelatihItem {
@@ -95,6 +86,7 @@ export interface AbsenPelatihItem {
   pelatih2Id?: string; // ID Pelatih ke-2 (Kolaborator / Pendamping)
   pelatih2Nama?: string; // Nama Pelatih ke-2
   sekolahId: string;
+  jadwalId?: string; // Tautan ke sesi jadwal latihan terjadwal
   tahunAjaran?: string; // e.g. "2024/2025"
   tanggal: string; // YYYY-MM-DD
   hariTanggalFormat: string; // e.g. "Senin, 12 Ags 2026"
@@ -107,7 +99,6 @@ export interface AbsenPelatihItem {
   parafPelatih2Url?: string; // Tanda tangan Pelatih 2
   statusKepalaSekolah: 'Mengetahui' | 'Menunggu';
   catatan?: string;
-  jadwalId?: string; // Link to JadwalLatihan
   // Status Verifikasi oleh Admin
   statusVerifikasiAdmin?: 'menunggu' | 'diverifikasi' | 'ditolak';
   diverifikasiOleh?: string;
@@ -152,6 +143,7 @@ export interface AbsenSiswaEntry {
   id: string;
   sekolahId: string;
   anggotaId: string;
+  jadwalId?: string; // Tautan ke sesi jadwal latihan terjadwal
   bulan: string; // e.g., "Januari", "Agustus"
   tahunAjaran: string; // e.g. "2024/2025"
   kolomIndex: number; // 1 to 5 (represent practice dates in month)

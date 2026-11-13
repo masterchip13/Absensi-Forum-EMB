@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { QrCode, Camera, Upload, CheckCircle2, XCircle, X, AlertCircle, Sparkles, Volume2, History, RefreshCw } from 'lucide-react';
-import { Anggota } from '../types';
+import { QrCode, Camera, Upload, CheckCircle2, XCircle, X, AlertCircle, Sparkles, Volume2, History, RefreshCw, Calendar } from 'lucide-react';
+import { Anggota, JadwalLatihan } from '../types';
 import { StorageService } from '../data/storage';
 import { StudentWetSignature } from '../utils/studentSignature';
+import { BULAN_OPTIONS, getCurrentMonthName, getLocalDateString, getMonthNameFromDateString, formatIndonesianDate } from '../utils/dateUtils';
 
 interface QrScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
   selectedSekolahId: string;
-  onScanSuccess: (anggota: Anggota, columnNumber: number, monthName?: string) => void;
+  jadwalList?: JadwalLatihan[];
+  initialJadwalId?: string;
+  onScanSuccess: (anggota: Anggota, columnNumber: number, monthName?: string, jadwalId?: string, customTanggal?: string) => void;
 }
 
 interface ScannedHistoryItem {
@@ -17,22 +20,23 @@ interface ScannedHistoryItem {
   time: string;
   column: number;
   month: string;
+  year: string;
 }
-
-import { BULAN_OPTIONS, getCurrentMonthName } from '../utils/dateUtils';
 
 export const QrScannerModal: React.FC<QrScannerModalProps> = ({
   isOpen,
   onClose,
   selectedSekolahId,
+  jadwalList = [],
+  initialJadwalId,
   onScanSuccess
 }) => {
   const [activeTab, setActiveTab] = useState<'camera' | 'upload' | 'manual'>('camera');
   const [cameraFacingMode, setCameraFacingMode] = useState<'user' | 'environment'>('user');
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [selectedColumn, setSelectedColumn] = useState<number>(1);
-  // User requirement: "untuk scan absensi, gunakan bulan yang sedang berjalan sekarang"
   const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonthName());
+  const [selectedJadwalId, setSelectedJadwalId] = useState<string>('');
   const [lastConfirmedStudent, setLastConfirmedStudent] = useState<Anggota | null>(null);
   const [duplicateWarningStudent, setDuplicateWarningStudent] = useState<Anggota | null>(null);
   const [scanStatus, setScanStatus] = useState<'idle' | 'success' | 'already_confirmed'>('idle');
@@ -40,12 +44,60 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
   const [scannedHistory, setScannedHistory] = useState<ScannedHistoryItem[]>([]);
   const [isScanningCamera, setIsScanningCamera] = useState(false);
 
-  // Automatically sync to current ongoing month whenever modal opens
+  const schoolJadwalList = (jadwalList.length > 0 ? jadwalList : StorageService.getJadwal())
+    .filter(j => j.sekolahId === selectedSekolahId)
+    .sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
+
+  const syncFromJadwal = (jId: string) => {
+    setSelectedJadwalId(jId);
+    if (!jId) return;
+    const foundJadwal = schoolJadwalList.find(j => j.id === jId);
+    if (foundJadwal?.tanggal) {
+      const targetMonth = getMonthNameFromDateString(foundJadwal.tanggal);
+      setSelectedMonth(targetMonth);
+
+      // Determine matching column (1..5) for this session in targetMonth
+      const activeYear = StorageService.getActiveTahunAjaran();
+      const monthAbsen = StorageService.getAbsenSiswa().filter(
+        a => a.sekolahId === selectedSekolahId &&
+             a.bulan?.toLowerCase() === targetMonth.toLowerCase() &&
+             (!a.tahunAjaran || a.tahunAjaran === activeYear)
+      );
+      const existingForSession = monthAbsen.find(a => a.jadwalId === jId || a.tanggal === foundJadwal.tanggal);
+      if (existingForSession) {
+        setSelectedColumn(existingForSession.kolomIndex);
+      } else {
+        const usedCols = new Set(monthAbsen.map(a => a.kolomIndex));
+        const nextCol = [1, 2, 3, 4, 5].find(c => !usedCols.has(c)) || 1;
+        setSelectedColumn(nextCol);
+      }
+    }
+  };
+
+  // Automatically sync to initialJadwalId or today's session or current ongoing month whenever modal opens
   useEffect(() => {
     if (isOpen) {
-      setSelectedMonth(getCurrentMonthName());
+      setScanStatus('idle');
+      setLastConfirmedStudent(null);
+      setDuplicateWarningStudent(null);
+      setSuccessToast(null);
+      setCameraError(null);
+      lastScannedCodeRef.current = '';
+      lastScanTimestampRef.current = 0;
+
+      const todayStr = getLocalDateString();
+      const defaultJadwal =
+        (initialJadwalId && schoolJadwalList.find(j => j.id === initialJadwalId)) ||
+        schoolJadwalList.find(j => j.tanggal === todayStr);
+
+      if (defaultJadwal) {
+        syncFromJadwal(defaultJadwal.id);
+      } else {
+        setSelectedJadwalId('');
+        setSelectedMonth(getCurrentMonthName());
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, initialJadwalId, selectedSekolahId]);
 
   const qrRegionId = 'qr-reader-element';
   const html5QrcodeRef = useRef<Html5Qrcode | null>(null);
@@ -191,12 +243,20 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
     lastScanTimestampRef.current = now;
 
     const trimmed = qrText.trim();
-    const found = allAnggota.find(a => 
-      a.qrCodeData === trimmed || 
-      a.id === trimmed || 
-      trimmed.includes(a.nama) ||
-      a.qrCodeData.includes(trimmed)
-    );
+    const normalizedTrimmed = trimmed.toLowerCase();
+    const found =
+      schoolAnggota.find(
+        a =>
+          a.qrCodeData === trimmed ||
+          a.id === trimmed ||
+          a.qrCodeData.toLowerCase() === normalizedTrimmed
+      ) ||
+      allAnggota.find(
+        a =>
+          a.qrCodeData === trimmed ||
+          a.id === trimmed ||
+          a.qrCodeData.toLowerCase() === normalizedTrimmed
+      );
 
     if (found) {
       // Check if student is ALREADY confirmed present for this column and month
@@ -211,7 +271,8 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
       ) || scannedHistory.some(
         h => h.student.id === found.id &&
              h.column === selectedColumn &&
-             h.month.toLowerCase() === selectedMonth.toLowerCase()
+             h.month.toLowerCase() === selectedMonth.toLowerCase() &&
+             h.year === activeYear
       );
 
       if (alreadyPresent) {
@@ -231,8 +292,15 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
       setLastConfirmedStudent(found);
       setSuccessToast(`✅ TERKONFIRMASI HADIR (1x): ${found.nama} berhasil hadir di Pertemuan Kolom ${selectedColumn} (${selectedMonth})`);
 
-      // 1. Immediately fire onScanSuccess to save attendance & signature
-      onScanSuccess(found, selectedColumn, selectedMonth);
+      // 1. Immediately fire onScanSuccess to save attendance, signature & associated session
+      const selectedSession = schoolJadwalList.find(j => j.id === selectedJadwalId);
+      onScanSuccess(
+        found,
+        selectedColumn,
+        selectedMonth,
+        selectedJadwalId || undefined,
+        selectedSession?.tanggal || getLocalDateString()
+      );
 
       // 2. Play audible confirmation tone
       playConfirmationChime();
@@ -240,8 +308,8 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
       // 3. Record to session history
       const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setScannedHistory(prev => [
-        { student: found, time: timeStr, column: selectedColumn, month: selectedMonth },
-        ...prev.filter(item => !(item.student.id === found.id && item.column === selectedColumn && item.month === selectedMonth))
+        { student: found, time: timeStr, column: selectedColumn, month: selectedMonth, year: activeYear },
+        ...prev.filter(item => !(item.student.id === found.id && item.column === selectedColumn && item.month === selectedMonth && item.year === activeYear))
       ]);
     } else {
       setScanStatus('idle');
@@ -292,17 +360,36 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
           </button>
         </div>
 
-        {/* Column and Month Selector Controls */}
-        <div className="bg-slate-50 border-b border-slate-200 p-3 space-y-2 shrink-0">
-          <div className="flex items-center justify-between gap-2">
+        {/* Session, Column and Month Selector Controls */}
+        <div className="bg-slate-50 border-b border-slate-200 p-3 space-y-2.5 shrink-0">
+          {schoolJadwalList.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Calendar className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <select
+                value={selectedJadwalId}
+                onChange={(e) => syncFromJadwal(e.target.value)}
+                className="flex-1 text-xs font-semibold bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-800 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              >
+                <option value="">Sesi Manual (Tanpa Tautan Jadwal)</option>
+                {schoolJadwalList.map((j) => (
+                  <option key={j.id} value={j.id}>
+                    {j.tanggal ? formatIndonesianDate(j.tanggal) : `Hari ${j.hari}`} ({j.jamMulai} - {j.jamSelesai}){j.catatan ? ` • ${j.catatan}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-700">Kolom Pertemuan:</span>
               <div className="flex gap-1">
                 {[1, 2, 3, 4, 5].map((col) => (
                   <button
                     key={col}
+                    type="button"
                     onClick={() => setSelectedColumn(col)}
-                    className={`w-7 h-7 rounded-lg text-xs font-black transition flex items-center justify-center ${
+                    className={`w-7 h-7 rounded-lg text-xs font-black transition flex items-center justify-center cursor-pointer ${
                       selectedColumn === col
                         ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400 scale-105'
                         : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
@@ -323,7 +410,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
               >
                 {BULAN_OPTIONS.map((m) => (
                   <option key={m} value={m}>
-                    {m} {m === getCurrentMonthName() ? '★ (Bulan Berjalan)' : ''}
+                    {m} {m === getCurrentMonthName() ? '(Berjalan)' : ''}
                   </option>
                 ))}
               </select>
@@ -536,11 +623,16 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
                   <p className="text-xs text-slate-400 italic p-3 text-center">Belum ada anggota terdaftar untuk sekolah ini.</p>
                 ) : (
                   schoolAnggota.map((student) => {
+                    const activeYear = StorageService.getActiveTahunAjaran();
                     const allAbsen = StorageService.getAbsenSiswa();
                     const isAlreadyScanned = scannedHistory.some(
-                      h => h.student.id === student.id && h.column === selectedColumn && h.month === selectedMonth
+                      h => h.student.id === student.id && h.column === selectedColumn && h.month === selectedMonth && h.year === activeYear
                     ) || allAbsen.some(
-                      a => a.anggotaId === student.id && a.kolomIndex === selectedColumn && a.bulan?.toLowerCase() === selectedMonth.toLowerCase() && a.status === 'Hadir'
+                      a => a.anggotaId === student.id &&
+                           a.kolomIndex === selectedColumn &&
+                           a.bulan?.toLowerCase() === selectedMonth.toLowerCase() &&
+                           (!a.tahunAjaran || a.tahunAjaran === activeYear) &&
+                           a.status === 'Hadir'
                     );
                     return (
                       <button

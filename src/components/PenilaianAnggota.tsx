@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { Sekolah, Anggota, AbsenSiswaEntry, isSchoolCoach, getSchoolCoachIds } from '../types';
+import { Sekolah, Anggota, AbsenSiswaEntry, AbsenPelatihItem, User, isSchoolCoach, getSchoolCoachIds } from '../types';
 import { StorageService } from '../data/storage';
 import { formatNamaKapital, formatKelasAngka } from '../utils/nameFormatter';
+import { showToast } from '../utils/uiDialogs';
 import {
   Award,
   Download,
@@ -30,6 +31,8 @@ interface PenilaianAnggotaProps {
   selectedSekolahId: string;
   anggotaList: Anggota[];
   absenSiswaList: AbsenSiswaEntry[];
+  absenPelatihList?: AbsenPelatihItem[];
+  usersList?: User[];
 }
 
 export type SemesterType = 'Ganjil' | 'Genap';
@@ -195,14 +198,24 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
   sekolahList,
   selectedSekolahId,
   anggotaList,
-  absenSiswaList
+  absenSiswaList,
+  absenPelatihList,
+  usersList
 }) => {
-  const [filterSekolahId, setFilterSekolahId] = useState(selectedSekolahId);
+  const [filterSekolahId, setFilterSekolahId] = useState(selectedSekolahId || sekolahList[0]?.id || '');
   const [filterSemester, setFilterSemester] = useState<SemesterType>('Ganjil');
   const [filterTahunAjaran, setFilterTahunAjaran] = useState(StorageService.getActiveTahunAjaran());
   const [filterDivisi, setFilterDivisi] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [isExporting, setIsExporting] = useState(false);
+
+  useEffect(() => {
+    if (selectedSekolahId) {
+      setFilterSekolahId(selectedSekolahId);
+    } else if (!filterSekolahId && sekolahList.length > 0) {
+      setFilterSekolahId(sekolahList[0].id);
+    }
+  }, [selectedSekolahId, sekolahList]);
 
   // Wet Signature Controls
   const [useWetSignature, setUseWetSignature] = useState(true);
@@ -220,42 +233,67 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
   const tahunAjaranOptions = StorageService.getTahunAjaranList();
   const selectedSekolah = sekolahList.find(s => s.id === filterSekolahId) || sekolahList[0];
 
+  const resolvedUsers = useMemo(
+    () => (usersList && usersList.length > 0 ? usersList : StorageService.getUsers()),
+    [usersList]
+  );
+
   // Coach & Headmaster details (prefer logged-in coach if they train this school)
   const pelatihUser = useMemo(() => {
-    const users = StorageService.getUsers();
     const currentUser = StorageService.getCurrentUser();
     if (currentUser && selectedSekolah && isSchoolCoach(selectedSekolah, currentUser.id)) {
       return currentUser;
     }
-    return users.find(u => u.id === selectedSekolah?.pelatihId) || currentUser;
-  }, [selectedSekolah]);
+    return resolvedUsers.find(u => u.id === selectedSekolah?.pelatihId) || currentUser;
+  }, [selectedSekolah, resolvedUsers]);
 
   // Resolve all assigned coaches for collaboration in this school
   const schoolCoaches = useMemo(() => {
-    const users = StorageService.getUsers();
     const coachIds = getSchoolCoachIds(selectedSekolah);
-    const coaches = coachIds.map(id => users.find(u => u.id === id)).filter(Boolean);
+    const coaches = coachIds.map(id => resolvedUsers.find(u => u.id === id)).filter(Boolean);
     if (coaches.length === 0 && pelatihUser) return [pelatihUser];
     return coaches;
-  }, [selectedSekolah, pelatihUser]);
+  }, [selectedSekolah, resolvedUsers, pelatihUser]);
 
   const isCollaborative = schoolCoaches.length > 1;
   const leadCoach = schoolCoaches[0] || pelatihUser;
   const partnerCoach = schoolCoaches[1] || null;
 
-  // Load saved coach signatures from storage or profile if exists
+  // Load saved coach signatures from session records, coach account cache, or wet signature storage
   useEffect(() => {
     const leadId = leadCoach?.id;
     const partnerId = partnerCoach?.id;
-    const savedSig1 = (leadId && localStorage.getItem(`coach_sig_${leadId}`)) || localStorage.getItem('coach_wet_signature_data') || '';
-    if (savedSig1) {
-      setCustomCoachSignature(savedSig1);
-    }
-    const savedSig2 = (partnerId && localStorage.getItem(`coach_sig_${partnerId}`)) || localStorage.getItem('coach2_wet_signature_data') || '';
-    if (savedSig2) {
-      setCustomCoach2Signature(savedSig2);
-    }
-  }, [leadCoach, partnerCoach]);
+    const allAbsenPelatih = absenPelatihList && absenPelatihList.length > 0
+      ? absenPelatihList
+      : StorageService.getAbsenPelatih();
+    const targetSchoolId = selectedSekolah?.id;
+
+    const sessionSig1 =
+      allAbsenPelatih.find(a => a.sekolahId === targetSchoolId && (!leadId || a.pelatihId === leadId) && !!a.parafPelatihUrl)?.parafPelatihUrl ||
+      allAbsenPelatih.find(a => a.sekolahId === targetSchoolId && !!a.parafPelatihUrl)?.parafPelatihUrl ||
+      allAbsenPelatih.find(a => leadId && a.pelatihId === leadId && !!a.parafPelatihUrl)?.parafPelatihUrl ||
+      '';
+
+    const savedSig1 =
+      sessionSig1 ||
+      (leadId && localStorage.getItem(`coach_sig_${leadId}`)) ||
+      localStorage.getItem('coach_wet_signature_data') ||
+      '';
+    setCustomCoachSignature(savedSig1);
+
+    const sessionSig2 =
+      allAbsenPelatih.find(a => a.sekolahId === targetSchoolId && !!a.parafPelatih2Url)?.parafPelatih2Url ||
+      allAbsenPelatih.find(a => a.sekolahId === targetSchoolId && partnerId && a.pelatihId === partnerId && !!a.parafPelatihUrl)?.parafPelatihUrl ||
+      allAbsenPelatih.find(a => partnerId && a.pelatih2Id === partnerId && !!a.parafPelatih2Url)?.parafPelatih2Url ||
+      '';
+
+    const savedSig2 =
+      sessionSig2 ||
+      (partnerId && localStorage.getItem(`coach_sig_${partnerId}`)) ||
+      localStorage.getItem('coach2_wet_signature_data') ||
+      '';
+    setCustomCoach2Signature(savedSig2);
+  }, [leadCoach, partnerCoach, selectedSekolah, absenPelatihList]);
 
   // Semester months definition:
   // Semester Ganjil: Juli, Agustus, September, Oktober, November, Desember
@@ -502,7 +540,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
       setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
     } catch (err) {
       console.error('Export PDF error:', err);
-      alert('Gagal mengekspor PDF otomatis. Anda dapat menggunakan tombol Cetak Langsung.');
+      showToast('Gagal mengekspor PDF otomatis. Gunakan tombol Cetak Langsung.', 'error');
     } finally {
       setIsExporting(false);
     }
@@ -545,7 +583,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
       }, mimeType, quality);
     } catch (err) {
       console.error(`Export ${formatLabel} error:`, err);
-      alert(`Gagal mengekspor ${formatLabel}. Silakan gunakan tombol Cetak.`);
+      showToast(`Gagal mengekspor ${formatLabel}. Silakan gunakan tombol Cetak.`, 'error');
     } finally {
       setIsExportingImage(false);
     }
@@ -728,7 +766,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
       XLSX.writeFile(wb, fileName);
     } catch (err) {
       console.error('Export Excel failed:', err);
-      alert('Terjadi kesalahan saat mengekspor Excel.');
+      showToast('Terjadi kesalahan saat mengekspor Excel.', 'error');
     }
   };
 
@@ -912,7 +950,7 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
       setTimeout(() => URL.revokeObjectURL(url), 2000);
     } catch (err) {
       console.error('Export CSV Nilai failed:', err);
-      alert('Terjadi kesalahan saat mengekspor file CSV Nilai.');
+      showToast('Terjadi kesalahan saat mengekspor file CSV Nilai.', 'error');
     }
   };
 
@@ -1132,11 +1170,18 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
     if (activeEditingCoach === 1) {
       setCustomCoachSignature(sigDataUrl);
       localStorage.setItem('coach_wet_signature_data', sigDataUrl);
+      if (leadCoach?.id) {
+        localStorage.setItem(`coach_sig_${leadCoach.id}`, sigDataUrl);
+      }
     } else {
       setCustomCoach2Signature(sigDataUrl);
       localStorage.setItem('coach2_wet_signature_data', sigDataUrl);
+      if (partnerCoach?.id) {
+        localStorage.setItem(`coach_sig_${partnerCoach.id}`, sigDataUrl);
+      }
     }
     setIsSignatureModalOpen(false);
+    showToast('Tanda tangan pelatih berhasil disimpan.', 'success');
   };
 
   // Handle Upload Image Signature
@@ -1149,11 +1194,18 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
       if (activeEditingCoach === 1) {
         setCustomCoachSignature(result);
         localStorage.setItem('coach_wet_signature_data', result);
+        if (leadCoach?.id) {
+          localStorage.setItem(`coach_sig_${leadCoach.id}`, result);
+        }
       } else {
         setCustomCoach2Signature(result);
         localStorage.setItem('coach2_wet_signature_data', result);
+        if (partnerCoach?.id) {
+          localStorage.setItem(`coach_sig_${partnerCoach.id}`, result);
+        }
       }
       setIsSignatureModalOpen(false);
+      showToast('Tanda tangan pelatih berhasil diunggah.', 'success');
     };
     reader.readAsDataURL(file);
   };
@@ -1420,6 +1472,9 @@ export const PenilaianAnggota: React.FC<PenilaianAnggotaProps> = ({
                   setCustomCoach2Signature('');
                   localStorage.removeItem('coach_wet_signature_data');
                   localStorage.removeItem('coach2_wet_signature_data');
+                  if (leadCoach?.id) localStorage.removeItem(`coach_sig_${leadCoach.id}`);
+                  if (partnerCoach?.id) localStorage.removeItem(`coach_sig_${partnerCoach.id}`);
+                  showToast('Tanda tangan pelatih direset.', 'info');
                 }}
                 className="text-xs text-rose-600 hover:underline font-semibold"
                 title="Reset ke TTD Basah Standar"

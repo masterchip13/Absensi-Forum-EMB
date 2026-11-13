@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Clock, School, QrCode, X, ChevronRight, Sparkles, Volume2 } from 'lucide-react';
+import { Bell, QrCode, X } from 'lucide-react';
 import { JadwalLatihan, Sekolah, User } from '../types';
 import { getScheduleReminders, ScheduleReminderItem } from '../utils/scheduleNotifications';
 
@@ -9,20 +9,16 @@ interface TrainingReminderBannerProps {
   sekolahList: Sekolah[];
   selectedSekolahId: string;
   onSelectSekolah: (id: string) => void;
-  onOpenQrScanner: () => void;
+  onOpenQrScanner: (jadwalId?: string) => void;
   onNavigateToJadwal?: () => void;
-  onStartAttendance?: (jadwal: JadwalLatihan) => void;
 }
 
 export const TrainingReminderBanner: React.FC<TrainingReminderBannerProps> = ({
   currentUser,
   jadwalList,
   sekolahList,
-  selectedSekolahId,
   onSelectSekolah,
-  onOpenQrScanner,
-  onNavigateToJadwal,
-  onStartAttendance
+  onOpenQrScanner
 }) => {
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [urgentItems, setUrgentItems] = useState<ScheduleReminderItem[]>([]);
@@ -31,7 +27,6 @@ export const TrainingReminderBanner: React.FC<TrainingReminderBannerProps> = ({
     const checkUrgent = () => {
       const now = new Date();
       const res = getScheduleReminders(jadwalList, sekolahList, currentUser, now);
-      // Filter out dismissed for this session
       const visible = res.startingSoonList.filter(item => !dismissedIds.includes(item.jadwal.id));
       setUrgentItems(visible);
     };
@@ -52,79 +47,48 @@ export const TrainingReminderBanner: React.FC<TrainingReminderBannerProps> = ({
   };
 
   return (
-    <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-slate-950 p-4 rounded-2xl shadow-lg border-2 border-amber-300 animate-fade-in relative overflow-hidden">
-      {/* Background ambient pattern */}
-      <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-xl pointer-events-none" />
-
-      <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3">
-        
-        {/* Alert Content */}
-        <div className="flex items-start gap-3">
-          <div className="p-2.5 bg-slate-950 text-amber-300 rounded-xl shadow-md shrink-0 mt-0.5 animate-bounce">
-            <Bell className="w-5 h-5" />
-          </div>
-
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] font-black uppercase tracking-wider bg-slate-950 text-amber-300 px-2.5 py-0.5 rounded-full">
-                ⚠️ Peringatan Latihan &lt; 1 Jam
-              </span>
-              <span className="text-xs font-black text-slate-950 underline underline-offset-2">
-                {primaryItem.timeRemainingText}
-              </span>
-            </div>
-
-            <h4 className="font-extrabold text-base text-slate-950 mt-1 leading-tight">
-              Latihan di {primaryItem.sekolah?.namaSekolah || 'Sekolah'} akan segera dimulai!
-            </h4>
-            
-            <p className="text-xs text-slate-900 font-semibold mt-0.5">
-              Jadwal: Hari {primaryItem.hari} Pukul {primaryItem.jamMulai} - {primaryItem.jamSelesai} WIB. Siapkan perlengkapan dan buka presensi QR.
-            </p>
-          </div>
+    <div className="bg-amber-50 border border-amber-300 text-slate-900 px-4 py-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex items-start gap-3">
+        <div className="p-2 bg-amber-500 text-white rounded-xl shrink-0 mt-0.5">
+          <Bell className="w-4 h-4" />
         </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
-          {onStartAttendance && (
-            <button
-              type="button"
-              onClick={() => {
-                if (primaryItem.sekolah) {
-                  onSelectSekolah(primaryItem.sekolah.id);
-                }
-                onStartAttendance(primaryItem.jadwal);
-              }}
-              className="flex items-center gap-1.5 bg-white text-slate-900 hover:bg-slate-100 font-extrabold text-xs px-3.5 py-2.5 rounded-xl shadow-md transition transform active:scale-95 cursor-pointer"
-            >
-              <Clock className="w-4 h-4 text-amber-600" />
-              <span>Isi Presensi Sesi</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => {
-              if (primaryItem.sekolah) {
-                onSelectSekolah(primaryItem.sekolah.id);
-              }
-              onOpenQrScanner();
-            }}
-            className="flex items-center gap-1.5 bg-slate-950 hover:bg-slate-800 text-amber-300 hover:text-amber-200 font-black text-xs px-4 py-2.5 rounded-xl shadow-md transition transform active:scale-95 cursor-pointer"
-          >
-            <QrCode className="w-4 h-4 text-emerald-400" />
-            <span>Mulai Scan Presensi QR</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleDismiss(primaryItem.jadwal.id)}
-            className="p-2 text-slate-950/70 hover:text-slate-950 hover:bg-white/20 rounded-xl transition"
-            title="Tutup Notifikasi"
-          >
-            <X className="w-4 h-4" />
-          </button>
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wide">
+              Pengingat Latihan
+            </span>
+            <span className="text-xs font-bold text-slate-900">
+              • {primaryItem.timeRemainingText}
+            </span>
+          </div>
+          <p className="font-bold text-sm text-slate-900 mt-0.5">
+            {primaryItem.sekolah?.namaSekolah || 'Sekolah Binaan'} — {primaryItem.tanggalLabel || primaryItem.hari} ({primaryItem.jamMulai} - {primaryItem.jamSelesai} WIB)
+          </p>
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+        <button
+          type="button"
+          onClick={() => {
+            if (primaryItem.sekolah) {
+              onSelectSekolah(primaryItem.sekolah.id);
+            }
+            onOpenQrScanner(primaryItem.jadwal.id);
+          }}
+          className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs px-3.5 py-2 rounded-xl transition cursor-pointer"
+        >
+          <QrCode className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Scan Absen Sesi</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => handleDismiss(primaryItem.jadwal.id)}
+          className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-amber-100 rounded-lg transition cursor-pointer"
+          title="Tutup Pengingat"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );

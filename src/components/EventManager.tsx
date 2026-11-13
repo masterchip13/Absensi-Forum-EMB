@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { EventLog, Sekolah, User } from '../types';
 import { StorageService } from '../data/storage';
+import { getLocalDateString } from '../utils/dateUtils';
+import { askConfirm, showToast } from '../utils/uiDialogs';
 import { Calendar, MapPin, Award, Plus, Trash2, Edit3, Image as ImageIcon, Search, School, FileText, CheckCircle, X, ExternalLink, Printer } from 'lucide-react';
 
 interface EventManagerProps {
@@ -30,7 +32,7 @@ export const EventManager: React.FC<EventManagerProps> = ({
 
   // Form State
   const [formSekolahId, setFormSekolahId] = useState<string>(selectedSekolahId || (sekolahList[0]?.id || ''));
-  const [formTanggal, setFormTanggal] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [formTanggal, setFormTanggal] = useState<string>(getLocalDateString());
   const [formNamaEvent, setFormNamaEvent] = useState('');
   const [formLokasi, setFormLokasi] = useState('');
   const [formKeterangan, setFormKeterangan] = useState('');
@@ -51,7 +53,7 @@ export const EventManager: React.FC<EventManagerProps> = ({
   const openAddModal = () => {
     setEditingEvent(null);
     setFormSekolahId(selectedSekolahId || sekolahList[0]?.id || '');
-    setFormTanggal(new Date().toISOString().split('T')[0]);
+    setFormTanggal(getLocalDateString());
     setFormNamaEvent('');
     setFormLokasi('');
     setFormKeterangan('');
@@ -119,7 +121,7 @@ export const EventManager: React.FC<EventManagerProps> = ({
   const handleSaveEvent = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formNamaEvent.trim() || !formSekolahId || !formTanggal) {
-      alert('Mohon isi nama kegiatan, tanggal, dan sekolah pelaksana.');
+      showToast('Mohon isi nama kegiatan, tanggal, dan sekolah pelaksana.', 'warning');
       return;
     }
 
@@ -138,12 +140,20 @@ export const EventManager: React.FC<EventManagerProps> = ({
 
     StorageService.saveEvent(eventData);
     setIsModalOpen(false);
+    showToast(editingEvent ? 'Laporan event diperbarui.' : 'Laporan event berhasil disimpan.', 'success');
     onDataChanged();
   };
 
-  const handleDeleteEvent = (id: string, name: string) => {
-    if (confirm(`Apakah Anda yakin ingin menghapus laporan kegiatan "${name}"?`)) {
+  const handleDeleteEvent = async (id: string, name: string) => {
+    const confirmed = await askConfirm({
+      title: 'Hapus Laporan Kegiatan?',
+      message: `Apakah Anda yakin ingin menghapus laporan kegiatan "${name}"?`,
+      confirmText: 'Hapus',
+      variant: 'danger'
+    });
+    if (confirmed) {
       StorageService.deleteEvent(id);
+      showToast('Laporan kegiatan dihapus.', 'info');
       onDataChanged();
     }
   };

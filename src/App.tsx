@@ -10,7 +10,8 @@ import { AsistenPelatihDashboard } from './components/AsistenPelatihDashboard';
 import { QrScannerModal } from './components/QrScannerModal';
 import { TahunAjaranModal } from './components/TahunAjaranModal';
 import { OfflineBanner } from './components/OfflineBanner';
-import { getCurrentMonthName } from './utils/dateUtils';
+import { AppDialogHost } from './components/AppDialogHost';
+import { getCurrentMonthName, getLocalDateString } from './utils/dateUtils';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -31,6 +32,7 @@ export default function App() {
   const [isTahunAjaranModalOpen, setIsTahunAjaranModalOpen] = useState(false);
 
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+  const [activeScanJadwalId, setActiveScanJadwalId] = useState<string | undefined>(undefined);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('offline');
 
   const loadAllData = useCallback(() => {
@@ -99,17 +101,28 @@ export default function App() {
     setCurrentUser(null);
   };
 
-  const handleQrScanSuccess = (student: Anggota, columnNumber: number, monthName?: string) => {
-    // Record attendance entry with student's digital signature for column 1 to 5 using current running month
+  const handleOpenQrScanner = (jadwalId?: string) => {
+    setActiveScanJadwalId(jadwalId);
+    setIsQrScannerOpen(true);
+  };
+
+  const handleQrScanSuccess = (
+    student: Anggota,
+    columnNumber: number,
+    monthName?: string,
+    jadwalId?: string,
+    customTanggal?: string
+  ) => {
     const activeBulan = monthName || getCurrentMonthName();
     const newEntry: AbsenSiswaEntry = {
       id: `abs-${student.id}-${activeBulan}-${columnNumber}-${Date.now()}`,
       sekolahId: student.sekolahId,
       anggotaId: student.id,
+      ...(jadwalId ? { jadwalId } : {}),
       bulan: activeBulan,
       tahunAjaran: StorageService.getActiveTahunAjaran(),
       kolomIndex: columnNumber,
-      tanggal: new Date().toISOString().split('T')[0],
+      tanggal: customTanggal || getLocalDateString(),
       status: 'Hadir',
       signatureUrl: student.signatureUrl
     };
@@ -121,6 +134,7 @@ export default function App() {
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col">
+        <AppDialogHost />
         <OfflineBanner />
         <LoginView onLoginSuccess={(u) => { setCurrentUser(u); loadAllData(); }} />
       </div>
@@ -134,6 +148,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 font-sans flex flex-col">
+      <AppDialogHost />
       {/* Offline Status Banner */}
       <OfflineBanner />
 
@@ -148,7 +163,7 @@ export default function App() {
         tahunAjaranList={tahunAjaranList}
         onSelectTahunAjaran={handleSelectTahunAjaran}
         onOpenManageTahunAjaran={() => setIsTahunAjaranModalOpen(true)}
-        onOpenQrScanner={() => setIsQrScannerOpen(true)}
+        onOpenQrScanner={handleOpenQrScanner}
         onLogout={handleLogout}
         syncStatus={syncStatus}
         onManualSync={async () => {
@@ -171,7 +186,6 @@ export default function App() {
             eventsList={eventsList}
             activeTahunAjaran={activeTahunAjaran}
             onOpenManageTahunAjaran={() => setIsTahunAjaranModalOpen(true)}
-            jadwalList={jadwalList}
             onDataChanged={loadAllData}
           />
         ) : currentUser.role === 'asisten_pelatih' ? (
@@ -188,12 +202,14 @@ export default function App() {
             sekolahList={displayedSekolahList}
             selectedSekolahId={selectedSekolahId}
             onSelectSekolah={handleSelectSekolah}
-            onOpenQrScanner={() => setIsQrScannerOpen(true)}
+            onOpenQrScanner={handleOpenQrScanner}
             onDataChanged={loadAllData}
+            usersList={usersList}
             divisiList={divisiList}
             jadwalList={jadwalList}
             anggotaList={anggotaList}
             absenPelatihList={absenPelatihList}
+            absenAsistenList={absenAsistenList}
             absenSiswaList={absenSiswaList}
             eventsList={eventsList}
             activeTahunAjaran={activeTahunAjaran}
@@ -205,8 +221,13 @@ export default function App() {
       {/* Global QR Scanner Modal */}
       <QrScannerModal
         isOpen={isQrScannerOpen}
-        onClose={() => setIsQrScannerOpen(false)}
+        onClose={() => {
+          setIsQrScannerOpen(false);
+          setActiveScanJadwalId(undefined);
+        }}
         selectedSekolahId={selectedSekolahId}
+        jadwalList={jadwalList}
+        initialJadwalId={activeScanJadwalId}
         onScanSuccess={handleQrScanSuccess}
       />
 

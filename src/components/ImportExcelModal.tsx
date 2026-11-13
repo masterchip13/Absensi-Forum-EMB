@@ -3,6 +3,8 @@ import * as XLSX from 'xlsx';
 import { Anggota, Divisi, Sekolah } from '../types';
 import { StorageService } from '../data/storage';
 import { formatNamaKapital, formatKelasAngka } from '../utils/nameFormatter';
+import { getLocalDateString } from '../utils/dateUtils';
+import { showToast } from '../utils/uiDialogs';
 import { FileSpreadsheet, Upload, Download, CheckCircle2, AlertTriangle, X, Plus, HelpCircle, FileText } from 'lucide-react';
 
 interface ImportExcelModalProps {
@@ -153,7 +155,7 @@ export const ImportExcelModal: React.FC<ImportExcelModalProps> = ({
         setParsedRows(rows);
       } catch (err) {
         console.error('Failed to parse Excel file:', err);
-        alert('Gagal membaca file Excel. Pastikan format file benar (.xlsx, .xls, atau .csv).');
+        showToast('Gagal membaca file Excel. Pastikan format file benar (.xlsx, .xls, atau .csv).', 'error');
       } finally {
         setIsProcessing(false);
       }
@@ -166,7 +168,7 @@ export const ImportExcelModal: React.FC<ImportExcelModalProps> = ({
   const handleConfirmImport = () => {
     const validRows = parsedRows.filter(r => r.isValid);
     if (validRows.length === 0) {
-      alert('Tidak ada data valid yang dapat diimpor.');
+      showToast('Tidak ada data valid yang dapat diimpor.', 'warning');
       return;
     }
 
@@ -185,7 +187,7 @@ export const ImportExcelModal: React.FC<ImportExcelModalProps> = ({
         divisiNama: row.divisiNama,
         qrCodeData,
         signatureUrl: '',
-        createdAt: new Date().toISOString().split('T')[0]
+        createdAt: getLocalDateString()
       };
 
       StorageService.saveAnggota(newAnggota);

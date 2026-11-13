@@ -1,17 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { User, UserRole, Sekolah, AbsenPelatihItem, AbsenAsistenPelatihItem, Anggota, Divisi, AbsenSiswaEntry, EventLog, JadwalLatihan, isSchoolCoach } from '../types';
+import { User, UserRole, Sekolah, AbsenPelatihItem, AbsenAsistenPelatihItem, Anggota, Divisi, AbsenSiswaEntry, EventLog, isSchoolCoach } from '../types';
 import { StorageService } from '../data/storage';
-import { DokumentasiGaleri } from './DokumentasiGaleri';
+import { DokumentasiGaleri, PhotoItemType } from './DokumentasiGaleri';
 import { StatistikKehadiran } from './StatistikKehadiran';
 import { EventManager } from './EventManager';
 import { PenilaianAnggota } from './PenilaianAnggota';
 import { SekolahManager } from './SekolahManager';
 import { RekapPdf } from './RekapPdf';
 import { AuditPresensi } from './AuditPresensi';
-import { JadwalManager } from './JadwalManager';
 import { formatNamaKapital } from '../utils/nameFormatter';
-import { BULAN_OPTIONS, getCurrentMonthName } from '../utils/dateUtils';
+import { BULAN_OPTIONS, getCurrentMonthName, getLocalDateString, parseLocalDate } from '../utils/dateUtils';
+import { askConfirm, showToast } from '../utils/uiDialogs';
 import { 
   Shield, 
   UserPlus, 
@@ -63,7 +63,6 @@ interface AdminDashboardProps {
   divisiList?: Divisi[];
   absenSiswaList?: AbsenSiswaEntry[];
   eventsList?: EventLog[];
-  jadwalList?: JadwalLatihan[];
   activeTahunAjaran?: string;
   onOpenManageTahunAjaran?: () => void;
   onDataChanged: () => void;
@@ -78,14 +77,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   divisiList = [],
   absenSiswaList = [],
   eventsList = [],
-  jadwalList = [],
   activeTahunAjaran = '2024/2025',
   onOpenManageTahunAjaran,
   onDataChanged
 }) => {
   const [activeTab, setActiveTab] = useState<'pelatih' | 'sekolah' | 'absensi' | 'penilaian' | 'laporan' | 'audit' | 'statistik' | 'progres' | 'dokumentasi' | 'event'>('pelatih');
-  const [absensiSubTab, setAbsensiSubTab] = useState<'siswa' | 'pelatih' | 'asisten' | 'jadwal'>('siswa');
-  const [confirmDeleteJurnal, setConfirmDeleteJurnal] = useState<AbsenPelatihItem | null>(null);
+  const [absensiSubTab, setAbsensiSubTab] = useState<'siswa' | 'pelatih' | 'asisten'>('siswa');
   const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'pelatih' | 'asisten_pelatih'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -98,6 +95,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [nip, setNip] = useState('');
   const [phone, setPhone] = useState('');
   const [specialty, setSpecialty] = useState('');
+  const [userFormError, setUserFormError] = useState('');
 
   // Attendance Records Filter States
   const [filterAbsenSekolah, setFilterAbsenSekolah] = useState<string>('all');
@@ -125,7 +123,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [addAnggotaId, setAddAnggotaId] = useState<string>('');
   const [addBulan, setAddBulan] = useState<string>(getCurrentMonthName());
   const [addKolomIndex, setAddKolomIndex] = useState<number>(1);
-  const [addTanggal, setAddTanggal] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [addTanggal, setAddTanggal] = useState<string>(getLocalDateString());
   const [addStatus, setAddStatus] = useState<'Hadir' | 'Sakit' | 'Izin' | 'Alfa'>('Hadir');
 
   // Assistant Recap Filter States
@@ -160,6 +158,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setNip('');
     setPhone('');
     setSpecialty('Pelatih Marching Band');
+    setUserFormError('');
     setIsModalOpen(true);
   };
 
@@ -172,33 +171,59 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setNip(u.nip || '');
     setPhone(u.phone || '');
     setSpecialty(u.specialty || '');
+    setUserFormError('');
     setIsModalOpen(true);
   };
 
   const handleSaveUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !username) return;
+    setUserFormError('');
+    const cleanName = name.trim();
+    const cleanUsername = username.trim();
+    if (!cleanName || !cleanUsername) {
+      setUserFormError('Nama lengkap dan username wajib diisi.');
+      return;
+    }
 
+    const duplicate = usersList.find(
+      u => u.id !== editingId && u.username.trim().toLowerCase() === cleanUsername.toLowerCase()
+    );
+    if (duplicate) {
+      const msg = `Username "${cleanUsername}" sudah digunakan oleh akun lain (${duplicate.name}).`;
+      setUserFormError(msg);
+      showToast(msg, 'warning');
+      return;
+    }
+
+    const existingUser = editingId ? usersList.find(u => u.id === editingId) : undefined;
     const newUser: User = {
       id: editingId || `u-${role}-${Date.now()}`,
-      name,
-      username,
-      password: password || '123456',
+      name: cleanName,
+      username: cleanUsername,
+      password: password.trim() || '123456',
       role,
-      nip,
-      phone,
-      specialty,
-      active: true
+      nip: nip.trim(),
+      phone: phone.trim(),
+      specialty: specialty.trim(),
+      active: existingUser?.active ?? true
     };
 
     StorageService.saveUser(newUser);
     setIsModalOpen(false);
+    showToast(editingId ? 'Data akun berhasil diperbarui.' : 'Akun baru berhasil ditambahkan.', 'success');
     onDataChanged();
   };
 
-  const handleDeleteUser = (id: string, userName: string) => {
-    if (confirm(`Apakah Anda yakin ingin menghapus akun user "${userName}"?`)) {
+  const handleDeleteUser = async (id: string, userName: string) => {
+    const confirmed = await askConfirm({
+      title: 'Hapus Akun User?',
+      message: `Apakah Anda yakin ingin menghapus akun user "${userName}"?`,
+      confirmText: 'Hapus',
+      variant: 'danger'
+    });
+    if (confirmed) {
       StorageService.deleteUser(id);
+      showToast(`Akun "${userName}" dihapus.`, 'info');
       onDataChanged();
     }
   };
@@ -223,7 +248,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return absenPelatihList.filter(item => {
       if (filterAbsenSekolah !== 'all' && item.sekolahId !== filterAbsenSekolah) return false;
       if (filterAbsenBulan !== 'all' && item.tanggal) {
-        const d = new Date(item.tanggal);
+        const d = parseLocalDate(item.tanggal);
         const m = bulanList[d.getMonth()];
         if (m !== filterAbsenBulan) return false;
       }
@@ -241,7 +266,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (filterAsistenId !== 'all' && item.asistenId !== filterAsistenId) return false;
       if (filterAsistenSekolah !== 'all' && item.sekolahId !== filterAsistenSekolah) return false;
       if (filterAsistenBulan !== 'all' && item.tanggal) {
-        const d = new Date(item.tanggal);
+        const d = parseLocalDate(item.tanggal);
         const m = bulanList[d.getMonth()];
         if (m !== filterAsistenBulan) return false;
       }
@@ -296,7 +321,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       XLSX.writeFile(wb, `Rekap_Presensi_Siswa_${activeTahunAjaran.replace('/', '-')}.xlsx`);
     } catch (err) {
       console.error('Export failed:', err);
-      alert('Terjadi kesalahan saat mengekspor Excel.');
+      showToast('Terjadi kesalahan saat mengekspor Excel.', 'error');
     }
   };
 
@@ -358,7 +383,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setTimeout(() => URL.revokeObjectURL(url), 2000);
     } catch (err) {
       console.error('Export CSV failed:', err);
-      alert('Terjadi kesalahan saat mengekspor file CSV.');
+      showToast('Terjadi kesalahan saat mengekspor file CSV.', 'error');
     }
   };
 
@@ -375,8 +400,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     onDataChanged();
   };
 
-  const handleRevokeVerifyAbsenPelatih = (item: AbsenPelatihItem) => {
-    if (window.confirm('Batalkan status verifikasi laporan kegiatan ini menjadi "Menunggu"?')) {
+  const handleRevokeVerifyAbsenPelatih = async (item: AbsenPelatihItem) => {
+    const confirmed = await askConfirm({
+      title: 'Batalkan Verifikasi?',
+      message: 'Batalkan status verifikasi laporan kegiatan ini menjadi "Menunggu"?',
+      confirmText: 'Ya, Batalkan',
+      variant: 'warning'
+    });
+    if (confirmed) {
       const updated: AbsenPelatihItem = {
         ...item,
         statusVerifikasiAdmin: 'menunggu',
@@ -385,6 +416,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         catatanAdmin: undefined
       };
       StorageService.saveAbsenPelatih(updated);
+      showToast('Status verifikasi dikembalikan ke Menunggu.', 'info');
       onDataChanged();
     }
   };
@@ -410,13 +442,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     onDataChanged();
   };
 
-  const handleBatchVerifyAbsenPelatih = () => {
+  const handleBatchVerifyAbsenPelatih = async () => {
     const pendingItems = filteredAbsenPelatih.filter(item => (item.statusVerifikasiAdmin || 'menunggu') !== 'diverifikasi');
     if (pendingItems.length === 0) {
-      alert('Semua laporan kegiatan pelatih pada filter ini sudah terverifikasi!');
+      showToast('Semua laporan kegiatan pelatih pada filter ini sudah terverifikasi!', 'info');
       return;
     }
-    if (window.confirm(`Verifikasi sekaligus ${pendingItems.length} laporan kegiatan pelatih yang belum diverifikasi?`)) {
+    const confirmed = await askConfirm({
+      title: 'Verifikasi Massal?',
+      message: `Verifikasi sekaligus ${pendingItems.length} laporan kegiatan pelatih yang belum diverifikasi?`,
+      confirmText: 'Verifikasi Semua',
+      variant: 'info'
+    });
+    if (confirmed) {
       pendingItems.forEach(item => {
         StorageService.saveAbsenPelatih({
           ...item,
@@ -426,7 +464,60 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           catatanAdmin: undefined
         });
       });
+      showToast(`${pendingItems.length} laporan kegiatan berhasil diverifikasi.`, 'success');
       onDataChanged();
+    }
+  };
+
+  const handleDeleteAbsenPelatih = async (item: AbsenPelatihItem) => {
+    const schoolName = sekolahList.find(s => s.id === item.sekolahId)?.namaSekolah || 'Sekolah';
+    const confirmed = await askConfirm({
+      title: 'Hapus Jurnal Pelatih?',
+      message: `Hapus jurnal pelatih "${item.materiPokok}" (${schoolName} • ${item.hariTanggalFormat || item.tanggal})?\n\nData yang dihapus tidak dapat dipulihkan.`,
+      confirmText: 'Hapus',
+      variant: 'danger'
+    });
+    if (confirmed) {
+      StorageService.deleteAbsenPelatih(item.id);
+      if (selectedJurnalDetail?.id === item.id) {
+        setSelectedJurnalDetail(null);
+      }
+      showToast('Jurnal pelatih berhasil dihapus.', 'info');
+      onDataChanged();
+    }
+  };
+
+  const handleDeleteGalleryPhoto = async (item: PhotoItemType) => {
+    if (item.kind === 'latihan') {
+      const confirmed = await askConfirm({
+        title: 'Hapus Foto Dokumentasi?',
+        message: `Hapus foto dokumentasi "${item.title}" dari galeri?\n\nCatatan jurnal latihan tetap tersimpan tanpa foto.`,
+        confirmText: 'Hapus Foto',
+        variant: 'danger'
+      });
+      if (confirmed) {
+        StorageService.saveAbsenPelatih({
+          ...item.data,
+          fotoDokumentasiUrl: ''
+        });
+        showToast('Foto dokumentasi dihapus dari galeri.', 'info');
+        onDataChanged();
+      }
+    } else {
+      const confirmed = await askConfirm({
+        title: 'Hapus Foto Event?',
+        message: `Hapus foto event "${item.title}" dari galeri?\n\nData event tetap tersimpan tanpa foto.`,
+        confirmText: 'Hapus Foto',
+        variant: 'danger'
+      });
+      if (confirmed) {
+        StorageService.saveEvent({
+          ...item.data,
+          fotoUrl: ''
+        });
+        showToast('Foto event dihapus dari galeri.', 'info');
+        onDataChanged();
+      }
     }
   };
 
@@ -435,7 +526,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleOpenEditAbsen = (entry: AbsenSiswaEntry) => {
     setEditingAbsenEntry(entry);
     setEditStatus(entry.status);
-    setEditTanggal(entry.tanggal || new Date().toISOString().split('T')[0]);
+    setEditTanggal(entry.tanggal || getLocalDateString());
     setEditBulan(entry.bulan || getCurrentMonthName());
     setEditKolomIndex(entry.kolomIndex || 1);
     setIsEditAbsenModalOpen(true);
@@ -459,34 +550,55 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     onDataChanged();
   };
 
-  const handleDeleteSingleAbsen = (entry: AbsenSiswaEntry) => {
+  const handleDeleteSingleAbsen = async (entry: AbsenSiswaEntry) => {
     const student = anggotaList.find(a => a.id === entry.anggotaId);
     const studentName = student?.nama ? formatNamaKapital(student.nama) : 'Anggota';
-    if (window.confirm(`Apakah Anda yakin ingin menghapus data presensi:\n\nNama: ${studentName}\nBulan: ${entry.bulan} (Minggu ke-${entry.kolomIndex})\nStatus: ${entry.status}\n\nData yang dihapus tidak dapat dipulihkan.`)) {
+    const confirmed = await askConfirm({
+      title: 'Hapus Data Presensi?',
+      message: `Apakah Anda yakin ingin menghapus data presensi:\n\nNama: ${studentName}\nBulan: ${entry.bulan} (Minggu ke-${entry.kolomIndex})\nStatus: ${entry.status}\n\nData yang dihapus tidak dapat dipulihkan.`,
+      confirmText: 'Hapus',
+      variant: 'danger'
+    });
+    if (confirmed) {
       StorageService.deleteAbsenSiswa(entry.id);
       setSelectedAbsenIds(prev => prev.filter(id => id !== entry.id));
+      showToast('Data presensi dihapus.', 'info');
       onDataChanged();
     }
   };
 
-  const handleDeleteMultipleAbsen = () => {
+  const handleDeleteMultipleAbsen = async () => {
     if (selectedAbsenIds.length === 0) return;
-    if (window.confirm(`Apakah Anda yakin ingin menghapus ${selectedAbsenIds.length} data presensi yang telah dicentang?\n\nTindakan ini permanen dan tidak dapat dibatalkan.`)) {
+    const confirmed = await askConfirm({
+      title: 'Hapus Presensi Terpilih?',
+      message: `Apakah Anda yakin ingin menghapus ${selectedAbsenIds.length} data presensi yang telah dicentang?\n\nTindakan ini permanen dan tidak dapat dibatalkan.`,
+      confirmText: `Hapus (${selectedAbsenIds.length})`,
+      variant: 'danger'
+    });
+    if (confirmed) {
       StorageService.deleteMultipleAbsenSiswa(selectedAbsenIds);
       setSelectedAbsenIds([]);
+      showToast(`${selectedAbsenIds.length} data presensi dihapus.`, 'info');
       onDataChanged();
     }
   };
 
-  const handleBatchChangeStatus = (newStatus: 'Hadir' | 'Sakit' | 'Izin' | 'Alfa') => {
+  const handleBatchChangeStatus = async (newStatus: 'Hadir' | 'Sakit' | 'Izin' | 'Alfa') => {
     if (selectedAbsenIds.length === 0) return;
-    if (window.confirm(`Ubah status ${selectedAbsenIds.length} data presensi yang dipilih menjadi "${newStatus}"?`)) {
+    const confirmed = await askConfirm({
+      title: 'Ubah Status Massal?',
+      message: `Ubah status ${selectedAbsenIds.length} data presensi yang dipilih menjadi "${newStatus}"?`,
+      confirmText: `Ubah ke ${newStatus}`,
+      variant: 'warning'
+    });
+    if (confirmed) {
       selectedAbsenIds.forEach(id => {
         const item = absenSiswaList.find(a => a.id === id);
         if (item) {
           StorageService.saveAbsenSiswa({ ...item, status: newStatus });
         }
       });
+      showToast(`${selectedAbsenIds.length} presensi diubah ke ${newStatus}.`, 'success');
       setSelectedAbsenIds([]);
       onDataChanged();
     }
@@ -516,7 +628,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleExecuteReset = () => {
     if (resetScope === 'all') {
       if (resetConfirmText.trim().toUpperCase() !== 'RESET') {
-        alert('Ketik kata "RESET" dengan huruf kapital untuk mengonfirmasi penghapusan seluruh data presensi!');
+        showToast('Ketik kata "RESET" dengan huruf kapital untuk mengonfirmasi penghapusan seluruh data presensi!', 'warning');
         return;
       }
       StorageService.resetAbsenSiswa();
@@ -531,7 +643,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setSelectedAbsenIds([]);
     setIsResetAbsenModalOpen(false);
     onDataChanged();
-    alert('Data presensi berhasil direset!');
+    showToast('Data presensi berhasil direset!', 'success');
   };
 
   const handleOpenAddAbsenModal = () => {
@@ -541,7 +653,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setAddAnggotaId(schoolMembers[0]?.id || '');
     setAddBulan(filterAbsenBulan !== 'all' ? filterAbsenBulan : getCurrentMonthName());
     setAddKolomIndex(1);
-    setAddTanggal(new Date().toISOString().split('T')[0]);
+    setAddTanggal(getLocalDateString());
     setAddStatus('Hadir');
     setIsAddAbsenModalOpen(true);
   };
@@ -555,7 +667,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleSaveNewAbsen = (e: React.FormEvent) => {
     e.preventDefault();
     if (!addAnggotaId || !addSekolahId) {
-      alert('Pilih sekolah dan anggota terlebih dahulu!');
+      showToast('Pilih sekolah dan anggota terlebih dahulu!', 'warning');
       return;
     }
 
@@ -574,266 +686,208 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     StorageService.saveAbsenSiswa(newEntry);
     setIsAddAbsenModalOpen(false);
+    showToast('Presensi siswa berhasil disimpan.', 'success');
     onDataChanged();
   };
 
   return (
-    <div className="space-y-6">
-      {/* Active Academic Year Banner & Quick Switcher */}
-      <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white p-4 sm:p-5 rounded-3xl shadow-sm border border-slate-800 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="p-3 bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-2xl shadow-inner">
-            <Shield className="w-6 h-6" />
+    <div className="space-y-4">
+      {/* Compact Workspace Header */}
+      <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3.5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-slate-900 text-amber-400 rounded-xl">
+            <Shield className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-300 font-semibold">Tahun Ajaran Aktif Sistem:</span>
-              <span className="text-sm font-black text-amber-300 bg-amber-500/10 px-2.5 py-0.5 rounded-lg border border-amber-500/20">
-                {activeTahunAjaran}
-              </span>
-              <span className="text-[10px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-md border border-blue-400/30">
-                Mode Administrator
-              </span>
-            </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Anda memiliki hak akses penuh: Kelola akun pelatih, atur penugasan sekolah, pantau rekap presensi seluruh sekolah, dan unduh laporan resmi.
+            <h2 className="text-sm sm:text-base font-bold text-slate-900">Panel Administrator</h2>
+            <p className="text-xs text-slate-500">
+              Tahun Ajaran Aktif: <strong className="text-slate-800">{activeTahunAjaran}</strong>
             </p>
           </div>
         </div>
 
         {onOpenManageTahunAjaran && (
           <button
+            type="button"
             onClick={onOpenManageTahunAjaran}
-            className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-xs transition shrink-0 cursor-pointer"
+            className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs px-3.5 py-2 rounded-xl transition cursor-pointer"
           >
-            <Settings className="w-4 h-4" />
-            <span>Kelola & Ubah Tahun Ajaran</span>
+            <Settings className="w-3.5 h-3.5 text-amber-400" />
+            <span>Tahun Ajaran</span>
           </button>
         )}
       </div>
 
-      {/* Overview Stat Cards - Simplified & Modern */}
+      {/* Clean KPI Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <div 
-          onClick={() => setActiveTab('pelatih')} 
-          className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs cursor-pointer hover:border-blue-400 hover:shadow-xs transition"
+        <button
+          type="button"
+          onClick={() => setActiveTab('pelatih')}
+          className="text-left p-3.5 bg-white rounded-2xl border border-slate-200 hover:border-slate-300 transition cursor-pointer"
         >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-500">Pelatih</span>
-            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-              <Users className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <p className="text-2xl font-black text-slate-900">{pelatihUsers.length}</p>
-          <span className="text-[11px] text-slate-400 font-medium">Akun Aktif</span>
-        </div>
+          <span className="text-xs text-slate-500 font-medium block">Pelatih</span>
+          <p className="text-xl font-bold text-slate-900 mt-0.5 tabular-nums">{pelatihUsers.length}</p>
+        </button>
 
-        <div 
-          onClick={() => setActiveTab('sekolah')} 
-          className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs cursor-pointer hover:border-indigo-400 hover:shadow-xs transition"
+        <button
+          type="button"
+          onClick={() => setActiveTab('sekolah')}
+          className="text-left p-3.5 bg-white rounded-2xl border border-slate-200 hover:border-slate-300 transition cursor-pointer"
         >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-500">Sekolah</span>
-            <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-              <School className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <p className="text-2xl font-black text-slate-900">{sekolahList.length}</p>
-          <span className="text-[11px] text-slate-400 font-medium">Sekolah Binaan</span>
-        </div>
+          <span className="text-xs text-slate-500 font-medium block">Sekolah Binaan</span>
+          <p className="text-xl font-bold text-slate-900 mt-0.5 tabular-nums">{sekolahList.length}</p>
+        </button>
 
-        <div 
-          onClick={() => { setActiveTab('absensi'); setAbsensiSubTab('siswa'); }} 
-          className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs cursor-pointer hover:border-teal-400 hover:shadow-xs transition"
+        <button
+          type="button"
+          onClick={() => { setActiveTab('absensi'); setAbsensiSubTab('siswa'); }}
+          className="text-left p-3.5 bg-white rounded-2xl border border-slate-200 hover:border-slate-300 transition cursor-pointer"
         >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-500">Presensi Siswa</span>
-            <div className="w-7 h-7 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center">
-              <ClipboardList className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <p className="text-2xl font-black text-slate-900">{absenSiswaList.length}</p>
-          <span className="text-[11px] text-slate-400 font-medium">Data Kehadiran</span>
-        </div>
+          <span className="text-xs text-slate-500 font-medium block">Presensi Siswa</span>
+          <p className="text-xl font-bold text-slate-900 mt-0.5 tabular-nums">{absenSiswaList.length}</p>
+        </button>
 
-        <div 
-          onClick={() => { setActiveTab('absensi'); setAbsensiSubTab('pelatih'); }} 
-          className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs cursor-pointer hover:border-amber-400 hover:shadow-xs transition"
+        <button
+          type="button"
+          onClick={() => { setActiveTab('absensi'); setAbsensiSubTab('pelatih'); }}
+          className="text-left p-3.5 bg-white rounded-2xl border border-slate-200 hover:border-slate-300 transition cursor-pointer"
         >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-500">Jurnal Pelatih</span>
-            <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-              <Calendar className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <p className="text-2xl font-black text-slate-900">{absenPelatihList.length}</p>
-          <span className="text-[11px] text-slate-400 font-medium">Sesi Terisi</span>
-        </div>
+          <span className="text-xs text-slate-500 font-medium block">Jurnal Pelatih</span>
+          <p className="text-xl font-bold text-slate-900 mt-0.5 tabular-nums">{absenPelatihList.length}</p>
+        </button>
 
-        <div 
-          onClick={() => setActiveTab('absensi')} 
-          className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs col-span-2 sm:col-span-1 cursor-pointer hover:border-emerald-400 hover:shadow-xs transition"
+        <button
+          type="button"
+          onClick={() => setActiveTab('absensi')}
+          className="text-left p-3.5 bg-white rounded-2xl border border-slate-200 hover:border-slate-300 transition col-span-2 sm:col-span-1 cursor-pointer"
         >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-500">Anggota</span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <UserCheck className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <p className="text-2xl font-black text-slate-900">{anggotaList.length}</p>
-          <span className="text-[11px] text-slate-400 font-medium">Total Anggota</span>
-        </div>
+          <span className="text-xs text-slate-500 font-medium block">Total Anggota</span>
+          <p className="text-xl font-bold text-slate-900 mt-0.5 tabular-nums">{anggotaList.length}</p>
+        </button>
       </div>
 
-      {/* Main Admin Section with Responsive Tab Navigation */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5">
-        
-        {/* Navigation Tabs Bar */}
-        <div className="border-b border-slate-200 pb-4 mb-5">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
-                <Shield className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="font-black text-slate-900 text-base">Panel Kontrol Administrator</h2>
-                <p className="text-xs text-slate-500">Pusat kendali akun pelatih, sekolah binaan, monitoring presensi dan laporan</p>
-              </div>
-            </div>
-
-            {/* Quick dropdown for mobile */}
-            <div className="lg:hidden relative">
-              <select
-                value={activeTab}
-                onChange={(e) => setActiveTab(e.target.value as any)}
-                className="appearance-none bg-slate-100 font-bold text-slate-800 border border-slate-300 rounded-xl px-3.5 py-2 pr-8 text-xs focus:ring-2 focus:ring-blue-500 cursor-pointer"
-              >
-                <option value="pelatih">👥 Kelola Akun Pelatih</option>
-                <option value="sekolah">🏫 Kelola Data Sekolah & Penugasan</option>
-                <option value="absensi">📋 Semua Rekap Absensi</option>
-                <option value="audit">🚨 Audit Presensi (Evaluasi Siswa Terendah)</option>
-                <option value="penilaian">🎖️ Rekap Nilai Siswa</option>
-                <option value="laporan">📄 Cetak Laporan Kegiatan</option>
-                <option value="statistik">📊 Statistik Kehadiran</option>
-                <option value="event">🏆 Event & Prestasi</option>
-                <option value="dokumentasi">🖼️ Galeri Dokumentasi</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
-                <ChevronDown className="w-3.5 h-3.5" />
-              </div>
+      {/* Main Admin Workspace */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5">
+        {/* Clean Navigation Tabs */}
+        <div className="border-b border-slate-200 pb-3 mb-4">
+          <div className="lg:hidden relative">
+            <select
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value as any)}
+              className="w-full appearance-none bg-slate-50 font-semibold text-slate-800 border border-slate-300 rounded-xl px-3.5 py-2 pr-8 text-xs focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            >
+              <option value="pelatih">Kelola Pelatih ({pelatihUsers.length})</option>
+              <option value="sekolah">Kelola Sekolah ({sekolahList.length})</option>
+              <option value="absensi">Rekap Absensi & Jurnal</option>
+              <option value="audit">Audit Presensi</option>
+              <option value="penilaian">Nilai Siswa</option>
+              <option value="laporan">Laporan Kegiatan</option>
+              <option value="statistik">Statistik</option>
+              <option value="event">Event ({eventsList.length})</option>
+              <option value="dokumentasi">Galeri Foto</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-500">
+              <ChevronDown className="w-4 h-4" />
             </div>
           </div>
 
-          {/* Desktop Tab Pills */}
-          <div className="hidden lg:flex flex-wrap gap-1.5 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80">
+          <div className="hidden lg:flex items-center gap-1 overflow-x-auto">
             <button
+              type="button"
               onClick={() => setActiveTab('pelatih')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                activeTab === 'pelatih'
-                  ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                activeTab === 'pelatih' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <Users className="w-4 h-4" />
-              <span>Kelola Pelatih ({pelatihUsers.length})</span>
+              <Users className="w-3.5 h-3.5" />
+              <span>Pelatih ({pelatihUsers.length})</span>
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('sekolah')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                activeTab === 'sekolah'
-                  ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                activeTab === 'sekolah' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <School className="w-4 h-4" />
-              <span>Kelola Sekolah ({sekolahList.length})</span>
+              <School className="w-3.5 h-3.5" />
+              <span>Sekolah ({sekolahList.length})</span>
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('absensi')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                activeTab === 'absensi'
-                  ? 'bg-white text-teal-700 shadow-sm border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                activeTab === 'absensi' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <ClipboardList className="w-4 h-4" />
-              <span>Semua Rekap Absensi ({absenSiswaList.length})</span>
+              <ClipboardList className="w-3.5 h-3.5" />
+              <span>Absensi & Jurnal</span>
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('audit')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                activeTab === 'audit'
-                  ? 'bg-white text-rose-700 shadow-sm border border-rose-300 ring-1 ring-rose-200'
-                  : 'text-rose-700 hover:text-rose-900 hover:bg-rose-50/70 font-black'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                activeTab === 'audit' ? 'bg-rose-600 text-white' : 'text-slate-600 hover:text-rose-700 hover:bg-rose-50'
               }`}
             >
-              <AlertTriangle className="w-4 h-4 text-rose-600" />
+              <AlertTriangle className="w-3.5 h-3.5" />
               <span>Audit Presensi</span>
-              <span className="px-1.5 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-extrabold rounded-md border border-rose-200">
-                Evaluasi
-              </span>
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('penilaian')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                activeTab === 'penilaian'
-                  ? 'bg-white text-amber-700 shadow-sm border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                activeTab === 'penilaian' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <Award className="w-4 h-4" />
-              <span>Rekap Nilai Siswa</span>
+              <Award className="w-3.5 h-3.5" />
+              <span>Nilai Siswa</span>
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('laporan')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                activeTab === 'laporan'
-                  ? 'bg-white text-rose-700 shadow-sm border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                activeTab === 'laporan' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <FileText className="w-4 h-4" />
-              <span>Cetak Laporan Kegiatan</span>
+              <FileText className="w-3.5 h-3.5" />
+              <span>Laporan</span>
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('statistik')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                activeTab === 'statistik'
-                  ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                activeTab === 'statistik' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <BarChart3 className="w-4 h-4" />
+              <BarChart3 className="w-3.5 h-3.5" />
               <span>Statistik</span>
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('event')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                activeTab === 'event'
-                  ? 'bg-white text-purple-700 shadow-sm border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                activeTab === 'event' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-3.5 h-3.5" />
               <span>Event ({eventsList.length})</span>
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab('dokumentasi')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                activeTab === 'dokumentasi'
-                  ? 'bg-white text-emerald-700 shadow-sm border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                activeTab === 'dokumentasi' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <Camera className="w-4 h-4" />
+              <Camera className="w-3.5 h-3.5" />
               <span>Galeri Foto</span>
             </button>
           </div>
@@ -1063,17 +1117,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 >
                   <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Log Asisten Pelatih ({absenAsistenList.length})</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAbsensiSubTab('jadwal')}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                    absensiSubTab === 'jadwal' ? 'bg-white text-amber-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Jadwal Latihan ({jadwalList.length})</span>
                 </button>
               </div>
 
@@ -1540,6 +1583,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     </>
                                   ) : (
                                     <button
+                                      type="button"
                                       onClick={() => handleRevokeVerifyAbsenPelatih(item)}
                                       className="text-[10px] font-semibold text-slate-500 hover:text-slate-800 underline cursor-pointer"
                                       title="Batalkan status verifikasi laporan ini"
@@ -1549,9 +1593,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   )}
                                   <button
                                     type="button"
-                                    onClick={() => setConfirmDeleteJurnal(item)}
-                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                                    title="Hapus Jurnal Pelatih Ini"
+                                    onClick={() => handleDeleteAbsenPelatih(item)}
+                                    className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg transition border border-rose-200 cursor-pointer"
+                                    title="Hapus jurnal pelatih ini"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -1644,26 +1688,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 )}
               </div>
             )}
-
-            {/* Sub-view 4: Practice Schedule Management */}
-            {absensiSubTab === 'jadwal' && (
-              <div className="pt-2">
-                <JadwalManager
-                  currentPelatihId="u-admin"
-                  selectedSekolahId={filterAbsenSekolah === 'all' ? (sekolahList[0]?.id || '') : filterAbsenSekolah}
-                  sekolahList={sekolahList}
-                  jadwalList={jadwalList}
-                  absenPelatihList={absenPelatihList}
-                  onDataChanged={onDataChanged}
-                  onViewJurnal={(absenId) => {
-                    const item = absenPelatihList.find(a => a.id === absenId);
-                    if (item) {
-                      setSelectedJurnalDetail(item);
-                    }
-                  }}
-                />
-              </div>
-            )}
           </div>
         )}
 
@@ -1687,6 +1711,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               selectedSekolahId={sekolahList[0]?.id || ''}
               anggotaList={anggotaList}
               absenSiswaList={absenSiswaList}
+              absenPelatihList={absenPelatihList}
+              usersList={usersList}
             />
           </div>
         )}
@@ -1698,9 +1724,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               sekolahList={sekolahList}
               selectedSekolahId={sekolahList[0]?.id || ''}
               absenPelatihList={absenPelatihList}
+              absenAsistenList={absenAsistenList}
               anggotaList={anggotaList}
               absenSiswaList={absenSiswaList}
               eventsList={eventsList}
+              usersList={usersList}
+              activeTahunAjaran={activeTahunAjaran}
             />
           </div>
         )}
@@ -1738,8 +1767,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               absenPelatihList={absenPelatihList}
               eventsList={eventsList}
               sekolahList={sekolahList}
-              isAdmin={true}
-              onDataChanged={onDataChanged}
+              usersList={usersList}
+              canDelete={true}
+              onDeletePhoto={handleDeleteGalleryPhoto}
             />
           </div>
         )}
@@ -1758,6 +1788,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             <form onSubmit={handleSaveUser} className="p-4 space-y-3">
+              {userFormError && (
+                <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{userFormError}</span>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Peran Akun / Role</label>
                 <select
@@ -2618,22 +2654,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      const target = selectedJurnalDetail;
-                      setSelectedJurnalDetail(null);
-                      setConfirmDeleteJurnal(target);
-                    }}
-                    className="flex items-center gap-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 px-3 py-2 rounded-xl transition border border-rose-200 cursor-pointer"
-                    title="Hapus Jurnal Pelatih Ini"
+                    onClick={() => handleDeleteAbsenPelatih(selectedJurnalDetail)}
+                    className="flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs px-3 py-2 rounded-xl transition border border-rose-200 cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Hapus Jurnal</span>
                   </button>
-
                   <button
                     type="button"
                     onClick={() => setSelectedJurnalDetail(null)}
-                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl transition cursor-pointer"
                   >
                     Tutup
                   </button>
@@ -2643,41 +2673,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         );
       })()}
-
-      {/* Admin Coach Journal Delete Confirmation Modal */}
-      {confirmDeleteJurnal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl w-full max-w-sm p-5 shadow-2xl border border-slate-200 text-center animate-fade-in">
-            <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <h3 className="font-extrabold text-slate-900 text-base">Hapus Jurnal Pelatih?</h3>
-            <p className="text-xs text-slate-500 mt-1 mb-4 leading-relaxed">
-              Jurnal latihan sesi {confirmDeleteJurnal.hariTanggalFormat || confirmDeleteJurnal.tanggal} oleh {confirmDeleteJurnal.pelatihNama || 'Pelatih'} akan dihapus secara permanen dari basis data.
-            </p>
-            <div className="flex items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmDeleteJurnal(null)}
-                className="px-4 py-2 rounded-xl text-slate-700 font-bold bg-slate-100 hover:bg-slate-200 transition cursor-pointer text-xs"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  StorageService.deleteAbsenPelatih(confirmDeleteJurnal.id);
-                  setConfirmDeleteJurnal(null);
-                  onDataChanged();
-                }}
-                className="px-4 py-2 rounded-xl text-white font-bold bg-rose-600 hover:bg-rose-700 transition cursor-pointer text-xs shadow-xs"
-              >
-                Ya, Hapus Jurnal
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

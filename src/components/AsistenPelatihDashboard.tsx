@@ -4,6 +4,8 @@ import { StorageService } from '../data/storage';
 import { SignaturePad } from './SignaturePad';
 import { compressImageDataUrl } from '../utils/imageCompressor';
 import { TutWuriLogo, MarchingBandLogo } from './Logos';
+import { getLocalDateString, parseLocalDate, BULAN_OPTIONS, getCurrentMonthName } from '../utils/dateUtils';
+import { askConfirm, showToast } from '../utils/uiDialogs';
 import {
   Calendar,
   Clock,
@@ -53,7 +55,7 @@ export const AsistenPelatihDashboard: React.FC<AsistenPelatihDashboardProps> = (
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Form States
-  const [tanggal, setTanggal] = useState(new Date().toISOString().split('T')[0]);
+  const [tanggal, setTanggal] = useState(getLocalDateString());
   const [sekolahId, setSekolahId] = useState<string>(sekolahList.length > 0 ? sekolahList[0].id : '');
   const [jamMulai, setJamMulai] = useState('14:00');
   const [jamSelesai, setJamSelesai] = useState('17:00');
@@ -69,16 +71,11 @@ export const AsistenPelatihDashboard: React.FC<AsistenPelatihDashboardProps> = (
   // Filters
   const [filterSekolah, setFilterSekolah] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterBulan, setFilterBulan] = useState<string>(
-    new Date().toLocaleString('id-ID', { month: 'long' })
-  );
+  const [filterBulan, setFilterBulan] = useState<string>(getCurrentMonthName());
   const [searchTerm, setSearchTerm] = useState('');
 
   // Months List
-  const bulanList = [
-    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-  ];
+  const bulanList = BULAN_OPTIONS;
 
   // List of attendance records for the current assistant coach
   const myAbsenList = useMemo(() => {
@@ -124,7 +121,7 @@ export const AsistenPelatihDashboard: React.FC<AsistenPelatihDashboardProps> = (
     bulanList.forEach(b => { monthlyCounts[b] = 0; });
     myAbsenList.forEach(a => {
       if (a.tanggal) {
-        const d = new Date(a.tanggal);
+        const d = parseLocalDate(a.tanggal);
         const m = bulanList[d.getMonth()];
         if (monthlyCounts[m] !== undefined) {
           monthlyCounts[m]++;
@@ -152,7 +149,7 @@ export const AsistenPelatihDashboard: React.FC<AsistenPelatihDashboardProps> = (
   // Open Form for Adding
   const handleOpenAdd = () => {
     setEditingId(null);
-    setTanggal(new Date().toISOString().split('T')[0]);
+    setTanggal(getLocalDateString());
     setSekolahId(sekolahList.length > 0 ? sekolahList[0].id : '');
     setJamMulai('14:00');
     setJamSelesai('17:00');
@@ -186,20 +183,20 @@ export const AsistenPelatihDashboard: React.FC<AsistenPelatihDashboardProps> = (
     e.preventDefault();
 
     if (!sekolahId) {
-      alert('Pilih sekolah tempat pendampingan latihan!');
+      showToast('Pilih sekolah tempat pendampingan latihan!', 'warning');
       return;
     }
 
     if (statusKehadiran === 'Hadir' && !kegiatanPendampingan.trim()) {
-      alert('Mohon isi uraian kegiatan atau materi pendampingan latihan!');
+      showToast('Mohon isi uraian kegiatan atau materi pendampingan latihan!', 'warning');
       return;
     }
 
     const selectedSchoolObj = sekolahList.find(s => s.id === sekolahId);
     const namaSekolah = selectedSchoolObj ? selectedSchoolObj.namaSekolah : 'Sekolah';
 
-    // Format Hari & Tanggal
-    const d = new Date(tanggal);
+    // Format Hari & Tanggal using local date parsing
+    const d = parseLocalDate(tanggal);
     const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
     const formatted = `${dayNames[d.getDay()]}, ${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()}`;
@@ -235,13 +232,21 @@ export const AsistenPelatihDashboard: React.FC<AsistenPelatihDashboardProps> = (
     StorageService.saveAbsenAsisten(newRecord);
     setIsFormOpen(false);
     onDataChanged();
+    showToast('Absensi pendampingan berhasil disimpan.', 'success');
   };
 
   // Delete Attendance
-  const handleDeleteAttendance = (id: string) => {
-    if (confirm('Hapus riwayat absensi asisten pelatih ini?')) {
+  const handleDeleteAttendance = async (id: string) => {
+    const confirmed = await askConfirm({
+      title: 'Hapus Riwayat Absensi',
+      message: 'Hapus riwayat absensi asisten pelatih ini?',
+      confirmLabel: 'Ya, Hapus',
+      danger: true
+    });
+    if (confirmed) {
       StorageService.deleteAbsenAsisten(id);
       onDataChanged();
+      showToast('Riwayat absensi asisten berhasil dihapus.', 'success');
     }
   };
 
@@ -249,7 +254,7 @@ export const AsistenPelatihDashboard: React.FC<AsistenPelatihDashboardProps> = (
   const monthlyReportData = useMemo(() => {
     return myAbsenList.filter(item => {
       if (!item.tanggal) return false;
-      const d = new Date(item.tanggal);
+      const d = parseLocalDate(item.tanggal);
       const m = bulanList[d.getMonth()];
       if (m !== filterBulan) return false;
       if (filterSekolah !== 'all' && item.sekolahId !== filterSekolah) return false;
@@ -292,7 +297,7 @@ export const AsistenPelatihDashboard: React.FC<AsistenPelatihDashboardProps> = (
   // Handle Export CSV
   const handleExportCSV = () => {
     if (monthlyReportData.length === 0) {
-      alert('Tidak ada data absensi untuk diekspor pada bulan ini.');
+      showToast('Tidak ada data absensi untuk diekspor pada bulan ini.', 'warning');
       return;
     }
 
@@ -309,14 +314,16 @@ export const AsistenPelatihDashboard: React.FC<AsistenPelatihDashboardProps> = (
       `"${(item.catatan || '').replace(/"/g, '""')}"`
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const csvString = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const blob = new Blob(['\uFEFF' + csvString], { type: 'text/csv;charset=utf-8;' });
+    const blobUrl = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.setAttribute('href', blobUrl);
     link.setAttribute('download', `Laporan_Absensi_Asisten_${currentUser.name.replace(/\s+/g, '_')}_${filterBulan}_${activeTahunAjaran.replace(/\//g, '-')}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
   };
 
   return (

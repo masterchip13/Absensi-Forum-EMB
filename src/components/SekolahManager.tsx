@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Sekolah, User } from '../types';
 import { StorageService } from '../data/storage';
+import { askConfirm, showToast } from '../utils/uiDialogs';
 import { School, Plus, Edit2, Trash2, GraduationCap, UserCheck, MapPin } from 'lucide-react';
 
 interface SekolahManagerProps {
@@ -88,12 +89,20 @@ export const SekolahManager: React.FC<SekolahManagerProps> = ({
 
     StorageService.saveSekolah(newSekolah);
     setIsModalOpen(false);
+    showToast(editingId ? 'Data sekolah berhasil diperbarui.' : 'Sekolah baru berhasil ditambahkan.', 'success');
     onDataChanged();
   };
 
-  const handleDelete = (id: string, name: string) => {
-    if (confirm(`Apakah Anda yakin ingin menghapus data sekolah "${name}"? Seluruh data terkait sekolah ini akan terhapus.`)) {
+  const handleDelete = async (id: string, name: string) => {
+    const confirmed = await askConfirm({
+      title: 'Hapus Sekolah?',
+      message: `Apakah Anda yakin ingin menghapus data sekolah "${name}"? Seluruh data terkait sekolah ini akan terhapus.`,
+      confirmText: 'Ya, Hapus',
+      variant: 'danger'
+    });
+    if (confirmed) {
       StorageService.deleteSekolah(id);
+      showToast(`Sekolah "${name}" berhasil dihapus.`, 'info');
       onDataChanged();
     }
   };

@@ -32,7 +32,7 @@ interface NavbarProps {
   tahunAjaranList?: string[];
   onSelectTahunAjaran?: (tahun: string) => void;
   onOpenManageTahunAjaran?: () => void;
-  onOpenQrScanner: () => void;
+  onOpenQrScanner: (jadwalId?: string) => void;
   onLogout: () => void;
   syncStatus?: SyncStatus;
   onManualSync?: () => void;
@@ -132,7 +132,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setIsYearDropdownOpen(false);
                     setIsUserMenuOpen(false);
                   }}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800/90 hover:bg-slate-750 text-slate-200 hover:text-white rounded-xl border border-slate-700 transition text-xs font-semibold max-w-[150px] sm:max-w-[200px]"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800/90 hover:bg-slate-700/80 text-slate-200 hover:text-white rounded-xl border border-slate-700 transition text-xs font-semibold max-w-[150px] sm:max-w-[200px]"
                   title="Pilih Sekolah"
                 >
                   <School className="w-3.5 h-3.5 text-blue-400 shrink-0" />
@@ -190,7 +190,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setIsSchoolDropdownOpen(false);
                     setIsUserMenuOpen(false);
                   }}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800/90 hover:bg-slate-750 text-amber-300 hover:text-amber-200 rounded-xl border border-slate-700 transition text-xs font-bold"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800/90 hover:bg-slate-700/80 text-amber-300 hover:text-amber-200 rounded-xl border border-slate-700 transition text-xs font-bold"
                   title="Pilih Tahun Ajaran"
                 >
                   <Calendar className="w-3.5 h-3.5 text-amber-400 shrink-0" />
@@ -249,11 +249,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               {/* 3. Scan QR Shortcut (Pelatih only) */}
               {currentUser.role === 'pelatih' && (
                 <button
-                  onClick={onOpenQrScanner}
-                  className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-1.5 rounded-xl shadow-xs transition active:scale-95 text-xs"
+                  type="button"
+                  onClick={() => onOpenQrScanner()}
+                  className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3 py-1.5 rounded-xl transition text-xs cursor-pointer"
                   title="Scan QR Presensi Anggota"
                 >
-                  <QrCode className="w-3.5 h-3.5 text-yellow-300" />
+                  <QrCode className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Scan QR</span>
                 </button>
               )}
@@ -276,7 +277,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setIsSchoolDropdownOpen(false);
                     setIsYearDropdownOpen(false);
                   }}
-                  className="flex items-center gap-2 p-1.5 sm:px-2.5 sm:py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white rounded-xl border border-slate-700 transition"
+                  className="flex items-center gap-2 p-1.5 sm:px-2.5 sm:py-1.5 bg-slate-800 hover:bg-slate-700/80 text-slate-200 hover:text-white rounded-xl border border-slate-700 transition"
                   title="Menu Pengguna"
                 >
                   <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-xs shadow-xs">

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Sekolah, AbsenSiswaEntry, AbsenPelatihItem } from '../types';
 import { StorageService } from '../data/storage';
+import { askConfirm, showToast } from '../utils/uiDialogs';
 import { Calendar, CheckCircle2, Plus, Trash2, X, Settings, Sparkles, School, FileText, Check } from 'lucide-react';
 
 interface TahunAjaranModalProps {
@@ -69,14 +70,21 @@ export const TahunAjaranModal: React.FC<TahunAjaranModalProps> = ({
     onDataChanged();
   };
 
-  const handleDeleteYear = (tahun: string) => {
+  const handleDeleteYear = async (tahun: string) => {
     if (tahun === activeTahunAjaran) {
-      alert('Tahun ajaran yang sedang aktif tidak dapat dihapus!');
+      showToast('Tahun ajaran yang sedang aktif tidak dapat dihapus!', 'warning');
       return;
     }
 
-    if (confirm(`Apakah Anda yakin ingin menghapus Tahun Ajaran "${tahun}" dari daftar opsi?`)) {
+    const confirmed = await askConfirm({
+      title: 'Hapus Tahun Ajaran?',
+      message: `Apakah Anda yakin ingin menghapus Tahun Ajaran "${tahun}" dari daftar opsi?`,
+      confirmText: 'Hapus',
+      variant: 'danger'
+    });
+    if (confirmed) {
       StorageService.deleteTahunAjaran(tahun);
+      showToast(`Tahun ajaran "${tahun}" dihapus.`, 'info');
       onDataChanged();
     }
   };

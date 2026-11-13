@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Divisi } from '../types';
 import { StorageService } from '../data/storage';
+import { askConfirm, showToast } from '../utils/uiDialogs';
 import { Layers, Plus, Trash2, Edit2, ShieldAlert } from 'lucide-react';
 
 interface DivisiManagerProps {
@@ -46,12 +47,20 @@ export const DivisiManager: React.FC<DivisiManagerProps> = ({
 
     StorageService.saveDivisi(newDiv);
     setIsModalOpen(false);
+    showToast(editingId ? 'Data divisi diperbarui.' : 'Divisi baru berhasil ditambahkan.', 'success');
     onDataChanged();
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Hapus divisi ini? Data anggota yang menggunakan divisi ini tetap tersimpan.')) {
+  const handleDelete = async (id: string) => {
+    const confirmed = await askConfirm({
+      title: 'Hapus Divisi?',
+      message: 'Hapus divisi ini? Data anggota yang menggunakan divisi ini tetap tersimpan.',
+      confirmText: 'Hapus',
+      variant: 'danger'
+    });
+    if (confirmed) {
       StorageService.deleteDivisi(id);
+      showToast('Divisi dihapus.', 'info');
       onDataChanged();
     }
   };

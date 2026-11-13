@@ -1,18 +1,20 @@
-import { AbsenPelatihItem, Sekolah, JadwalLatihan } from '../types';
+import React, { useState } from 'react';
+import { AbsenPelatihItem, JadwalLatihan, Sekolah, User } from '../types';
 import { StorageService } from '../data/storage';
 import { SignaturePad } from './SignaturePad';
-import { Camera, CheckCircle2, Image as ImageIcon, Plus, Calendar, Clock, Award, Trash2, Edit2, AlertCircle, ShieldCheck, Users, PenTool, Link2, MapPin } from 'lucide-react';
-
+import { Camera, CheckCircle2, Plus, Trash2, Edit2, AlertCircle, ShieldCheck, Users, PenTool, Clock } from 'lucide-react';
 import { compressImageDataUrl } from '../utils/imageCompressor';
+import { getLocalDateString, formatIndonesianDate, parseLocalDate } from '../utils/dateUtils';
+import { askConfirm, showToast } from '../utils/uiDialogs';
 
 interface AbsenPelatihProps {
   currentPelatihId: string;
   currentPelatihName: string;
   selectedSekolahId: string;
   sekolahList: Sekolah[];
-  absenPelatihList: AbsenPelatihItem[];
+  usersList?: User[];
   jadwalList?: JadwalLatihan[];
-  initialJadwalId?: string;
+  absenPelatihList: AbsenPelatihItem[];
   onDataChanged: () => void;
 }
 
@@ -21,19 +23,17 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
   currentPelatihName,
   selectedSekolahId,
   sekolahList,
-  absenPelatihList,
+  usersList,
   jadwalList = [],
-  initialJadwalId,
+  absenPelatihList,
   onDataChanged
 }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingAuthorId, setEditingAuthorId] = useState<string | null>(null);
-  const [selectedJadwalId, setSelectedJadwalId] = useState<string>(initialJadwalId || '');
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [formError, setFormError] = useState<string>('');
 
-  const [tanggal, setTanggal] = useState(new Date().toISOString().split('T')[0]);
+  const [jadwalId, setJadwalId] = useState<string>('');
+  const [tanggal, setTanggal] = useState(getLocalDateString());
   const [jamMulai, setJamMulai] = useState('15:00');
   const [jamSelesai, setJamSelesai] = useState('17:30');
   const [materiPokok, setMateriPokok] = useState('');
@@ -49,9 +49,12 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
   const [parafPelatih2Url, setParafPelatih2Url] = useState<string>('');
   const [showSignaturePad2, setShowSignaturePad2] = useState<boolean>(false);
 
-  const allUsers = StorageService.getUsers();
+  const allUsers = usersList && usersList.length > 0 ? usersList : StorageService.getUsers();
   const activeSchool = sekolahList.find(s => s.id === selectedSekolahId);
   const schoolAbsenList = absenPelatihList.filter(a => a.sekolahId === selectedSekolahId);
+  const schoolJadwalList = (jadwalList.length > 0 ? jadwalList : StorageService.getJadwal())
+    .filter(j => j.sekolahId === selectedSekolahId)
+    .sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
   const allCoaches = allUsers.filter(u => u.role === 'pelatih');
 
   // Load saved coach account signature
@@ -86,18 +89,6 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
       setParafPelatihUrl(savedSig);
     }
 
-    // If an initialJadwalId was passed, auto-link it
-    if (initialJadwalId) {
-      const matchJ = jadwalList.find(j => j.id === initialJadwalId);
-      if (matchJ) {
-        setSelectedJadwalId(matchJ.id);
-        if (matchJ.tanggal) setTanggal(matchJ.tanggal);
-        if (matchJ.jamMulai) setJamMulai(matchJ.jamMulai);
-        if (matchJ.jamSelesai) setJamSelesai(matchJ.jamSelesai);
-        if (matchJ.materiRencana) setMateriPokok(matchJ.materiRencana);
-      }
-    }
-
     // Auto-detect if school has collaborating partner coach
     const schoolCollabs = (activeSchool?.pelatihIds || []).filter(id => id && id !== currentPelatihId);
     if (schoolCollabs.length > 0) {
@@ -120,7 +111,7 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
   const handleOpenEdit = (item: AbsenPelatihItem) => {
     setEditingId(item.id);
     setEditingAuthorId(item.pelatihId);
-    setSelectedJadwalId(item.jadwalId || '');
+    setJadwalId(item.jadwalId || '');
     setTanggal(item.tanggal);
     setJamMulai(item.jamMulai || '15:00');
     setJamSelesai(item.jamSelesai || '17:30');
@@ -145,24 +136,6 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
     setIsFormOpen(true);
   };
 
-  const handleSelectJadwal = (jadwalId: string) => {
-    setSelectedJadwalId(jadwalId);
-    if (!jadwalId) return;
-    const match = jadwalList.find(j => j.id === jadwalId);
-    if (match) {
-      if (match.tanggal) setTanggal(match.tanggal);
-      if (match.jamMulai) setJamMulai(match.jamMulai);
-      if (match.jamSelesai) setJamSelesai(match.jamSelesai);
-      if (match.materiRencana && !materiPokok) setMateriPokok(match.materiRencana);
-      if (match.pelatih2Id) {
-        setIncludePelatih2(true);
-        setPelatih2Id(match.pelatih2Id);
-        const sig2 = getCoachAccountSignature(match.pelatih2Id);
-        if (sig2) setParafPelatih2Url(sig2);
-      }
-    }
-  };
-
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -178,23 +151,22 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFormError('');
-    if (!fotoDokumentasiUrl) {
-      setFormError('Dokumentasi foto Wajib diunggah sebagai bukti rekap latihan pelatih!');
+    if (!editingId && !fotoDokumentasiUrl) {
+      showToast('Dokumentasi foto wajib diunggah sebagai bukti rekap latihan pelatih.', 'warning');
       return;
     }
     if (!materiPokok) {
-      setFormError('Mohon isi Materi Pokok latihan!');
+      showToast('Mohon isi Materi Pokok latihan.', 'warning');
       return;
     }
 
     // Compress photo and signature if needed
-    const compressedPhoto = await compressImageDataUrl(fotoDokumentasiUrl, 500, 0.65);
+    const compressedPhoto = fotoDokumentasiUrl ? await compressImageDataUrl(fotoDokumentasiUrl, 500, 0.65) : '';
     const compressedParaf = parafPelatihUrl ? await compressImageDataUrl(parafPelatihUrl, 300, 0.7) : '';
     const compressedParaf2 = (includePelatih2 && parafPelatih2Url) ? await compressImageDataUrl(parafPelatih2Url, 300, 0.7) : '';
 
-    // Format Hari Tanggal
-    const d = new Date(tanggal);
+    // Format Hari Tanggal using local date parsing
+    const d = parseLocalDate(tanggal);
     const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
     const formatted = `${dayNames[d.getDay()]}, ${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()}`;
@@ -222,6 +194,7 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
       pelatih2Id: includePelatih2 && pelatih2Id ? pelatih2Id : undefined,
       pelatih2Nama: includePelatih2 ? (pelatih2User?.name || undefined) : undefined,
       sekolahId: selectedSekolahId,
+      jadwalId: jadwalId || undefined,
       tahunAjaran: StorageService.getActiveTahunAjaran(),
       tanggal,
       hariTanggalFormat: formatted,
@@ -234,7 +207,6 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
       parafPelatih2Url: includePelatih2 && compressedParaf2 ? compressedParaf2 : undefined,
       statusKepalaSekolah: 'Mengetahui',
       catatan,
-      jadwalId: selectedJadwalId || undefined,
       // Status verifikasi admin: menunggu verifikasi jika baru atau telah diedit
       statusVerifikasiAdmin: 'menunggu',
       diverifikasiOleh: undefined,
@@ -243,19 +215,6 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
     };
 
     StorageService.saveAbsenPelatih(record);
-
-    // If linked to a scheduled session, update the session status and link
-    if (selectedJadwalId) {
-      const matchJ = jadwalList.find(j => j.id === selectedJadwalId);
-      if (matchJ) {
-        StorageService.saveJadwal({
-          ...matchJ,
-          absenPelatihId: targetId,
-          status: 'selesai'
-        });
-      }
-    }
-
     setIsFormOpen(false);
     setEditingId(null);
     setEditingAuthorId(null);
@@ -263,12 +222,22 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
     onDataChanged();
   };
 
+  const handleSelectJadwal = (selectedId: string) => {
+    setJadwalId(selectedId);
+    const found = schoolJadwalList.find(j => j.id === selectedId);
+    if (found) {
+      if (found.tanggal) setTanggal(found.tanggal);
+      if (found.jamMulai) setJamMulai(found.jamMulai);
+      if (found.jamSelesai) setJamSelesai(found.jamSelesai);
+      if (found.catatan && !materiPokok) setMateriPokok(found.catatan);
+    }
+  };
+
   const resetForm = () => {
     setEditingId(null);
     setEditingAuthorId(null);
-    setSelectedJadwalId('');
-    setFormError('');
-    setTanggal(new Date().toISOString().split('T')[0]);
+    setJadwalId('');
+    setTanggal(getLocalDateString());
     setJamMulai('15:00');
     setJamSelesai('17:30');
     setMateriPokok('');
@@ -283,15 +252,17 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
     setCatatan('');
   };
 
-  const handleDelete = (id: string) => {
-    setDeleteConfirmId(id);
-  };
-
-  const confirmDeleteAbsen = () => {
-    if (deleteConfirmId) {
-      StorageService.deleteAbsenPelatih(deleteConfirmId);
-      setDeleteConfirmId(null);
+  const handleDelete = async (id: string) => {
+    const confirmed = await askConfirm({
+      title: 'Hapus Jurnal Pelatih',
+      message: 'Hapus rekap absensi pelatih ini?',
+      confirmLabel: 'Ya, Hapus',
+      danger: true
+    });
+    if (confirmed) {
+      StorageService.deleteAbsenPelatih(id);
       onDataChanged();
+      showToast('Jurnal pelatih berhasil dihapus.', 'success');
     }
   };
 
@@ -340,11 +311,20 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
             <div key={item.id} className="p-3.5 bg-slate-50 hover:bg-emerald-50/30 border border-slate-200 hover:border-emerald-200 rounded-xl transition">
               <div className="flex flex-col sm:flex-row gap-3">
                 {/* Photo documentation preview */}
-                <div className="sm:w-36 h-28 bg-slate-200 rounded-lg overflow-hidden shrink-0 border border-slate-300 relative group">
-                  <img src={item.fotoDokumentasiUrl} alt="Dokumentasi" className="w-full h-full object-cover" />
-                  <span className="absolute bottom-1 left-1 bg-slate-900/80 text-white text-[9px] px-1.5 py-0.5 rounded font-semibold">
-                    Bukti Foto
-                  </span>
+                <div className="sm:w-36 h-28 bg-slate-100 rounded-lg overflow-hidden shrink-0 border border-slate-200 relative flex items-center justify-center">
+                  {item.fotoDokumentasiUrl ? (
+                    <>
+                      <img src={item.fotoDokumentasiUrl} alt="Dokumentasi" className="w-full h-full object-cover" />
+                      <span className="absolute bottom-1 left-1 bg-slate-900/80 text-white text-[9px] px-1.5 py-0.5 rounded font-semibold">
+                        Bukti Foto
+                      </span>
+                    </>
+                  ) : (
+                    <div className="text-center px-2 text-slate-400">
+                      <Camera className="w-5 h-5 mx-auto mb-1 opacity-60" />
+                      <span className="text-[10px] block leading-tight">Tanpa Foto</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex-1 space-y-1.5">
@@ -541,29 +521,20 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
                 </div>
               )}
 
-              {formError && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{formError}</span>
-                </div>
-              )}
-
-              {/* Link to Scheduled Session Selector */}
-              {jadwalList.filter(j => j.sekolahId === selectedSekolahId).length > 0 && (
-                <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs">
-                  <label className="block font-bold text-amber-900 mb-1 flex items-center gap-1.5">
-                    <Link2 className="w-3.5 h-3.5 text-amber-700" />
-                    <span>Tautkan ke Jadwal Latihan Terdaftar:</span>
+              {schoolJadwalList.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Kaitkan dengan Jadwal Sesi Latihan (Opsional)
                   </label>
                   <select
-                    value={selectedJadwalId}
+                    value={jadwalId}
                     onChange={(e) => handleSelectJadwal(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   >
-                    <option value="">-- Entri Bebas / Tanpa Tautan Jadwal --</option>
-                    {jadwalList.filter(j => j.sekolahId === selectedSekolahId).map(j => (
+                    <option value="">-- Input Manual (Tanpa Tautan Jadwal) --</option>
+                    {schoolJadwalList.map((j) => (
                       <option key={j.id} value={j.id}>
-                        {j.hariTanggalFormat || j.tanggal || j.hari} • {j.jamMulai}-{j.jamSelesai} {j.materiRencana ? `(${j.materiRencana})` : ''}
+                        {j.tanggal ? formatIndonesianDate(j.tanggal) : `Hari ${j.hari}`} ({j.jamMulai} - {j.jamSelesai}){j.catatan ? ` • ${j.catatan}` : ''}
                       </option>
                     ))}
                   </select>
@@ -850,37 +821,6 @@ export const AbsenPelatih: React.FC<AbsenPelatihProps> = ({
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {deleteConfirmId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl border border-slate-200 text-center animate-fade-in">
-            <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <h3 className="font-extrabold text-slate-900 text-sm">Hapus Rekap Absensi Pelatih?</h3>
-            <p className="text-xs text-slate-500 mt-1 mb-4">
-              Data jurnal dan dokumentasi kegiatan sesi ini akan dihapus secara permanen.
-            </p>
-            <div className="flex items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => setDeleteConfirmId(null)}
-                className="px-4 py-2 rounded-xl text-slate-700 font-bold bg-slate-100 hover:bg-slate-200 transition cursor-pointer text-xs"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={confirmDeleteAbsen}
-                className="px-4 py-2 rounded-xl text-white font-bold bg-rose-600 hover:bg-rose-700 transition cursor-pointer text-xs shadow-xs"
-              >
-                Ya, Hapus
-              </button>
-            </div>
           </div>
         </div>
       )}

@@ -1,4 +1,5 @@
-import { JadwalLatihan, Sekolah, User } from '../types';
+import { JadwalLatihan, Sekolah, User, isSchoolCoach } from '../types';
+import { getLocalDateString, formatIndonesianDate } from './dateUtils';
 
 export interface ScheduleReminderItem {
   jadwal: JadwalLatihan;
@@ -7,6 +8,8 @@ export interface ScheduleReminderItem {
   minutesUntilStart: number;
   timeRemainingText: string;
   hari: string;
+  tanggal?: string;
+  tanggalLabel?: string;
   jamMulai: string;
   jamSelesai: string;
 }
@@ -33,57 +36,59 @@ export function getScheduleReminders(
 ): {
   startingSoonList: ScheduleReminderItem[];
   todayList: ScheduleReminderItem[];
+  upcomingList: ScheduleReminderItem[];
   allActiveReminders: ScheduleReminderItem[];
 } {
   if (!currentUser) {
-    return { startingSoonList: [], todayList: [], allActiveReminders: [] };
+    return { startingSoonList: [], todayList: [], upcomingList: [], allActiveReminders: [] };
   }
 
   const todayName = getIndonesianDayName(currentDate);
-  const todayDateStr = currentDate.toISOString().split('T')[0];
+  const todayDateStr = getLocalDateString(currentDate);
   const currentMinutes = currentDate.getHours() * 60 + currentDate.getMinutes();
 
-  // Filter schedules relevant to this user
+  // Filter schedules relevant to this user (including collaborating coaches)
   const userSekolahIds = currentUser.role === 'admin'
     ? sekolahList.map(s => s.id)
-    : sekolahList.filter(s => s.pelatihId === currentUser.id || (s.pelatihIds || []).includes(currentUser.id)).map(s => s.id);
+    : sekolahList.filter(s => isSchoolCoach(s, currentUser.id)).map(s => s.id);
 
-  const relevantJadwal = jadwalList.filter(j => 
-    (currentUser.role === 'admin' || j.pelatihId === currentUser.id || j.pelatih2Id === currentUser.id || userSekolahIds.includes(j.sekolahId))
+  const relevantJadwal = jadwalList.filter(j =>
+    currentUser.role === 'admin' || j.pelatihId === currentUser.id || userSekolahIds.includes(j.sekolahId)
   );
 
   const startingSoonList: ScheduleReminderItem[] = [];
   const todayList: ScheduleReminderItem[] = [];
+  const upcomingList: ScheduleReminderItem[] = [];
   const allActiveReminders: ScheduleReminderItem[] = [];
 
   for (const j of relevantJadwal) {
-    if (j.status === 'dibatalkan') continue;
-
     const sekolah = sekolahList.find(s => s.id === j.sekolahId);
     const startMin = timeStringToMinutes(j.jamMulai);
     const endMin = timeStringToMinutes(j.jamSelesai);
     const diff = startMin - currentMinutes;
+    const reminderWindow = j.reminderMinutesBefore > 0 ? j.reminderMinutesBefore : 60;
 
-    // A session is for today if j.tanggal matches today OR (if no j.tanggal is specified) j.hari matches today
-    const isToday = j.tanggal ? (j.tanggal === todayDateStr) : (j.hari?.trim().toLowerCase() === todayName.toLowerCase());
+    // Exact date match if tanggal is specified; fallback to weekday name for legacy schedules
+    const isToday = j.tanggal
+      ? j.tanggal === todayDateStr
+      : j.hari.trim().toLowerCase() === todayName.toLowerCase();
 
     if (isToday) {
-      const reminderThreshold = j.reminderMinutesBefore || 60;
       let status: 'starting_soon' | 'in_progress' | 'upcoming_today' = 'upcoming_today';
       let timeRemainingText = '';
 
-      if (diff > 0 && diff <= reminderThreshold) {
-        // Within the configured reminder window before start
+      if (diff > 0 && diff <= reminderWindow) {
         status = 'starting_soon';
         timeRemainingText = `Dimulai dalam ${diff} menit`;
       } else if (diff <= 0 && (endMin - currentMinutes) > 0) {
-        // Currently ongoing
         status = 'in_progress';
         timeRemainingText = `Sedang berlangsung (hingga ${j.jamSelesai})`;
-      } else if (diff > reminderThreshold) {
+      } else if (diff > reminderWindow) {
         const hours = Math.floor(diff / 60);
         const mins = diff % 60;
-        timeRemainingText = `Mulai dalam ${hours} jam ${mins > 0 ? `${mins} mnt` : ''}`;
+        timeRemainingText = hours > 0
+          ? `Mulai dalam ${hours} jam ${mins > 0 ? `${mins} mnt` : ''}`
+          : `Mulai dalam ${mins} menit`;
       } else {
         timeRemainingText = `Selesai hari ini (${j.jamSelesai})`;
       }
@@ -94,25 +99,41 @@ export function getScheduleReminders(
         status,
         minutesUntilStart: diff,
         timeRemainingText,
-        hari: j.hari || todayName,
+        hari: j.hari,
+        tanggal: j.tanggal,
+        tanggalLabel: j.tanggal ? formatIndonesianDate(j.tanggal) : j.hari,
         jamMulai: j.jamMulai,
         jamSelesai: j.jamSelesai
       };
 
       todayList.push(item);
 
-      if ((status === 'starting_soon' || status === 'in_progress') && j.reminderEnabled !== false) {
+      // Only trigger urgent alert banner/chime if reminder is enabled
+      if (j.reminderEnabled !== false && (status === 'starting_soon' || status === 'in_progress')) {
         startingSoonList.push(item);
         allActiveReminders.push(item);
       }
+    } else if (j.tanggal && j.tanggal > todayDateStr) {
+      upcomingList.push({
+        jadwal: j,
+        sekolah,
+        status: 'upcoming_week',
+        minutesUntilStart: Number.MAX_SAFE_INTEGER,
+        timeRemainingText: `${formatIndonesianDate(j.tanggal)} • ${j.jamMulai} - ${j.jamSelesai}`,
+        hari: j.hari,
+        tanggal: j.tanggal,
+        tanggalLabel: formatIndonesianDate(j.tanggal),
+        jamMulai: j.jamMulai,
+        jamSelesai: j.jamSelesai
+      });
     }
   }
 
-  // Sort starting soon by closest start time
   startingSoonList.sort((a, b) => a.minutesUntilStart - b.minutesUntilStart);
   todayList.sort((a, b) => a.minutesUntilStart - b.minutesUntilStart);
+  upcomingList.sort((a, b) => (a.tanggal || '').localeCompare(b.tanggal || '') || a.jamMulai.localeCompare(b.jamMulai));
 
-  return { startingSoonList, todayList, allActiveReminders };
+  return { startingSoonList, todayList, upcomingList, allActiveReminders };
 }
 
 // Notification sound player
@@ -165,7 +186,7 @@ export function sendBrowserNotification(title: string, body: string) {
   try {
     new Notification(title, {
       body,
-      icon: '/icon.png'
+      icon: '/icon.svg'
     });
   } catch (e) {
     // Ignore

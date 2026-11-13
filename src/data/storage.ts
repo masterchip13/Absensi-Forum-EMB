@@ -12,7 +12,7 @@ import {
 } from './initialData';
 import { FirebaseSync } from './firebaseSync';
 
-const STORAGE_KEYS = {
+export const STORAGE_KEYS = {
   USERS: 'fmb_users_v1',
   SEKOLAH: 'fmb_sekolah_v1',
   DIVISI: 'fmb_divisi_v1',
@@ -50,7 +50,7 @@ function getStoredItem<T>(key: string, defaultValue: T): T {
   }
 }
 
-function setStoredItem<T>(key: string, value: T): void {
+export function setStoredItem<T>(key: string, value: T): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {
@@ -217,7 +217,39 @@ export const StorageService = {
   deleteSekolah: (id: string) => {
     const list = StorageService.getSekolah().filter(s => s.id !== id);
     setStoredItem(STORAGE_KEYS.SEKOLAH, list);
-    FirebaseSync.deleteSekolah(id);
+
+    const anggotaToDelete = StorageService.getAnggota().filter(a => a.sekolahId === id);
+    const remainingAnggota = StorageService.getAnggota().filter(a => a.sekolahId !== id);
+    setStoredItem(STORAGE_KEYS.ANGGOTA, remainingAnggota);
+
+    const jadwalToDelete = StorageService.getJadwal().filter(j => j.sekolahId === id);
+    const remainingJadwal = StorageService.getJadwal().filter(j => j.sekolahId !== id);
+    setStoredItem(STORAGE_KEYS.JADWAL, remainingJadwal);
+
+    const absenPelatihToDelete = StorageService.getAbsenPelatih().filter(a => a.sekolahId === id);
+    const remainingAbsenPelatih = StorageService.getAbsenPelatih().filter(a => a.sekolahId !== id);
+    setStoredItem(STORAGE_KEYS.ABSEN_PELATIH, remainingAbsenPelatih);
+
+    const absenAsistenToDelete = StorageService.getAbsenAsisten().filter(a => a.sekolahId === id);
+    const remainingAbsenAsisten = StorageService.getAbsenAsisten().filter(a => a.sekolahId !== id);
+    setStoredItem(STORAGE_KEYS.ABSEN_ASISTEN, remainingAbsenAsisten);
+
+    const eventsToDelete = StorageService.getEvents().filter(e => e.sekolahId === id);
+    const remainingEvents = StorageService.getEvents().filter(e => e.sekolahId !== id);
+    setStoredItem(STORAGE_KEYS.EVENTS, remainingEvents);
+
+    const absenSiswaToDelete = StorageService.getAbsenSiswa().filter(a => a.sekolahId === id);
+    const remainingAbsenSiswa = StorageService.getAbsenSiswa().filter(a => a.sekolahId !== id);
+    setStoredItem(STORAGE_KEYS.ABSEN_SISWA, remainingAbsenSiswa);
+
+    FirebaseSync.deleteSekolahWithCascade(id, {
+      anggotaIds: anggotaToDelete.map(a => a.id),
+      jadwalIds: jadwalToDelete.map(j => j.id),
+      absenPelatihIds: absenPelatihToDelete.map(a => a.id),
+      absenAsistenIds: absenAsistenToDelete.map(a => a.id),
+      eventIds: eventsToDelete.map(e => e.id),
+      absenSiswaIds: absenSiswaToDelete.map(a => a.id)
+    });
   },
 
   // Divisi
@@ -274,6 +306,15 @@ export const StorageService = {
   deleteAnggota: (id: string) => {
     const list = StorageService.getAnggota().filter(a => a.id !== id);
     setStoredItem(STORAGE_KEYS.ANGGOTA, list);
+
+    const allAbsenSiswa = StorageService.getAbsenSiswa();
+    const relatedAbsenIds = allAbsenSiswa.filter(a => a.anggotaId === id).map(a => a.id);
+    if (relatedAbsenIds.length > 0) {
+      const remainingAbsen = allAbsenSiswa.filter(a => a.anggotaId !== id);
+      setStoredItem(STORAGE_KEYS.ABSEN_SISWA, remainingAbsen);
+      FirebaseSync.deleteMultipleAbsenSiswa(relatedAbsenIds);
+    }
+
     FirebaseSync.deleteAnggota(id);
   },
 
@@ -341,17 +382,33 @@ export const StorageService = {
   },
   saveAbsenSiswa: (entry: AbsenSiswaEntry) => {
     const list = StorageService.getAbsenSiswa();
-    // Check if entry exists for this anggota, bulan, tahun, and kolomIndex
-    const index = list.findIndex(
+    const slotIndex = list.findIndex(
       a => a.anggotaId === entry.anggotaId &&
            a.bulan === entry.bulan &&
            a.tahunAjaran === entry.tahunAjaran &&
            a.kolomIndex === entry.kolomIndex
     );
-    if (index >= 0) list[index] = entry;
-    else list.push(entry);
+    const idIndex = list.findIndex(a => a.id === entry.id);
+
+    let entryToSave = entry;
+    if (slotIndex >= 0) {
+      if (idIndex >= 0 && idIndex !== slotIndex) {
+        const duplicateId = list[slotIndex].id;
+        list[slotIndex] = entryToSave;
+        list.splice(idIndex, 1);
+        FirebaseSync.deleteAbsenSiswa(duplicateId);
+      } else {
+        entryToSave = { ...entry, id: list[slotIndex].id };
+        list[slotIndex] = entryToSave;
+      }
+    } else if (idIndex >= 0) {
+      list[idIndex] = entryToSave;
+    } else {
+      list.push(entryToSave);
+    }
+
     setStoredItem(STORAGE_KEYS.ABSEN_SISWA, list);
-    FirebaseSync.saveAbsenSiswa(entry);
+    FirebaseSync.saveAbsenSiswa(entryToSave);
   },
   deleteAbsenSiswa: (id: string) => {
     const list = StorageService.getAbsenSiswa().filter(a => a.id !== id);

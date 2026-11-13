@@ -11,6 +11,7 @@ import {
   CARD_BACK_TEMPLATE_SRC
 } from '../utils/cardCanvasRenderer';
 import jsPDF from 'jspdf';
+import { showToast } from '../utils/uiDialogs';
 import {
   Printer,
   QrCode as QrIcon,
@@ -165,7 +166,7 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
    */
   const handleDownloadBatchPdf = async () => {
     if (membersWithQr.length === 0) {
-      alert('Tidak ada anggota yang dipilih untuk diunduh.');
+      showToast('Tidak ada anggota yang dipilih untuk diunduh.', 'warning');
       return;
     }
 
@@ -344,7 +345,7 @@ export const BatchQrPrintModal: React.FC<BatchQrPrintModalProps> = ({
 
     } catch (err) {
       console.error('Batch PDF generation failed:', err);
-      alert('Gagal membuat file PDF. Silakan gunakan tombol Cetak Langsung Browser.');
+      showToast('Gagal membuat file PDF. Silakan gunakan tombol Cetak Langsung Browser.', 'error');
     } finally {
       setIsDownloadingPdf(false);
       setPdfProgressText('');

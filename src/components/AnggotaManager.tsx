@@ -7,6 +7,8 @@ import { ImportExcelModal } from './ImportExcelModal';
 import { BatchQrPrintModal } from './BatchQrPrintModal';
 import { MemberIdCard } from './MemberIdCard';
 import { formatNamaKapital, formatKelasAngka } from '../utils/nameFormatter';
+import { getLocalDateString } from '../utils/dateUtils';
+import { askConfirm, showToast } from '../utils/uiDialogs';
 import { 
   Users, 
   Plus, 
@@ -193,17 +195,25 @@ export const AnggotaManager: React.FC<AnggotaManagerProps> = ({
       divisiNama,
       qrCodeData,
       signatureUrl,
-      createdAt: new Date().toISOString().split('T')[0]
+      createdAt: getLocalDateString()
     };
 
     StorageService.saveAnggota(newAnggota);
     setIsModalOpen(false);
+    showToast(editingId ? 'Data anggota diperbarui.' : 'Anggota baru berhasil ditambahkan.', 'success');
     onDataChanged();
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Hapus data anggota ini? Data absensi terkait akan dihapus.')) {
+  const handleDelete = async (id: string) => {
+    const confirmed = await askConfirm({
+      title: 'Hapus Data Anggota?',
+      message: 'Hapus data anggota ini? Data absensi terkait juga akan dihapus.',
+      confirmText: 'Hapus',
+      variant: 'danger'
+    });
+    if (confirmed) {
       StorageService.deleteAnggota(id);
+      showToast('Data anggota dihapus.', 'info');
       onDataChanged();
     }
   };
@@ -605,7 +615,7 @@ export const AnggotaManager: React.FC<AnggotaManagerProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in overflow-y-auto">
           <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden border border-slate-200 my-auto animate-scale-up">
             {/* Header */}
-            <div className="bg-linear-to-r from-slate-900 via-slate-850 to-blue-950 text-white p-4.5 flex items-center justify-between border-b border-slate-800">
+            <div className="bg-linear-to-r from-slate-900 via-slate-800 to-blue-950 text-white p-4.5 flex items-center justify-between border-b border-slate-800">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 bg-amber-500 text-slate-950 rounded-2xl font-black shadow-xs">
                   <CreditCard className="w-5 h-5" />

@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Sekolah, Anggota, AbsenSiswaEntry, User, getSchoolCoachIds } from '../types';
 import { formatNamaKapital, formatKelasAngka } from '../utils/nameFormatter';
-import { BULAN_OPTIONS, getCurrentMonthName } from '../utils/dateUtils';
+import { BULAN_OPTIONS, getCurrentMonthName, getLocalDateString } from '../utils/dateUtils';
+import { showToast } from '../utils/uiDialogs';
 import * as XLSX from 'xlsx';
 import {
   AlertTriangle,
@@ -203,11 +204,11 @@ export const AuditPresensi: React.FC<AuditPresensiProps> = ({
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Audit Presensi');
 
-      const fileName = `Audit_Presensi_Terendah_${filterBulan}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const fileName = `Audit_Presensi_Terendah_${filterBulan}_${getLocalDateString()}.xlsx`;
       XLSX.writeFile(workbook, fileName);
     } catch (err) {
       console.error('Export Excel failed:', err);
-      alert('Gagal mengekspor data audit.');
+      showToast('Gagal mengekspor data audit.', 'error');
     }
   };
 

@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { AbsenPelatihItem, EventLog, Sekolah, User } from '../types';
-import { StorageService } from '../data/storage';
-import { Camera, Search, Filter, Calendar, School, User as UserIcon, Award, Download, X, Maximize2, Sparkles, CheckCircle2, Clock, FileText, Trophy, MapPin, Trash2 } from 'lucide-react';
+import { Camera, Search, Filter, Calendar, School, User as UserIcon, Award, Download, X, Maximize2, Trophy, MapPin, Trash2 } from 'lucide-react';
 
 interface DokumentasiGaleriProps {
   absenPelatihList: AbsenPelatihItem[];
@@ -10,9 +9,8 @@ interface DokumentasiGaleriProps {
   usersList?: User[];
   selectedSekolahId?: string;
   onSelectSekolah?: (id: string) => void;
-  currentUser?: User;
-  isAdmin?: boolean;
-  onDataChanged?: () => void;
+  canDelete?: boolean;
+  onDeletePhoto?: (item: PhotoItemType) => void;
 }
 
 export type PhotoItemType = 
@@ -26,18 +24,14 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
   usersList = [],
   selectedSekolahId,
   onSelectSekolah,
-  currentUser,
-  isAdmin = false,
-  onDataChanged
+  canDelete = false,
+  onDeletePhoto
 }) => {
   const [filterSekolahId, setFilterSekolahId] = useState<string>(selectedSekolahId || 'ALL');
   const [filterCategory, setFilterCategory] = useState<'ALL' | 'LATIHAN' | 'EVENT'>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortOption, setSortOption] = useState<'newest' | 'oldest'>('newest');
   const [selectedItemForLightbox, setSelectedItemForLightbox] = useState<PhotoItemType | null>(null);
-  const [deleteConfirmItem, setDeleteConfirmItem] = useState<PhotoItemType | null>(null);
-
-  const userIsAdmin = isAdmin || currentUser?.role === 'admin';
 
   // Sync state if prop changes
   React.useEffect(() => {
@@ -155,95 +149,86 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
   const totalEventPhotos = allPhotoItems.filter(p => p.kind === 'event').length;
 
   return (
-    <div className="space-y-5">
-      {/* Header Banner */}
-      <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-4">
+      {/* Compact Header */}
+      <div className="bg-white rounded-2xl p-4 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-gradient-to-br from-amber-500 to-orange-600 text-white rounded-2xl shadow-sm">
-            <Camera className="w-6 h-6" />
+          <div className="p-2.5 bg-amber-50 text-amber-700 rounded-xl border border-amber-200">
+            <Camera className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-lg font-black text-slate-900 leading-tight">
-              Galeri Dokumentasi Foto Kegiatan & Event
+            <h2 className="text-base font-bold text-slate-900 leading-tight">
+              Galeri Dokumentasi Kegiatan & Event
             </h2>
             <p className="text-xs text-slate-500">
-              Kumpulan bukti foto kegiatan latihan rutin dan laporan dokumentasi event / perlombaan marching band
+              {filteredItems.length} foto ditampilkan ({totalLatihanPhotos} latihan, {totalEventPhotos} event)
             </p>
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 bg-slate-100 p-1.5 rounded-2xl shrink-0">
-          <span className="text-xs font-bold text-slate-600 px-2 py-1">
-            Total: <strong className="text-slate-900 font-extrabold">{filteredItems.length} Foto</strong>
-          </span>
-          <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-1 rounded-xl border border-blue-200">
-            🏃 {totalLatihanPhotos} Latihan
-          </span>
-          <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-1 rounded-xl border border-purple-200">
-            🏆 {totalEventPhotos} Event
-          </span>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3">
         {/* Category Tabs: Semua, Latihan, Event */}
-        <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-100 pb-3">
           <button
+            type="button"
             onClick={() => setFilterCategory('ALL')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
               filterCategory === 'ALL'
-                ? 'bg-slate-900 text-white shadow-xs'
+                ? 'bg-slate-900 text-white'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             <Camera className="w-3.5 h-3.5" />
-            <span>Semua Foto ({allPhotoItems.length})</span>
+            <span>Semua ({allPhotoItems.length})</span>
           </button>
 
           <button
+            type="button"
             onClick={() => setFilterCategory('LATIHAN')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
               filterCategory === 'LATIHAN'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                ? 'bg-slate-900 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             <Calendar className="w-3.5 h-3.5" />
-            <span>Foto Latihan Reguler ({totalLatihanPhotos})</span>
+            <span>Latihan ({totalLatihanPhotos})</span>
           </button>
 
           <button
+            type="button"
             onClick={() => setFilterCategory('EVENT')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
               filterCategory === 'EVENT'
-                ? 'bg-purple-600 text-white shadow-xs'
-                : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                ? 'bg-slate-900 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             <Trophy className="w-3.5 h-3.5" />
-            <span>Foto Laporan Event ({totalEventPhotos})</span>
+            <span>Event ({totalEventPhotos})</span>
           </button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* School Selector Dropdown */}
           <div>
-            <label className="block text-xs font-extrabold text-slate-700 mb-1 flex items-center gap-1.5">
-              <School className="w-3.5 h-3.5 text-blue-600" />
-              <span>Filter Berdasarkan Sekolah</span>
+            <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+              <School className="w-3.5 h-3.5 text-slate-500" />
+              <span>Sekolah</span>
             </label>
             <select
               value={filterSekolahId}
               onChange={(e) => handleSekolahChange(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
             >
-              <option value="ALL">🌟 Semua Sekolah Binaan ({sekolahList.length})</option>
+              <option value="ALL">Semua Sekolah ({sekolahList.length})</option>
               {sekolahList.map((school) => {
                 const count = allPhotoItems.filter(a => a.schoolId === school.id).length;
                 return (
                   <option key={school.id} value={school.id}>
-                    🏫 {school.namaSekolah} ({count} Foto)
+                    {school.namaSekolah} ({count})
                   </option>
                 );
               })}
@@ -252,14 +237,14 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
 
           {/* Search Box */}
           <div>
-            <label className="block text-xs font-extrabold text-slate-700 mb-1 flex items-center gap-1.5">
-              <Search className="w-3.5 h-3.5 text-blue-600" />
-              <span>Cari Foto / Event / Materi</span>
+            <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+              <Search className="w-3.5 h-3.5 text-slate-500" />
+              <span>Pencarian</span>
             </label>
             <div className="relative">
               <input
                 type="text"
-                placeholder="Cari materi, nama event, lokasi, tanggal..."
+                placeholder="Cari materi, event, tanggal..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -267,8 +252,9 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
               {searchQuery && (
                 <button
+                  type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                  className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
                 >
                   ✕
                 </button>
@@ -278,17 +264,17 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
 
           {/* Sort Option */}
           <div>
-            <label className="block text-xs font-extrabold text-slate-700 mb-1 flex items-center gap-1.5">
-              <Filter className="w-3.5 h-3.5 text-blue-600" />
-              <span>Urutkan Tampilan</span>
+            <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-slate-500" />
+              <span>Urutkan</span>
             </label>
             <select
               value={sortOption}
               onChange={(e) => setSortOption(e.target.value as any)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
             >
-              <option value="newest">📅 Tanggal Terbaru</option>
-              <option value="oldest">📅 Tanggal Terlama</option>
+              <option value="newest">Terbaru</option>
+              <option value="oldest">Terlama</option>
             </select>
           </div>
         </div>
@@ -439,17 +425,21 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
 
                     <div className="flex items-center gap-1">
                       <button
+                        type="button"
                         onClick={() => handleDownloadImage(item)}
-                        className="p-1 text-slate-400 hover:text-blue-600 transition cursor-pointer"
+                        className="p-1 text-slate-400 hover:text-blue-600 rounded-md hover:bg-blue-50 transition cursor-pointer"
                         title="Unduh Foto"
                       >
                         <Download className="w-3.5 h-3.5" />
                       </button>
-                      {userIsAdmin && (
+                      {canDelete && onDeletePhoto && (
                         <button
                           type="button"
-                          onClick={() => setDeleteConfirmItem(item)}
-                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeletePhoto(item);
+                          }}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition cursor-pointer"
                           title="Hapus Foto dari Galeri"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -506,25 +496,13 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
                   className="max-h-[400px] w-auto object-contain"
                 />
 
-                <div className="absolute bottom-3 right-3 flex items-center gap-2">
-                  <button
-                    onClick={() => handleDownloadImage(selectedItemForLightbox)}
-                    className="bg-slate-900/90 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow border border-slate-700 hover:bg-blue-600 transition flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>Unduh Foto</span>
-                  </button>
-                  {userIsAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => setDeleteConfirmItem(selectedItemForLightbox)}
-                      className="bg-rose-600/90 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow border border-rose-500 hover:bg-rose-700 transition flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Hapus Foto</span>
-                    </button>
-                  )}
-                </div>
+                <button
+                  onClick={() => handleDownloadImage(selectedItemForLightbox)}
+                  className="absolute bottom-3 right-3 bg-slate-900/90 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow border border-slate-700 hover:bg-blue-600 transition flex items-center gap-1.5"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Unduh Foto Asli</span>
+                </button>
               </div>
 
               {/* Details for Event or Training */}
@@ -590,82 +568,28 @@ export const DokumentasiGaleri: React.FC<DokumentasiGaleriProps> = ({
             </div>
 
             {/* Modal Footer */}
-            <div className="p-3 bg-slate-100 border-t border-slate-200 flex justify-end shrink-0">
+            <div className="p-3 bg-slate-100 border-t border-slate-200 flex items-center justify-between shrink-0">
+              <div>
+                {canDelete && onDeletePhoto && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = selectedItemForLightbox;
+                      onDeletePhoto(target);
+                      setSelectedItemForLightbox(null);
+                    }}
+                    className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Hapus Foto Ini</span>
+                  </button>
+                )}
+              </div>
               <button
                 onClick={() => setSelectedItemForLightbox(null)}
-                className="px-4 py-2 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-800 transition"
+                className="px-4 py-2 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-800 transition cursor-pointer"
               >
                 Tutup Galeri
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Admin Photo Delete Confirmation Modal */}
-      {deleteConfirmItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl w-full max-w-md p-5 shadow-2xl border border-slate-200 text-center animate-fade-in">
-            <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <Trash2 className="w-6 h-6" />
-            </div>
-
-            <h3 className="font-extrabold text-slate-900 text-base">Hapus Foto dari Galeri?</h3>
-            <p className="text-xs text-slate-500 mt-1 mb-4 leading-relaxed">
-              Anda login sebagai Admin. Anda dapat menghapus foto dokumentasi ini dari galeri.
-            </p>
-
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (deleteConfirmItem.kind === 'latihan') {
-                    StorageService.saveAbsenPelatih({
-                      ...deleteConfirmItem.data,
-                      fotoDokumentasiUrl: ''
-                    });
-                  } else if (deleteConfirmItem.kind === 'event') {
-                    StorageService.saveEvent({
-                      ...deleteConfirmItem.data,
-                      fotoUrl: ''
-                    });
-                  }
-                  if (selectedItemForLightbox?.id === deleteConfirmItem.id) {
-                    setSelectedItemForLightbox(null);
-                  }
-                  setDeleteConfirmItem(null);
-                  onDataChanged?.();
-                }}
-                className="w-full py-2.5 px-4 rounded-xl text-white font-bold text-xs bg-rose-600 hover:bg-rose-700 transition shadow-xs cursor-pointer"
-              >
-                Hapus Foto Saja (Pertahankan Catatan Jurnal)
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (deleteConfirmItem.kind === 'latihan') {
-                    StorageService.deleteAbsenPelatih(deleteConfirmItem.data.id);
-                  } else if (deleteConfirmItem.kind === 'event') {
-                    StorageService.deleteEvent(deleteConfirmItem.data.id);
-                  }
-                  if (selectedItemForLightbox?.id === deleteConfirmItem.id) {
-                    setSelectedItemForLightbox(null);
-                  }
-                  setDeleteConfirmItem(null);
-                  onDataChanged?.();
-                }}
-                className="w-full py-2.5 px-4 rounded-xl text-rose-700 font-bold text-xs bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer"
-              >
-                Hapus Seluruh Rekaman ({deleteConfirmItem.kind === 'latihan' ? 'Jurnal Pelatih' : 'Event'})
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setDeleteConfirmItem(null)}
-                className="w-full py-2 px-4 rounded-xl text-slate-600 font-semibold text-xs hover:bg-slate-100 transition cursor-pointer mt-1"
-              >
-                Batal
               </button>
             </div>
           </div>
